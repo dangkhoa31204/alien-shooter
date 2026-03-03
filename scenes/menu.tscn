@@ -12,84 +12,102 @@ script = ExtResource("2_bg")
 
 [node name="UI" type="CanvasLayer" parent="."]
 
+[node name="CoinLabel" type="Label" parent="UI"]
+anchor_right = 1.0
+offset_top = 14.0
+offset_right = -18.0
+offset_bottom = 44.0
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(1.0, 0.88, 0.2, 1)
+text = "0 coins"
+horizontal_alignment = 2
+
 [node name="Title" type="Label" parent="UI"]
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -280.0
-offset_top = 90.0
-offset_right = 280.0
-offset_bottom = 160.0
-theme_override_font_sizes/font_size = 54
+offset_left = -320.0
+offset_top = 68.0
+offset_right = 320.0
+offset_bottom = 140.0
+theme_override_font_sizes/font_size = 58
 theme_override_colors/font_color = Color(0.4, 0.85, 1.0, 1)
-theme_override_colors/font_shadow_color = Color(0.1, 0.3, 0.8, 0.9)
-theme_override_constants/shadow_offset_x = 3
-theme_override_constants/shadow_offset_y = 3
+theme_override_colors/font_shadow_color = Color(0.05, 0.25, 0.75, 1.0)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 4
 text = "ALIEN SHOOTER"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="UI"]
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -120.0
-offset_top = 162.0
-offset_right = 120.0
-offset_bottom = 192.0
-theme_override_font_sizes/font_size = 18
-theme_override_colors/font_color = Color(0.6, 0.85, 1.0, 0.7)
-text = "✦  Space Defender  ✦"
+offset_left = -200.0
+offset_top = 144.0
+offset_right = 200.0
+offset_bottom = 170.0
+theme_override_font_sizes/font_size = 17
+theme_override_colors/font_color = Color(0.55, 0.82, 1.0, 0.65)
+text = "Space Defender"
 horizontal_alignment = 1
 
-[node name="CoinLabel" type="Label" parent="UI"]
+[node name="Divider" type="ColorRect" parent="UI"]
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -100.0
-offset_top = 198.0
-offset_right = 100.0
-offset_bottom = 228.0
-theme_override_font_sizes/font_size = 20
-theme_override_colors/font_color = Color(1.0, 0.88, 0.2, 1)
-text = "💰 0 coins"
-horizontal_alignment = 1
+offset_left = -180.0
+offset_top = 178.0
+offset_right = 180.0
+offset_bottom = 180.0
+color = Color(0.3, 0.6, 1.0, 0.28)
 
 [node name="PlayBtn" type="Button" parent="UI"]
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -120.0
-offset_top = 268.0
-offset_right = 120.0
-offset_bottom = 318.0
-theme_override_font_sizes/font_size = 24
-theme_override_colors/font_color = Color(0.1, 0.1, 0.12, 1)
-text = "▶  CHƠI"
+offset_left = -150.0
+offset_top = 214.0
+offset_right = 150.0
+offset_bottom = 270.0
+theme_override_font_sizes/font_size = 26
+text = "CHOI NGAY"
 
 [node name="ShopBtn" type="Button" parent="UI"]
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -120.0
-offset_top = 334.0
-offset_right = 120.0
-offset_bottom = 382.0
-theme_override_font_sizes/font_size = 22
-text = "🛒  SHOP"
+offset_left = -150.0
+offset_top = 284.0
+offset_right = 150.0
+offset_bottom = 332.0
+theme_override_font_sizes/font_size = 21
+text = "SHOP"
 
 [node name="HighscoreBtn" type="Button" parent="UI"]
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -120.0
-offset_top = 398.0
-offset_right = 120.0
-offset_bottom = 444.0
-theme_override_font_sizes/font_size = 20
-text = "★  ĐIỂM CAO"
+offset_left = -150.0
+offset_top = 346.0
+offset_right = 150.0
+offset_bottom = 392.0
+theme_override_font_sizes/font_size = 21
+text = "DIEM CAO"
+
+[node name="SettingsBtn" type="Button" parent="UI"]
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -150.0
+offset_top = 406.0
+offset_right = 150.0
+offset_bottom = 452.0
+theme_override_font_sizes/font_size = 21
+text = "CAI DAT"
 
 [node name="Hint" type="Label" parent="UI"]
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -200.0
-offset_top = 490.0
-offset_right = 200.0
-offset_bottom = 520.0
-theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 0.8)
-text = "Di chuyển: ← → ↑ ↓    Bắn: Space"
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = -280.0
+offset_top = -32.0
+offset_right = 280.0
+offset_bottom = -8.0
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.45, 0.58, 0.72, 0.7)
+text = "Di chuyen: Mui ten    Ban: Space    Skill: J    Vu khi: K/L"
 horizontal_alignment = 1

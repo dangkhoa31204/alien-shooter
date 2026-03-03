@@ -440,17 +440,18 @@ func _physics_process(_delta: float) -> void:
 # ── 2.5D UNDERSIDE ENGINE GLOW ──────────────────────────────────────────────
 func _draw() -> void:
 	if not is_instance_valid(sprite): return
-	# Back of ship = +Y in sprite local space. Rotate glow with the sprite.
-	var rot := sprite.rotation
-	var back := Vector2(sin(rot), cos(rot)) * 22.0
+	# Back of ship = Vector2(0,+22) in sprite-local space.
+	# Convert to player-local: rotate then add sprite.position (hover bob).
+	var rot  := sprite.rotation
+	var back := sprite.position + Vector2(-sin(rot), cos(rot)) * 22.0
 	var glow := PlayerData.get_skin_color()
 	var pulse := 0.7 + 0.3 * sin(_hover_phase * 2.8)
 	for i in range(4):
 		var r := 20.0 - float(i) * 4.5
 		var a := (0.22 - float(i) * 0.045) * pulse
 		draw_circle(back, r, Color(glow.r, glow.g, glow.b, a))
-	# Thin shadow blob (depth)
-	draw_circle(Vector2(0.0, 10.0), 26.0, Color(0.0, 0.0, 0.0, 0.18 * pulse))
+	# Thin shadow blob (depth) — follows sprite hover bob
+	draw_circle(sprite.position + Vector2(0.0, 10.0), 26.0, Color(0.0, 0.0, 0.0, 0.18 * pulse))
 
 # ── AIM / ROTATE TOWARD TARGET ────────────────────────────────────────────────
 func _update_aim(delta: float) -> void:
@@ -541,6 +542,7 @@ func _activate_skill() -> void:
 	_skill_active = true
 	_skill_timer  = SKILL_DURATIONS[_skin_id]
 	_skill_cd     = SKILL_COOLDOWNS[_skin_id]
+	Audio.play("skill_use")
 	if _skin_id == 3: _update_blink_mode_glow(true)
 	var main := get_tree().current_scene
 	match _skin_id:
@@ -622,9 +624,10 @@ func _squish_sprite(dir: Vector2) -> void:
 	tw.tween_property(sprite, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_ELASTIC)
 
 func _try_auto_dodge() -> void:
-	# Quét đạn địch gần, tìm vị trí an toàn hơn rồi teleport đến đó
+	# Quét đạn địch + thiên thạch gần, tìm vị trí an toàn rồi teleport
 	var vp := get_viewport_rect().size
 	var danger: Array = []
+	# --- đạn địch ---
 	for b in get_tree().get_nodes_in_group("bullet"):
 		if not is_instance_valid(b): continue
 		if not b.get("is_enemy_bullet"): continue
@@ -632,6 +635,13 @@ func _try_auto_dodge() -> void:
 		if d < 200.0:
 			var bdir: Vector2 = b.get("direction") if b.get("direction") != null else Vector2.DOWN
 			danger.append({"pos": b.global_position, "dir": bdir, "dist": d})
+	# --- thiên thạch ---
+	for a in get_tree().get_nodes_in_group("asteroid"):
+		if not is_instance_valid(a): continue
+		var d := global_position.distance_to((a as Node2D).global_position)
+		if d < 260.0:
+			var adir: Vector2 = a.get("direction") if a.get("direction") != null else Vector2.DOWN
+			danger.append({"pos": (a as Node2D).global_position, "dir": adir, "dist": d})
 	if danger.is_empty(): return
 	var cur_score := _danger_score(global_position, danger)
 	var best_pos  := global_position
@@ -920,6 +930,7 @@ func _notify_special() -> void:
 
 func _shoot() -> void:
 	can_shoot = false
+	Audio.play("shoot", -12.0)
 	var container := _get_bullet_container()
 	if container == null:
 		shoot_timer.start()
@@ -939,7 +950,8 @@ func _shoot() -> void:
 
 func _spawn_player_bullet(dir: Vector2, container: Node) -> void:
 	var bullet = BULLET_SCENE.instantiate()
-	bullet.global_position = gun_point.global_position
+	# sprite.to_global tính đúng: vị trí sprite (hover bob) + xoay + tỉ lệ
+	bullet.global_position = sprite.to_global(Vector2(0.0, -22.0))
 	bullet.direction = dir
 	bullet.is_enemy_bullet = false
 	bullet.bullet_type = bullet_type
@@ -1038,6 +1050,7 @@ func take_damage(dmg: int = 1) -> void:
 		_flash_shield_break()
 		return   # không mất HP, không phạt vũ khí
 	hp -= dmg
+	Audio.play("player_hurt", -3.0)
 	# Phạt vũ khí khi bị thương:
 	# Red Fighter & Gold Cruiser: chỉ giảm level, giữ streams
 	if _skin_id == 1 or _skin_id == 2:
@@ -1082,6 +1095,7 @@ func _flash_shield_break() -> void:
 		sprite.color = PlayerData.get_skin_color()
 
 func _show_dodge_text() -> void:
+	Audio.play("dodge", -4.0)
 	var main := get_tree().current_scene
 	if main and main.has_method("show_alert"):
 		main.show_alert("NÉ TRÁNH!")

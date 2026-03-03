@@ -131,6 +131,7 @@ func _ready() -> void:
 	shoot_timer.timeout.connect(_on_shoot_timer)
 	_apply_boss_type()
 	_apply_phase()
+	Audio.play("boss_appear")
 	# Khởi tạo charge_cd theo kiểu boss
 	match boss_type:
 		1: _charge_cd = 3.0   # Interceptor lách ngay sau phase 1
@@ -521,6 +522,7 @@ func _move_mothership() -> void:
 
 # ── SHOOT PATTERNS ────────────────────────────────────────────────────────────
 func _on_shoot_timer() -> void:
+	Audio.play("boss_shoot", -4.0)
 	_anim_fire_flash()
 	match current_phase:
 		Phase.ONE:   _phase1_attack()
@@ -560,18 +562,18 @@ func _phase1_attack() -> void:
 var _p2_step: int = 0
 func _phase2_attack() -> void:
 	match _p2_step % 4:
-		0: _shoot_circle(12)         # vòng tròn 12 đạn
+		0: _shoot_circle(8)          # giảm từ 12 → 8
 		1: _shoot_double_ring()      # 2 vòng xen kẽ
 		2: _shoot_aimed_spread()     # ngắm + 2 đạn lệch hai bên
-		3: _shoot_spiral()           # xoắn ốc bắn từ từ
+		3: _shoot_spiral()           # xoắn ốc 6 đạn
 	_p2_step += 1
 
 # ── PHASE 3 (< 33% HP): tổng hợp tất cả ─────────────────────────────────────
 var _p3_step: int = 0
 func _phase3_attack() -> void:
 	match _p3_step % 6:
-		0: _shoot_circle(16)
-		1: _shoot_aimed_burst(6)     # nhóm đạn vào player
+		0: _shoot_circle(10)         # giảm từ 16 → 10
+		1: _shoot_aimed_burst(4)     # giảm từ 6 → 4
 		2: _shoot_double_ring()
 		3: _shoot_cross()
 		4: _shoot_spiral()
@@ -602,17 +604,18 @@ func _shoot_aimed_spread() -> void:
 func _shoot_aimed_burst(count: int) -> void:
 	var p := _get_player_dir()
 	if p == Vector2.ZERO: p = Vector2.DOWN
-	for i in range(count):
+	var clamped := mini(count, 4)   # tối đa 4 đạn / burst
+	for i in range(clamped):
 		var spread := randf_range(-0.18, 0.18)
 		_spawn_bullet(p.rotated(spread))
 
-func _shoot_circle(count: int = 12) -> void:
+func _shoot_circle(count: int = 8) -> void:
 	for i in range(count):
 		var angle := TAU * i / count
 		_spawn_bullet(Vector2(cos(angle), sin(angle)))
 
 func _shoot_double_ring() -> void:
-	var count := 10
+	var count := 7   # giảm từ 10 → 7 (14 → 10 đạn tổng)
 	for i in range(count):
 		var a1 := TAU * i / count
 		var a2 := TAU * (i + 0.5) / count
@@ -620,10 +623,10 @@ func _shoot_double_ring() -> void:
 		_spawn_bullet(Vector2(cos(a2), sin(a2)))
 
 func _shoot_spiral() -> void:
-	# Bắn 8 đạn rải đều nhưng mỗi đạn lệch thêm một góc tăng dần
+	# Giảm từ 8 → 6 đạn
 	var base_angle := float(Time.get_ticks_msec()) * 0.002
-	for i in range(8):
-		var a := base_angle + TAU * i / 8.0
+	for i in range(6):
+		var a := base_angle + TAU * i / 6.0
 		_spawn_bullet(Vector2(cos(a), sin(a)))
 
 func _get_player_dir() -> Vector2:
@@ -655,9 +658,9 @@ func _do_special() -> void:
 		3: _special_carrier_summon()         # gọi quân + tản đạn
 		4: _special_mothership_nova()        # nova + gọi quân
 
-# 0 Warship: 6 đạn FIRE nhắm liên tiếp nhanh
+# 0 Warship: giảm từ 6 → 4 đạn FIRE
 func _special_warship_barrage() -> void:
-	for i in range(6):
+	for i in range(4):
 		if not is_instance_valid(self): return
 		var d := _get_player_dir()
 		if d == Vector2.ZERO: d = Vector2.DOWN
@@ -707,10 +710,10 @@ func _special_carrier_drones() -> void:
 	for offset in [-0.5, -0.18, 0.18, 0.5]:
 		_spawn_bullet(d.rotated(offset), 4, 360.0)
 
-# 4 Mothership: vòng 24 đạn + 3 đạn ngắm + gọi 2 enemy
+# 4 Mothership: giảm từ 24 → 14 đạn nova
 func _special_mothership_nova() -> void:
-	for i in range(24):
-		var angle := TAU * float(i) / 24.0
+	for i in range(14):
+		var angle := TAU * float(i) / 14.0
 		_spawn_bullet(Vector2(cos(angle), sin(angle)), 0, 200.0)
 	var d := _get_player_dir()
 	if d != Vector2.ZERO:
@@ -731,8 +734,8 @@ func _summon_enemies(count: int) -> void:
 		enemy.hp = 2
 		enemy.max_hp = 2
 		enemy.score_value = 100
-		var half := count / 2
-		var offset_x := (float(i) - float(half)) * (vp.x * 0.18)
+		var half: float = count * 0.5
+		var offset_x := (float(i) - half) * (vp.x * 0.18)
 		enemy.global_position = Vector2(
 			clamp(global_position.x + offset_x, 60.0, vp.x - 60.0),
 			global_position.y + randf_range(60.0, 120.0)

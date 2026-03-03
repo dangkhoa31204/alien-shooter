@@ -51,6 +51,7 @@ func take_damage(dmg: int = 1) -> void:
 	if hp <= 0:
 		_destroy()
 		return
+	Audio.play("asteroid_hit", -5.0)
 	if is_instance_valid(sprite):
 		sprite.color = Color.WHITE
 		await get_tree().create_timer(0.07).timeout

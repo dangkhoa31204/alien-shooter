@@ -19,6 +19,12 @@ static func load_scores() -> Array:
 		return parsed
 	return []
 
+static func reset_scores() -> void:
+	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f:
+		f.store_string("[]")
+		f.close()
+
 static func save_score(score: int, wave: int) -> void:
 	var entries: Array = load_scores()
 	entries.append({

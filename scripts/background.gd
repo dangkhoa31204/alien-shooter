@@ -1,4 +1,4 @@
-﻿extends Node2D
+extends Node2D
 # background.gd -- 2.5D deep-space parallax
 
 const STAR_COUNTS: Array = [70, 38, 16, 6]   # was [150,85,42,14]

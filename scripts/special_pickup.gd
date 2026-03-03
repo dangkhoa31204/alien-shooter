@@ -68,5 +68,6 @@ func _physics_process(delta: float) -> void:
 
 func _on_body_entered(body: Node) -> void:
 	if body.is_in_group("player"):
+		Audio.play("special_collect")
 		(body as Node).call("collect_special", weapon_type, slot)
 		queue_free()

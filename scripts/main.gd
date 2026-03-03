@@ -235,17 +235,21 @@ func _on_level_completed() -> void:
 	if is_game_over: return
 	is_game_over = true
 	hide_boss_hp()
-	var earned_coins: int = score / 8   # bonus coins khi hoàn thành level
+	Audio.play("level_complete")
+	# Thưởng coin theo độ khó
+	var diff: int = PlayerData.current_level.get("difficulty", 1)
+	var earned_coins: int = 20 * diff
 	PlayerData.add_coins(earned_coins)
-	if ui_label:
-		var lv_name: String = PlayerData.current_level.get("name", "Level")
-		ui_label.text = "✓ %s COMPLETE!\nScore: %d\n+%d coins" % [lv_name, score, earned_coins]
-	if hp_label:
-		hp_label.text = ""
 	HighScore.save_score(score, current_wave)
+	# Lưu kết quả để hiển thị màn hoàn thành
+	PlayerData.last_score        = score
+	PlayerData.last_coins_earned = earned_coins
+	PlayerData.last_wave         = current_wave
+	PlayerData.last_hp           = player.hp if is_instance_valid(player) else 0
+	PlayerData.last_max_hp       = player._max_hp if is_instance_valid(player) else 1
 	show_alert("★ LEVEL COMPLETE! ★")
-	await get_tree().create_timer(3.0).timeout
-	get_tree().change_scene_to_file("res://scenes/level_select.tscn")
+	await get_tree().create_timer(1.5).timeout
+	get_tree().change_scene_to_file("res://scenes/level_complete.tscn")
 
 func add_score(points: int) -> void:
 	score += points
@@ -361,8 +365,9 @@ func trigger_game_over() -> void:
 	is_game_over = true
 	hide_boss_hp()
 	emit_signal("game_over_signal")
-	# Tính coins kiếm được: 1 coin / 10 điểm
-	var earned_coins: int = score / 10
+	Audio.play("game_over")
+	# Game over: ít coin hơn hoàn thành, tính theo điểm / 50 (tối thiểu 5)
+	var earned_coins: int = maxi(5, score / 50)
 	PlayerData.add_coins(earned_coins)
 	if ui_label:
 		ui_label.text = "GAME OVER\nScore: %d\n+%d coins" % [score, earned_coins]

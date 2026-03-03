@@ -25,6 +25,7 @@ var _hp_mult:        float = 1.0
 var _boss_hp_mult:   float = 1.0
 var _asteroid_rate:  float = 0.25   # xác suất wave asteroid (0–1)
 var _boss_rush:      bool  = false  # Boss Rush: mọi wave đều là boss
+var _boss_waves:     Array = []     # Danh sách wave xuất hiện boss (tính sẵn)
 
 # Cache node con cùng cấp
 var _spawner: Node2D              = null
@@ -44,6 +45,26 @@ func _ready() -> void:
 	_boss_hp_mult  = lv.get("boss_hp_mult",   1.0)
 	_asteroid_rate = lv.get("asteroid_rate",  0.25)
 	_boss_rush     = (lv.get("theme", -1) == 2)  # theme index 2 = Boss Rush
+	_boss_waves    = _calc_boss_waves()
+
+# Chia đều boss vào các wave theo số wave thực tế của màn
+#   ≤ 7  wave  → 2 boss   (vd: 5→[3,5]  6→[3,6]  7→[4,7])
+#   8–17 wave  → 3 boss   (vd: 9→[3,6,9]  14→[5,9,14]  15→[5,10,15])
+#   ≥ 18 wave  → 4 boss   (vd: 18→[5,9,14,18]  30→[8,15,23,30])
+func _calc_boss_waves() -> Array:
+	if _boss_rush: return []   # Boss Rush tự xử lý
+	var boss_count: int
+	if _max_waves <= 7:
+		boss_count = 2
+	elif _max_waves <= 17:
+		boss_count = 3
+	else:
+		boss_count = 4
+	var result: Array = []
+	for k in range(boss_count):
+		var w: int = roundi(float(_max_waves) * float(k + 1) / float(boss_count))
+		result.append(w)
+	return result
 
 # ── PUBLIC API ────────────────────────────────────────────────────────────────
 func start_wave(wave_number: int) -> void:
@@ -57,8 +78,8 @@ func start_wave(wave_number: int) -> void:
 		_spawn_boss()
 		return
 
-	# Wave thứ 5 trong mỗi cụm (5, 10, 15…) luôn là boss
-	if current_wave % 5 == 0:
+	# Boss xuất hiện theo danh sách đã chia đều
+	if current_wave in _boss_waves:
 		_spawn_boss()
 	# Asteroid: tỉ lệ theo config level (wave thứ 3 mặc định + random thêm)
 	elif (current_wave % 3 == 0) or (randf() < _asteroid_rate * 0.5):
@@ -94,10 +115,11 @@ func _spawn_boss() -> void:
 		_make_boss((btype + 1) % 5,   base_hp, base_spd, vp.x * 0.70)
 	else:
 		_make_boss(btype, base_hp, base_spd, vp.x * 0.5)
-	# Hiển thị thanh máu boss
+	# Hiển thị thanh máu boss — dùng scaled_hp để bar max khớp HP thực của boss
+	var bar_hp: int = int(float(base_hp) * _boss_hp_mult)
 	var main = get_parent()
 	if main and main.has_method("show_boss_hp"):
-		main.show_boss_hp(base_hp, base_hp)
+		main.show_boss_hp(bar_hp, bar_hp)
 
 func _make_boss(btype: int, bhp: int, bspd: float, x_pos: float) -> void:
 	var boss = BOSS_SCENE.instantiate()

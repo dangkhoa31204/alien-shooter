@@ -144,6 +144,7 @@ func _on_body_entered(body: Node) -> void:
 	if _collected: return
 	if body.is_in_group("player"):
 		_collected = true
+		Audio.play("powerup")
 		body.apply_powerup(powerup_type)
 		queue_free()
 

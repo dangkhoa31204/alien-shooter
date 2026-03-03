@@ -16,6 +16,7 @@ const TAB_INACTIVE := Color(0.15, 0.18, 0.3, 1.0)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	PlayerData.load_data()   # đảm bảo dữ liệu sở hữu được nạp đúng
 	tab_skin.pressed.connect(func(): _switch_tab(Tab.SKIN))
 	tab_starter.pressed.connect(func(): _switch_tab(Tab.STARTER))
 	$UI/TopBar/BackBtn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/menu.tscn"))
@@ -122,9 +123,11 @@ func _on_buy(item_id: int, category: String) -> void:
 		ok = PlayerData.buy_starter(item_id)
 		if ok: PlayerData.equip_starter(item_id)
 	if ok:
+		Audio.play("buy")
 		status_label.text = "✔ Mua thành công!"
 		status_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
 	else:
+		Audio.play("button_click")
 		status_label.text = "✘ Không đủ coins!"
 		status_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
 	_build_list()

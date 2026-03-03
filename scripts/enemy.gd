@@ -502,6 +502,7 @@ func take_damage(dmg: int = 1) -> void:
 	if hp <= 0:
 		_die()
 		return
+	Audio.play("hit", -8.0)
 	if is_instance_valid(sprite):
 		sprite.color = Color.WHITE
 		var main_dmg := get_tree().current_scene
@@ -515,6 +516,7 @@ func _die() -> void:
 	if _is_dying:
 		return
 	_is_dying = true
+	Audio.play("explosion", -6.0)
 	var main := get_tree().current_scene
 	if main and main.has_method("add_score"):
 		main.add_score(score_value)
