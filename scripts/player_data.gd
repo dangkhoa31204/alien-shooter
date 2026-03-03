@@ -29,6 +29,12 @@ static var owned_starters: Array = [0]
 static var equipped_skin:    int = 0
 static var equipped_starter: int = 0
 
+# Level config cho màn đang chơi (set bởi level_select.gd)
+static var current_level: Dictionary = {
+	"name": "Free Play", "difficulty": 1,
+	"max_waves": 999, "hp_mult": 1.0, "boss_hp_mult": 1.0
+}
+
 static func add_coins(amount: int) -> void:
 	coins += amount
 	save_data()

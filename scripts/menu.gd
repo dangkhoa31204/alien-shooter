@@ -13,7 +13,7 @@ func _refresh_coins() -> void:
 	$UI/CoinLabel.text = "💰 %d coins" % PlayerData.coins
 
 func _on_play_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	get_tree().change_scene_to_file("res://scenes/level_select.tscn")
 
 func _on_shop_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/shop.tscn")

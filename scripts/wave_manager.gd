@@ -1,33 +1,49 @@
 extends Node
-# wave_manager.gd — Formation spawning. Wave 5, 10, 15... = Boss.
-# Wave % 3 == 0 (không phải boss) = ASTEROID SHOWER.
+# wave_manager.gd — Formation spawning với đa dạng hình thái.
+# Hỗ trợ level config từ PlayerData.current_level:
+#   max_waves, hp_mult, boss_hp_mult, asteroid_rate, theme (boss_rush, v.v.)
 # Khi hết toàn bộ enemy → emit wave_cleared → main.gd tự động qua wave mới.
 
 signal wave_cleared
+signal level_completed   # phát khi đã qua hết max_waves
 
-const ENEMY_SCENE        = preload("res://scenes/enemy.tscn")
-const BOSS_SCENE         = preload("res://scenes/boss.tscn")
-const ASTEROID_SCENE     = preload("res://scenes/asteroid.tscn")
+const ENEMY_SCENE          = preload("res://scenes/enemy.tscn")
+const BOSS_SCENE           = preload("res://scenes/boss.tscn")
+const ASTEROID_SCENE       = preload("res://scenes/asteroid.tscn")
 const SPECIAL_PICKUP_SCENE = preload("res://scenes/special_pickup.tscn")
 
 const SPEED_SCALE: float = 0.12   # tốc độ tăng mỗi wave
 
-var current_wave: int    = 0
-var enemies_alive: int   = 0
+var current_wave:    int  = 0
+var enemies_alive:   int  = 0
 var wave_in_progress: bool = false
-var _boss_encounter: int = 0   # đếm số lần boss xuất hiện
+var _boss_encounter: int  = 0
 
-# Cache sibling node references (đường dẫn tương đối — không phụ thuộc tên scene)
-var _spawner: Node2D = null
-var _bullet_container: Node2D = null
-var _asteroid_container: Node2D = null
+# Tham số từ level hiện tại
+var _max_waves:      int   = 999
+var _hp_mult:        float = 1.0
+var _boss_hp_mult:   float = 1.0
+var _asteroid_rate:  float = 0.25   # xác suất wave asteroid (0–1)
+var _boss_rush:      bool  = false  # Boss Rush: mọi wave đều là boss
+
+# Cache node con cùng cấp
+var _spawner: Node2D              = null
+var _bullet_container: Node2D    = null
+var _asteroid_container: Node2D  = null
 
 func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	process_mode = Node.PROCESS_MODE_PAUSABLE   # dừng khi game pause
 	_spawner           = get_parent().get_node_or_null("EnemySpawner")
 	_bullet_container  = get_parent().get_node_or_null("BulletContainer")
 	var _ac := get_parent().get_node_or_null("AsteroidContainer")
 	_asteroid_container = _ac if _ac != null else _bullet_container
+	# Đọc config level
+	var lv: Dictionary = PlayerData.current_level
+	_max_waves     = lv.get("max_waves",      999)
+	_hp_mult       = lv.get("hp_mult",        1.0)
+	_boss_hp_mult  = lv.get("boss_hp_mult",   1.0)
+	_asteroid_rate = lv.get("asteroid_rate",  0.25)
+	_boss_rush     = (lv.get("theme", -1) == 2)  # theme index 2 = Boss Rush
 
 # ── PUBLIC API ────────────────────────────────────────────────────────────────
 func start_wave(wave_number: int) -> void:
@@ -35,19 +51,31 @@ func start_wave(wave_number: int) -> void:
 	enemies_alive = 0
 	wave_in_progress = true
 	await get_tree().create_timer(0.5).timeout
+
+	# Boss Rush: gần như mọi wave đều là boss
+	if _boss_rush:
+		_spawn_boss()
+		return
+
+	# Wave thứ 5 trong mỗi cụm (5, 10, 15…) luôn là boss
 	if current_wave % 5 == 0:
 		_spawn_boss()
-	elif current_wave % 3 == 0:
+	# Asteroid: tỉ lệ theo config level (wave thứ 3 mặc định + random thêm)
+	elif (current_wave % 3 == 0) or (randf() < _asteroid_rate * 0.5):
 		_spawn_asteroid_wave()
 	else:
 		_spawn_formation()
 
-# ── ENEMY DEATH CALLBACK ──────────────────────────────────────────────────────
+# ── ENEMY DEATH CALLBACK ─────────────────────────────────────────────────────
 func _on_enemy_died() -> void:
 	enemies_alive -= 1
 	if enemies_alive <= 0 and wave_in_progress:
 		wave_in_progress = false
-		emit_signal("wave_cleared")
+		# Kiểm tra đã qua hết màn chưa
+		if current_wave >= _max_waves:
+			emit_signal("level_completed")
+		else:
+			emit_signal("wave_cleared")
 
 # ── BOSS SPAWN ────────────────────────────────────────────────────────────────
 func _spawn_boss() -> void:
@@ -75,8 +103,9 @@ func _make_boss(btype: int, bhp: int, bspd: float, x_pos: float) -> void:
 	var boss = BOSS_SCENE.instantiate()
 	if not _spawner: return
 	boss.boss_type = btype
-	boss.max_hp    = bhp
-	boss.hp        = bhp
+	var scaled_hp: int = int(float(bhp) * _boss_hp_mult)
+	boss.max_hp    = scaled_hp
+	boss.hp        = scaled_hp
 	boss.speed     = bspd
 	enemies_alive += 1
 	boss.died.connect(_on_enemy_died)
@@ -96,65 +125,203 @@ func _drop_special_pickups() -> void:
 		)
 		_bullet_container.add_child(pickup)
 
-# ── FORMATION SPAWN ───────────────────────────────────────────────────────────
+# ── FORMATION SPAWN — 10 hình thái khác nhau ──────────────────────────────
 func _spawn_formation() -> void:
 	var vp := get_viewport().get_visible_rect().size
 
-	# Lưới tăng dần: bắt đầu 6x4, mỗi 4 wave bình thường thêm 1 cột (tối đa 9 cột)
-	var tier: int = (current_wave - 1) / 4   # tăng mỗi 4 wave
-	var cols: int = mini(6 + tier, 9)
-	var rows: int = 4
+	# Chọn hình thái ngẫu nhiên theo wave, đảm bảo đa dạng
+	var formation_types := 10
+	var form_type: int  = randi() % formation_types
 
-	var spacing_x: float = vp.x / float(cols + 1)
-	var spacing_y: float = 65.0
-	var start_y:   float = 50.0
+	var positions: Array = _build_positions(form_type, vp)
+	if positions.is_empty():
+		positions = _grid_positions(6, 4, vp)  # fallback
 
-	var positions: Array = []
-	for row in range(rows):
-		for col in range(cols):
-			positions.append(Vector2(spacing_x * float(col + 1), start_y + float(row) * spacing_y))
-
-	var spawner = _spawner
-	if not spawner:
-		return
+	var spawner := _spawner
+	if not spawner: return
 	enemies_alive = positions.size()
 
 	var shoot_interval: float = max(5.0 - float(current_wave) * 0.18, 1.2)
-	# attack_tier 0–4: tăng mỗi 4 wave — quyết định kiểu bắn
-	var attack_tier: int = clampi((current_wave - 1) / 4, 0, 4)
-	# số move pattern có thể dùng tăng dần theo tier
-	var patterns_avail: int = mini(attack_tier + 1, 5)
-	# tốc độ ngang tăng nhẹ theo wave
-	var spd_base: float = 45.0 + float(current_wave) * 1.5
+	var attack_tier: int      = clampi((current_wave - 1) / 4, 0, 4)
+	var patterns_avail: int   = mini(attack_tier + 1, 5)
+	var spd_base: float       = 45.0 + float(current_wave) * 1.5
 
-	# Spawn theo hàng: mỗi hàng bay xuống cùng nhau, hàng sau cách 0.25s
-	for row in range(rows):
-		if row > 0:
-			await get_tree().create_timer(0.25).timeout
-		for col in range(cols):
-			var idx2: int = row * cols + col
-			var target_pos: Vector2 = positions[idx2]
-			var enemy = ENEMY_SCENE.instantiate()
-			# Xuất phát từ trên viền màn hình, lệch nhẹ theo cột
-			enemy.base_speed *= 1.0 + float(current_wave - 1) * SPEED_SCALE
-			enemy.max_hp = 1 + (current_wave - 1) / 2
-			enemy.hp = enemy.max_hp
-			enemy.score_value  = 10 * current_wave
-			enemy.shoot_interval = shoot_interval
-			enemy.stationary   = true
-			enemy._move_dir    = 1.0 if (idx2 % 2 == 0) else -1.0
-			enemy._move_speed  = spd_base + float(idx2 % 4) * 10.0
-			enemy.move_pattern = idx2 % patterns_avail
-			enemy.attack_tier  = attack_tier
-			enemy.enemy_type   = row % 3   # mỗi hàng một kiểu
-			enemy.died.connect(_on_enemy_died)
-			spawner.add_child(enemy)
-			# Set vị trí sau add_child để đảm bảo global transform đúng
-			enemy.global_position = Vector2(target_pos.x, -40.0 - float(col) * 3.0)
-			enemy.start_fly_in(target_pos)  # bay xuống vị trí hàng
+	# Hiển thị alert tên hình thái
+	var shape_names := [
+		"GRID", "DIAMOND", "STAR", "V-FORMATION",
+		"PINCER", "RING", "CROSS", "STAIRS",
+		"ARROWHEAD", "SPIRAL"
+	]
+	var main = get_parent()
+	if main and main.has_method("show_alert"):
+		main.show_alert("[ %s ]" % shape_names[form_type])
 
-# ── ASTEROID WAVE ─────────────────────────────────────────────────────────────
-# Thay thế đội hình thường bằng màn mưa thiên thạch — mỗi wave thứ 3 (không boss)
+	# Spawn từng enemy theo vị trí
+	for idx in range(positions.size()):
+		if idx > 0 and idx % 6 == 0:
+			await get_tree().create_timer(0.22).timeout
+		var target_pos: Vector2 = positions[idx]
+		var enemy = ENEMY_SCENE.instantiate()
+		var scaled_hp: int = max(1, int(float(1 + (current_wave - 1) / 2) * _hp_mult))
+		enemy.base_speed     *= 1.0 + float(current_wave - 1) * SPEED_SCALE
+		enemy.max_hp          = scaled_hp
+		enemy.hp              = scaled_hp
+		enemy.score_value     = 10 * current_wave
+		enemy.shoot_interval  = shoot_interval
+		enemy.stationary      = true
+		enemy._move_dir       = 1.0 if (idx % 2 == 0) else -1.0
+		enemy._move_speed     = spd_base + float(idx % 4) * 10.0
+		enemy.move_pattern    = idx % patterns_avail
+		enemy.attack_tier     = attack_tier
+		enemy.enemy_type      = idx % 3
+		enemy.died.connect(_on_enemy_died)
+		spawner.add_child(enemy)
+		enemy.global_position = Vector2(target_pos.x, -40.0 - float(idx % 5) * 4.0)
+		enemy.start_fly_in(target_pos)
+
+# ── HÌNH THÁI SPAWN ─────────────────────────────────────────────────────────
+func _build_positions(form_type: int, vp: Vector2) -> Array:
+	match form_type:
+		0: return _grid_positions(6, 4, vp)
+		1: return _diamond_positions(vp)
+		2: return _star_positions(vp)
+		3: return _v_formation_positions(vp)
+		4: return _pincer_positions(vp)
+		5: return _ring_positions(vp)
+		6: return _cross_positions(vp)
+		7: return _stairs_positions(vp)
+		8: return _arrowhead_positions(vp)
+		9: return _spiral_positions(vp)
+	return []
+
+# 0: Lưới tiêu chuẩn — đôi khi tăng kích thước
+func _grid_positions(cols: int, rows: int, vp: Vector2) -> Array:
+	var tier: int  = (current_wave - 1) / 4
+	var c: int     = mini(cols + tier, 9)
+	var r: int     = mini(rows + tier / 3, 6)
+	var sx := vp.x / float(c + 1)
+	var sy := 62.0
+	var pts: Array = []
+	for row in range(r):
+		for col in range(c):
+			pts.append(Vector2(sx * float(col + 1), 55.0 + float(row) * sy))
+	return pts
+
+# 1: Hình thoi
+func _diamond_positions(vp: Vector2) -> Array:
+	var cx := vp.x * 0.5
+	var pts: Array = []
+	# 5 hàng: 1-3-5-3-1
+	var counts := [1, 3, 5, 3, 1]
+	for row in range(counts.size()):
+		var n: int = counts[row]
+		for col in range(n):
+			var dx := (float(col) - float(n - 1) * 0.5) * 72.0
+			pts.append(Vector2(cx + dx, 45.0 + float(row) * 60.0))
+	return pts
+
+# 2: Hình ngôi sao 5 cánh (24 điểm)
+func _star_positions(vp: Vector2) -> Array:
+	var cx := vp.x * 0.5
+	var cy := 155.0
+	var pts: Array = []
+	var r_outer := 130.0
+	var r_inner := 60.0
+	for i in range(10):
+		var angle := TAU * float(i) / 10.0 - PI * 0.5
+		var r := r_outer if (i % 2 == 0) else r_inner
+		pts.append(Vector2(cx + cos(angle) * r, cy + sin(angle) * r))
+	# Thêm vòng trong thứ 2 (14 điểm)
+	for i in range(14):
+		var angle := TAU * float(i) / 14.0
+		pts.append(Vector2(cx + cos(angle) * 35.0, cy + sin(angle) * 35.0))
+	return pts
+
+# 3: Chữ V
+func _v_formation_positions(vp: Vector2) -> Array:
+	var cx := vp.x * 0.5
+	var pts: Array = []
+	var arms := 5
+	for side in [-1, 1]:
+		for i in range(arms):
+			pts.append(Vector2(cx + side * float(i + 1) * 55.0, 48.0 + float(i) * 55.0))
+	pts.append(Vector2(cx, 48.0))  # đỉnh V
+	return pts
+
+# 4: Gọng kìm (2 cánh cung)
+func _pincer_positions(vp: Vector2) -> Array:
+	var cx := vp.x * 0.5
+	var pts: Array = []
+	for side in [-1.0, 1.0]:
+		for i in range(6):
+			var angle := deg_to_rad(float(i) * 14.0 - 35.0)
+			pts.append(Vector2(cx + side * (85.0 + cos(angle) * 90.0),
+								85.0 + sin(angle) * 80.0))
+	return pts
+
+# 5: Vòng tròn (18 địch)
+func _ring_positions(vp: Vector2) -> Array:
+	var cx := vp.x * 0.5
+	var cy := 140.0
+	var pts: Array = []
+	var n := 18
+	for i in range(n):
+		var angle := TAU * float(i) / float(n)
+		pts.append(Vector2(cx + cos(angle) * 115.0, cy + sin(angle) * 90.0))
+	# Thêm 6 ở vòng trong
+	for i in range(6):
+		var angle := TAU * float(i) / 6.0
+		pts.append(Vector2(cx + cos(angle) * 50.0, cy + sin(angle) * 50.0))
+	return pts
+
+# 6: Hình thập tự (+)
+func _cross_positions(vp: Vector2) -> Array:
+	var cx := vp.x * 0.5
+	var cy := 140.0
+	var pts: Array = []
+	# ngang
+	for i in range(-3, 4):
+		pts.append(Vector2(cx + float(i) * 60.0, cy))
+	# dọc (bỏ tâm)
+	for i in [-2, -1, 1, 2]:
+		pts.append(Vector2(cx, cy + float(i) * 55.0))
+	return pts
+
+# 7: Cầu thang lệch (2 hàng dọc lệch nhau)
+func _stairs_positions(vp: Vector2) -> Array:
+	var pts: Array = []
+	var cols := 8
+	var sx := vp.x / float(cols + 1)
+	for col in range(cols):
+		pts.append(Vector2(sx * float(col + 1), 50.0 + float(col) * 25.0))
+		pts.append(Vector2(sx * float(col + 1), 90.0 + float(col) * 25.0))
+	return pts
+
+# 8: Mũi tên (Arrowhead — chỉ lên trên)
+func _arrowhead_positions(vp: Vector2) -> Array:
+	var cx := vp.x * 0.5
+	var pts: Array = []
+	var layers := 5
+	for row in range(layers):
+		var n := 2 * row + 1
+		for col in range(n):
+			var dx := (float(col) - float(n - 1) * 0.5) * 60.0
+			pts.append(Vector2(cx + dx, 50.0 + float(row) * 55.0))
+	return pts
+
+# 9: Xoắn ốc (20 điểm)
+func _spiral_positions(vp: Vector2) -> Array:
+	var cx := vp.x * 0.5
+	var cy := 155.0
+	var pts: Array = []
+	var n := 20
+	for i in range(n):
+		var angle := float(i) * 0.55
+		var radius := 20.0 + float(i) * 6.5
+		pts.append(Vector2(cx + cos(angle) * radius, cy + sin(angle) * radius * 0.7))
+	return pts
+
+# ── ASTEROID WAVE ──────────────────────────────────────────────────────────
 func _spawn_asteroid_wave() -> void:
 	var vp    := get_viewport().get_visible_rect().size
 	var main  = get_parent()

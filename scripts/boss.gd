@@ -82,21 +82,48 @@ var _charge_remaining: float = 0.0
 const CHARGE_SPEED:    float = 580.0
 const CHARGE_DURATION: float = 0.65
 
+# ── ANIMATION ────────────────────────────────────────────────────────────────
+var _anim_time:    float   = 0.0
+var _engine_nodes: Array   = []   # động cơ — pulse độ sáng
+var _weapon_nodes: Array   = []   # vũ khí  — flash khi bắn
+var _core_node:    Polygon2D = null  # lõi  — scale pulse
+
 @onready var shoot_timer: Timer = $ShootTimer
 @onready var sprite: Polygon2D  = $Sprite
 var _dr: Node2D = null
 
 func _clear_dr() -> void:
+	_engine_nodes.clear()
+	_weapon_nodes.clear()
+	_core_node = null
 	if is_instance_valid(_dr): _dr.queue_free()
 	_dr = Node2D.new(); _dr.z_index = 1
 	sprite.add_child(_dr)
 
-func _dp(pts: Array, col: Color) -> void:
+func _make_poly(pts: Array, col: Color) -> Polygon2D:
 	var p2d := Polygon2D.new()
 	var pv := PackedVector2Array()
 	for v in pts: pv.append(v)
 	p2d.polygon = pv; p2d.color = col
-	_dr.add_child(p2d)
+	return p2d
+
+func _dp(pts: Array, col: Color) -> void:
+	_dr.add_child(_make_poly(pts, col))
+
+func _dp_e(pts: Array, col: Color) -> void:   # engine node → pulse
+	var p := _make_poly(pts, col)
+	_dr.add_child(p)
+	_engine_nodes.append(p)
+
+func _dp_w(pts: Array, col: Color) -> void:   # weapon node → flash when fire
+	var p := _make_poly(pts, col)
+	_dr.add_child(p)
+	_weapon_nodes.append(p)
+
+func _dp_c(pts: Array, col: Color) -> void:   # core node → scale + hue pulse
+	var p := _make_poly(pts, col)
+	_dr.add_child(p)
+	_core_node = p
 
 func _ready() -> void:
 	add_to_group("enemy")
@@ -123,73 +150,250 @@ func _apply_boss_type() -> void:
 func _add_type_details() -> void:
 	_clear_dr()
 	match boss_type:
-		0: # Warship — màu tím/đỏ, dàn rộng
-			_dp([Vector2(-8,-30),Vector2(8,-30),Vector2(10,-18),Vector2(0,-12),Vector2(-10,-18)],
-				Color(1.0, 0.65, 0.0))             # cầu chỉ huy vàng
-			_dp([Vector2(-8,24),Vector2(8,24),Vector2(8,31),Vector2(-8,31)],
-				Color(1.0, 0.45, 0.0, 0.9))        # động cơ sau
-			_dp([Vector2(-32,0),Vector2(-26,-4),Vector2(-24,0),Vector2(-26,4)],
-				Color(1.0, 0.1, 0.9, 0.9))         # khẩu đại bác trái
-			_dp([Vector2(32,0),Vector2(26,-4),Vector2(24,0),Vector2(26,4)],
-				Color(1.0, 0.1, 0.9, 0.9))         # khẩu đại bác phải
-			_dp([Vector2(-40,-4),Vector2(-36,-8),Vector2(-34,-4),Vector2(-36,0)],
-				Color(0.9, 0.1, 0.8, 0.75))        # súng cánh ngoài trái
-			_dp([Vector2(40,-4),Vector2(36,-8),Vector2(34,-4),Vector2(36,0)],
-				Color(0.9, 0.1, 0.8, 0.75))        # súng cánh ngoài phải
-		1: # Interceptor — xanh cán, thân hẹp
-			_dp([Vector2(-4,-36),Vector2(4,-36),Vector2(6,-22),Vector2(0,-16),Vector2(-6,-22)],
-				Color(0.0, 0.9, 1.0))              # cockpit cyan sáng
-			_dp([Vector2(-2,-10),Vector2(2,-10),Vector2(2,18),Vector2(-2,18)],
-				Color(0.0, 0.8, 1.0, 0.55))        # vạch thân
-			_dp([Vector2(-12,22),Vector2(-8,22),Vector2(-8,36),Vector2(-12,36)],
-				Color(0.0, 1.0, 0.5, 0.95))        # động cơ trái
-			_dp([Vector2(8,22),Vector2(12,22),Vector2(12,36),Vector2(8,36)],
-				Color(0.0, 1.0, 0.5, 0.95))        # động cơ phải
-			_dp([Vector2(-14,6),Vector2(-10,2),Vector2(-8,6),Vector2(-10,10)],
-				Color(0.3, 1.0, 0.6))              # pod trái
-			_dp([Vector2(10,2),Vector2(14,6),Vector2(10,10),Vector2(8,6)],
-				Color(0.3, 1.0, 0.6))              # pod phải
-		2: # Dreadnought — cam-đỏ, siêu rộng
-			_dp([Vector2(-6,-20),Vector2(6,-20),Vector2(8,-10),Vector2(0,-6),Vector2(-8,-10)],
-				Color(1.0, 0.55, 0.0))             # cầu chỉ huy
-			_dp([Vector2(-10,26),Vector2(10,26),Vector2(10,33),Vector2(-10,33)],
-				Color(1.0, 0.5, 0.0, 0.9))         # động cơ sau
-			_dp([Vector2(-44,4),Vector2(-38,0),Vector2(-36,4),Vector2(-38,8)],
-				Color(1.0, 0.35, 0.0))             # turret trái
-			_dp([Vector2(44,4),Vector2(38,0),Vector2(36,4),Vector2(38,8)],
-				Color(1.0, 0.35, 0.0))             # turret phải
-			_dp([Vector2(-28,-6),Vector2(-20,-10),Vector2(-18,-2),Vector2(-24,2)],
-				Color(0.75, 0.2, 0.05, 0.8))       # giáp cánh trái
-			_dp([Vector2(28,-6),Vector2(20,-10),Vector2(18,-2),Vector2(24,2)],
-				Color(0.75, 0.2, 0.05, 0.8))       # giáp cánh phải
-		3: # Carrier — vàng, nằm ngang
-			_dp([Vector2(-6,-16),Vector2(6,-16),Vector2(8,-8),Vector2(0,-4),Vector2(-8,-8)],
-				Color(0.8, 0.75, 0.0))             # cầu chỉ huy
-			_dp([Vector2(-28,10),Vector2(-20,10),Vector2(-20,20),Vector2(-28,20)],
-				Color(0.0, 0.5, 0.95, 0.9))        # khoang bay trái
-			_dp([Vector2(-8,12),Vector2(8,12),Vector2(8,22),Vector2(-8,22)],
-				Color(0.0, 0.55, 1.0, 0.9))        # khoang bay giữa
-			_dp([Vector2(20,10),Vector2(28,10),Vector2(28,20),Vector2(20,20)],
-				Color(0.0, 0.5, 0.95, 0.9))        # khoang bay phải
-			_dp([Vector2(-40,0),Vector2(-36,-4),Vector2(-34,0),Vector2(-36,4)],
-				Color(1.0, 0.85, 0.0))             # động cơ trái
-			_dp([Vector2(40,0),Vector2(36,-4),Vector2(34,0),Vector2(36,4)],
-				Color(1.0, 0.85, 0.0))             # động cơ phải
-		4: # Mothership — bát giác lớn
-			_dp([Vector2(0,-28),Vector2(14,-22),Vector2(24,-10),Vector2(28,0),
-				 Vector2(24,10),Vector2(14,22),Vector2(0,26),Vector2(-14,22),
-				 Vector2(-24,10),Vector2(-28,0),Vector2(-24,-10),Vector2(-14,-22)],
-				Color(0.9, 0.2, 1.0, 0.4))         # vòng nội
-			_dp([Vector2(0,-10),Vector2(8,-5),Vector2(8,5),Vector2(0,10),Vector2(-8,5),Vector2(-8,-5)],
-				Color(1.0, 0.0, 0.85))             # lõi trung tâm
-			_dp([Vector2(-4,-40),Vector2(4,-40),Vector2(4,-32),Vector2(-4,-32)],
-				Color(0.8, 0.3, 1.0))              # pod đỉnh
-			_dp([Vector2(-40,-6),Vector2(-32,-6),Vector2(-32,6),Vector2(-40,6)],
-				Color(0.75, 0.25, 1.0))            # pod trái
-			_dp([Vector2(32,-6),Vector2(40,-6),Vector2(40,6),Vector2(32,6)],
-				Color(0.75, 0.25, 1.0))            # pod phải
-			_dp([Vector2(-6,36),Vector2(6,36),Vector2(6,44),Vector2(-6,44)],
-				Color(0.0, 1.0, 0.9, 0.85))        # tia kéo bên dưới
+
+		# ══════════ 0 WARSHIP ══════════ tím-lửa, thiết giáp hạm nặng
+		0:
+			# Armor hull stripes
+			_dp([Vector2(-20,-14),Vector2(-10,-14),Vector2(-8,-4),Vector2(-18,-4)],
+				Color(0.25, 0.05, 0.35))            # giáp cánh trái — tím đen
+			_dp([Vector2(10,-14),Vector2(20,-14),Vector2(18,-4),Vector2(8,-4)],
+				Color(0.25, 0.05, 0.35))            # giáp cánh phải
+			# Central hull rib
+			_dp([Vector2(-3,-10),Vector2(3,-10),Vector2(3,22),Vector2(-3,22)],
+				Color(0.45, 0.08, 0.55, 0.65))      # trục thân
+			# Bridge tower
+			_dp([Vector2(-9,-26),Vector2(9,-26),Vector2(11,-15),Vector2(0,-9),Vector2(-11,-15)],
+				Color(0.95, 0.72, 0.0))             # tháp chỉ huy vàng
+			# Bridge glass
+			_dp([Vector2(-5,-23),Vector2(5,-23),Vector2(6,-16),Vector2(0,-11),Vector2(-6,-16)],
+				Color(0.05, 0.9, 1.0, 0.9))         # kính tháp — cyan
+			# Left heavy cannon mount
+			_dp([Vector2(-35,1),Vector2(-27,-4),Vector2(-24,1),Vector2(-27,5)],
+				Color(0.85, 0.28, 0.0))             # gá pháo trái
+			# Right heavy cannon mount
+			_dp([Vector2(35,1),Vector2(27,-4),Vector2(24,1),Vector2(27,5)],
+				Color(0.85, 0.28, 0.0))             # gá pháo phải
+			# Left barrel (WEAPON — flashes)
+			_dp_w([Vector2(-43,-1),Vector2(-34,-1),Vector2(-34,2),Vector2(-43,2)],
+				Color(1.0, 0.6, 0.0))               # nòng trái
+			_dp_w([Vector2(34,-1),Vector2(43,-1),Vector2(43,2),Vector2(34,2)],
+				Color(1.0, 0.6, 0.0))               # nòng phải
+			# Wing mini guns (WEAPON)
+			_dp_w([Vector2(-28,-1),Vector2(-23,-5),Vector2(-21,-1),Vector2(-23,3)],
+				Color(1.0, 0.08, 0.9))              # súng cánh mini trái
+			_dp_w([Vector2(23,-5),Vector2(28,-1),Vector2(23,3),Vector2(21,-1)],
+				Color(1.0, 0.08, 0.9))              # súng cánh mini phải
+			# Vent panels
+			_dp([Vector2(-15,4),Vector2(-8,4),Vector2(-8,13),Vector2(-15,13)],
+				Color(1.0, 0.38, 0.08, 0.7))        # thông gió trái
+			_dp([Vector2(8,4),Vector2(15,4),Vector2(15,13),Vector2(8,13)],
+				Color(1.0, 0.38, 0.08, 0.7))        # thông gió phải
+			# Engine nozzles (ANIM — pulse)
+			_dp_e([Vector2(-9,23),Vector2(-2,23),Vector2(-2,32),Vector2(-9,32)],
+				Color(1.0, 0.52, 0.0))              # động cơ trái
+			_dp_e([Vector2(2,23),Vector2(9,23),Vector2(9,32),Vector2(2,32)],
+				Color(1.0, 0.52, 0.0))              # động cơ phải
+			_dp_e([Vector2(-11,28),Vector2(11,28),Vector2(12,35),Vector2(-12,35)],
+				Color(1.0, 0.88, 0.15, 0.5))        # glow động cơ rộng
+			# Nose sensor (WEAPON)
+			_dp_w([Vector2(-3,-30),Vector2(3,-30),Vector2(3,-26),Vector2(-3,-26)],
+				Color(1.0, 0.1, 0.95))              # cảm biến mũi
+			# Core energy cell (CORE — scale pulse)
+			_dp_c([Vector2(-6,-3),Vector2(6,-3),Vector2(7,4),Vector2(0,8),Vector2(-7,4)],
+				Color(0.95, 0.15, 1.0, 0.55))       # lõi năng lượng
+
+		# ══════════ 1 INTERCEPTOR ══════════ xanh-điện, chiến đấu cơ thon
+		1:
+			# Body spine
+			_dp([Vector2(-2,-38),Vector2(2,-38),Vector2(2,28),Vector2(-2,28)],
+				Color(0.0, 0.6, 0.9, 0.5))          # trục thân
+			# Cockpit outer
+			_dp([Vector2(-5,-36),Vector2(5,-36),Vector2(7,-23),Vector2(0,-15),Vector2(-7,-23)],
+				Color(0.0, 0.75, 1.0))              # buồng lái
+			# Cockpit glass
+			_dp([Vector2(-3,-33),Vector2(3,-33),Vector2(4,-24),Vector2(0,-18),Vector2(-4,-24)],
+				Color(0.55, 1.0, 1.0, 0.9))         # kính lái sáng
+			# Left wing edge
+			_dp([Vector2(-16,-8),Vector2(-10,-12),Vector2(-8,-8),Vector2(-10,-4)],
+				Color(0.0, 0.5, 0.85))              # gờ cánh trái đậm
+			_dp([Vector2(10,-12),Vector2(16,-8),Vector2(10,-4),Vector2(8,-8)],
+				Color(0.0, 0.5, 0.85))              # gờ cánh phải đậm
+			# Side gun pods (WEAPON)
+			_dp_w([Vector2(-15,4),Vector2(-10,1),Vector2(-8,4),Vector2(-10,7)],
+				Color(0.15, 1.0, 0.55))             # pod súng trái
+			_dp_w([Vector2(10,1),Vector2(15,4),Vector2(10,7),Vector2(8,4)],
+				Color(0.15, 1.0, 0.55))             # pod súng phải
+			# Thruster arm
+			_dp([Vector2(-13,16),Vector2(-8,16),Vector2(-8,24),Vector2(-13,24)],
+				Color(0.0, 0.45, 0.75))             # thanh đẩy trái
+			_dp([Vector2(8,16),Vector2(13,16),Vector2(13,24),Vector2(8,24)],
+				Color(0.0, 0.45, 0.75))             # thanh đẩy phải
+			# Afterburner (ANIM)
+			_dp_e([Vector2(-13,24),Vector2(-8,24),Vector2(-8,36),Vector2(-13,36)],
+				Color(0.0, 1.0, 0.55))              # luồng đẩy trái
+			_dp_e([Vector2(8,24),Vector2(13,24),Vector2(13,36),Vector2(8,36)],
+				Color(0.0, 1.0, 0.55))              # luồng đẩy phải
+			_dp_e([Vector2(-7,32),Vector2(7,32),Vector2(5,38),Vector2(-5,38)],
+				Color(0.3, 1.0, 0.9, 0.5))          # hào quang đẩy trung tâm
+			# Wing stripe accents
+			_dp([Vector2(-14,-2),Vector2(-9,-2),Vector2(-9,12),Vector2(-14,12)],
+				Color(0.0, 0.85, 1.0, 0.4))         # vệt cánh trái
+			_dp([Vector2(9,-2),Vector2(14,-2),Vector2(14,12),Vector2(9,12)],
+				Color(0.0, 0.85, 1.0, 0.4))         # vệt cánh phải
+			# Nose spike (WEAPON)
+			_dp_w([Vector2(-2,-40),Vector2(2,-40),Vector2(2,-36),Vector2(-2,-36)],
+				Color(0.4, 1.0, 1.0))               # mũi giáo
+			# Core energy (CORE)
+			_dp_c([Vector2(-5,-12),Vector2(5,-12),Vector2(5,-6),Vector2(0,-3),Vector2(-5,-6)],
+				Color(0.0, 1.0, 0.75, 0.6))         # lõi năng lượng
+
+		# ══════════ 2 DREADNOUGHT ══════════ đỏ-dung nham, pháo đài siêu nặng
+		2:
+			# Thick hull bands
+			_dp([Vector2(-50,0),Vector2(50,0),Vector2(48,8),Vector2(-48,8)],
+				Color(0.22, 0.04, 0.04))            # đai giáp ngang
+			_dp([Vector2(-30,-8),Vector2(30,-8),Vector2(28,-2),Vector2(-28,-2)],
+				Color(0.3, 0.06, 0.06))             # đai giáp trên
+			# Left/right armor plates
+			_dp([Vector2(-44,-2),Vector2(-30,-10),Vector2(-26,-2),Vector2(-36,4)],
+				Color(0.45, 0.08, 0.04, 0.85))      # tấm giáp cánh trái
+			_dp([Vector2(30,-10),Vector2(44,-2),Vector2(36,4),Vector2(26,-2)],
+				Color(0.45, 0.08, 0.04, 0.85))      # tấm giáp cánh phải
+			# Bridge
+			_dp([Vector2(-7,-20),Vector2(7,-20),Vector2(9,-10),Vector2(0,-5),Vector2(-9,-10)],
+				Color(0.9, 0.5, 0.0))               # tháp chỉ huy
+			_dp([Vector2(-4,-17),Vector2(4,-17),Vector2(5,-11),Vector2(0,-7),Vector2(-5,-11)],
+				Color(0.1, 0.85, 1.0, 0.85))        # kính tháp
+			# Main turrets (WEAPON — flash)
+			_dp_w([Vector2(-46,5),Vector2(-38,1),Vector2(-35,5),Vector2(-38,9)],
+				Color(1.0, 0.32, 0.0))              # turret trái
+			_dp_w([Vector2(46,5),Vector2(38,1),Vector2(35,5),Vector2(38,9)],
+				Color(1.0, 0.32, 0.0))              # turret phải
+			# Turret barrels
+			_dp_w([Vector2(-54,4),Vector2(-46,4),Vector2(-46,6),Vector2(-54,6)],
+				Color(1.0, 0.6, 0.0))               # nòng pháo trái
+			_dp_w([Vector2(46,4),Vector2(54,4),Vector2(54,6),Vector2(46,6)],
+				Color(1.0, 0.6, 0.0))               # nòng pháo phải
+			# Lava vents
+			_dp([Vector2(-22,10),Vector2(-16,10),Vector2(-16,18),Vector2(-22,18)],
+				Color(1.0, 0.3, 0.0, 0.75))         # khe dung nham trái
+			_dp([Vector2(-8,12),Vector2(-2,12),Vector2(-2,20),Vector2(-8,20)],
+				Color(1.0, 0.2, 0.0, 0.75))         # khe dung nham trái 2
+			_dp([Vector2(2,12),Vector2(8,12),Vector2(8,20),Vector2(2,20)],
+				Color(1.0, 0.2, 0.0, 0.75))         # khe dung nham phải 2
+			_dp([Vector2(16,10),Vector2(22,10),Vector2(22,18),Vector2(16,18)],
+				Color(1.0, 0.3, 0.0, 0.75))         # khe dung nham phải
+			# Engine blocks (ANIM)
+			_dp_e([Vector2(-14,25),Vector2(-4,25),Vector2(-4,33),Vector2(-14,33)],
+				Color(1.0, 0.42, 0.0))              # động cơ trái
+			_dp_e([Vector2(4,25),Vector2(14,25),Vector2(14,33),Vector2(4,33)],
+				Color(1.0, 0.42, 0.0))              # động cơ phải
+			_dp_e([Vector2(-16,30),Vector2(16,30),Vector2(16,36),Vector2(-16,36)],
+				Color(1.0, 0.75, 0.1, 0.45))        # glow động cơ
+			# Core crystal (CORE)
+			_dp_c([Vector2(0,-20),Vector2(8,-12),Vector2(8,0),Vector2(0,6),Vector2(-8,0),Vector2(-8,-12)],
+				Color(1.0, 0.12, 0.05, 0.5))        # lõi dung nham
+
+		# ══════════ 3 CARRIER ══════════ vàng-xanh, hàng không mẫu hạm
+		3:
+			# Hull deck plates
+			_dp([Vector2(-38,-4),Vector2(38,-4),Vector2(36,2),Vector2(-36,2)],
+				Color(0.3, 0.28, 0.0))              # boong tàu giữa
+			_dp([Vector2(-42,2),Vector2(42,2),Vector2(40,10),Vector2(-40,10)],
+				Color(0.25, 0.22, 0.0))             # boong tàu dưới
+			# Bridge tower
+			_dp([Vector2(-7,-16),Vector2(7,-16),Vector2(9,-8),Vector2(0,-3),Vector2(-9,-8)],
+				Color(0.8, 0.72, 0.0))              # đài chỉ huy
+			_dp([Vector2(-4,-13),Vector2(4,-13),Vector2(5,-8),Vector2(0,-4),Vector2(-5,-8)],
+				Color(0.05, 0.85, 1.0, 0.9))        # kính đài
+			# Flight deck lights (runway strip)
+			for _i in range(5):
+				var lx := -20.0 + _i * 10.0
+				_dp([Vector2(lx,-1),Vector2(lx+4,-1),Vector2(lx+4,2),Vector2(lx,2)],
+					Color(0.9, 0.9, 0.2, 0.8))      # đèn đường băng
+			# Hangar bay doors (WEAPON color — animated during summon)
+			_dp_w([Vector2(-32,6),Vector2(-20,6),Vector2(-20,18),Vector2(-32,18)],
+				Color(0.0, 0.45, 0.9, 0.85))        # khoang bay trái
+			_dp_w([Vector2(-8,8),Vector2(8,8),Vector2(8,20),Vector2(-8,20)],
+				Color(0.0, 0.5, 1.0, 0.85))         # khoang bay giữa
+			_dp_w([Vector2(20,6),Vector2(32,6),Vector2(32,18),Vector2(20,18)],
+				Color(0.0, 0.45, 0.9, 0.85))        # khoang bay phải
+			# Engine pods (ANIM)
+			_dp_e([Vector2(-42,2),Vector2(-36,-2),Vector2(-34,2),Vector2(-36,6)],
+				Color(1.0, 0.82, 0.0))              # pod động cơ trái
+			_dp_e([Vector2(42,2),Vector2(36,-2),Vector2(34,2),Vector2(36,6)],
+				Color(1.0, 0.82, 0.0))              # pod động cơ phải
+			_dp_e([Vector2(-40,4),Vector2(-38,2),Vector2(-36,4),Vector2(-38,6)],
+				Color(1.0, 1.0, 0.4, 0.6))          # glow động cơ trái
+			_dp_e([Vector2(38,2),Vector2(40,4),Vector2(38,6),Vector2(36,4)],
+				Color(1.0, 1.0, 0.4, 0.6))          # glow động cơ phải
+			# Defense turrets
+			_dp_w([Vector2(-22,-10),Vector2(-18,-14),Vector2(-16,-10),Vector2(-18,-6)],
+				Color(1.0, 0.75, 0.0))              # turret phòng thủ trái
+			_dp_w([Vector2(18,-14),Vector2(22,-10),Vector2(18,-6),Vector2(16,-10)],
+				Color(1.0, 0.75, 0.0))              # turret phòng thủ phải
+			# Core power cell (CORE)
+			_dp_c([Vector2(-5,-7),Vector2(5,-7),Vector2(6,0),Vector2(0,4),Vector2(-6,0)],
+				Color(1.0, 1.0, 0.1, 0.55))         # lõi điện
+
+		# ══════════ 4 MOTHERSHIP ══════════ tím-hồng, đĩa bay siêu lớn
+		4:
+			# Outer ring segments (alternating)
+			for _i in range(12):
+				var a0 := TAU * _i / 12.0
+				var a1 := TAU * (_i + 0.9) / 12.0
+				var r0 := 38.0; var r1 := 46.0
+				var pts4 := [
+					Vector2(cos(a0)*r0, sin(a0)*r0),
+					Vector2(cos(a0)*r1, sin(a0)*r1),
+					Vector2(cos(a1)*r1, sin(a1)*r1),
+					Vector2(cos(a1)*r0, sin(a1)*r0)
+				]
+				var ring_col := Color(0.55, 0.1, 0.75) if _i % 2 == 0 else Color(0.35, 0.05, 0.5)
+				_dp(pts4, ring_col)                  # vành ngoài
+			# Inner ring
+			for _i in range(8):
+				var a0 := TAU * _i / 8.0
+				var a1 := TAU * (_i + 0.88) / 8.0
+				var r0 := 22.0; var r1 := 32.0
+				var pts4 := [
+					Vector2(cos(a0)*r0, sin(a0)*r0),
+					Vector2(cos(a0)*r1, sin(a0)*r1),
+					Vector2(cos(a1)*r1, sin(a1)*r1),
+					Vector2(cos(a1)*r0, sin(a1)*r0)
+				]
+				_dp(pts4, Color(0.7, 0.15, 0.9, 0.7)) # vành trong
+			# 6 energy pods (WEAPON + ENGINE alternating)
+			for _i in range(6):
+				var pa := TAU * _i / 6.0
+				var px := cos(pa) * 36.0;  var py := sin(pa) * 36.0
+				var pts4 := [
+					Vector2(px - 4, py - 4), Vector2(px + 4, py - 4),
+					Vector2(px + 4, py + 4), Vector2(px - 4, py + 4)
+				]
+				if _i % 2 == 0:
+					_dp_w(pts4, Color(1.0, 0.2, 0.9))   # pod vũ khí
+				else:
+					_dp_e(pts4, Color(0.5, 0.15, 1.0))  # pod động cơ
+			# Core hexagon (CORE — scale pulse)
+			_dp_c([Vector2(0,-14),Vector2(12,-7),Vector2(12,7),Vector2(0,14),
+				Vector2(-12,7),Vector2(-12,-7)],
+				Color(1.0, 0.05, 0.9, 0.6))          # lõi trung tâm
+			# Core inner eye
+			_dp([Vector2(0,-7),Vector2(6,-3),Vector2(6,3),Vector2(0,7),Vector2(-6,3),Vector2(-6,-3)],
+				Color(1.0, 0.6, 1.0, 0.9))           # mắt trung tâm
+			# Power conduits (4 beams)
+			_dp_e([Vector2(-3,-34),Vector2(3,-34),Vector2(3,-16),Vector2(-3,-16)],
+				Color(0.85, 0.3, 1.0, 0.7))          # ống năng lượng trên
+			_dp_e([Vector2(-3,16),Vector2(3,16),Vector2(3,34),Vector2(-3,34)],
+				Color(0.85, 0.3, 1.0, 0.7))          # ống năng lượng dưới
+			_dp_e([Vector2(-34,-3),Vector2(-16,-3),Vector2(-16,3),Vector2(-34,3)],
+				Color(0.85, 0.3, 1.0, 0.7))          # ống năng lượng trái
+			_dp_e([Vector2(16,-3),Vector2(34,-3),Vector2(34,3),Vector2(16,3)],
+				Color(0.85, 0.3, 1.0, 0.7))          # ống năng lượng phải
+			# Tractor beam bottom
+			_dp([Vector2(-5,36),Vector2(5,36),Vector2(3,44),Vector2(-3,44)],
+				Color(0.0, 1.0, 0.9, 0.8))           # chùm kéo dưới
 
 func _physics_process(delta: float) -> void:
 	time_elapsed += delta
@@ -207,10 +411,18 @@ func _physics_process(delta: float) -> void:
 			_charging = false
 			_charge_cd = randf_range(6.0, 10.0)
 			shoot_timer.start()
-			# Khôi phục màu boss sau khi lao
+			# Khôi phục màu bosss đúng phase sau khi lao
 			if is_instance_valid(sprite):
-				sprite.color = (BOSS_COLORS[boss_type] as Array)[0]
+				var ph_idx := 0
+				match current_phase:
+					Phase.TWO:   ph_idx = 1
+					Phase.THREE: ph_idx = 2
+				var tw := create_tween()
+				tw.tween_property(sprite, "color",
+					(BOSS_COLORS[boss_type] as Array)[ph_idx], 0.25) \
+					.set_trans(Tween.TRANS_SINE)
 		return
+	_update_anim(delta)
 	_special_cd -= delta
 	if _special_cd <= 0.0:
 		_special_cd = 5.5 - float(current_phase) * 1.2
@@ -257,6 +469,7 @@ func _apply_phase() -> void:
 		_:           phase_idx = 0
 	shoot_timer.wait_time = (SHOOT_TIMES[boss_type] as Array)[phase_idx]
 	shoot_timer.start()
+	_anim_phase_transition(phase_idx)
 
 # ── MOVEMENT (dispatch by boss_type) ─────────────────────────────────────────
 func _move(_delta: float) -> void:
@@ -308,6 +521,7 @@ func _move_mothership() -> void:
 
 # ── SHOOT PATTERNS ────────────────────────────────────────────────────────────
 func _on_shoot_timer() -> void:
+	_anim_fire_flash()
 	match current_phase:
 		Phase.ONE:   _phase1_attack()
 		Phase.TWO:   _phase2_attack()
@@ -433,6 +647,7 @@ func _spawn_bullet(dir: Vector2, btype: int = -1, spd: float = 280.0) -> void:
 # ── CHIÊU ĐẶC TRƯNG MỖI BOSS ─────────────────────────────────────────────────
 func _do_special() -> void:
 	if _is_dying or _charging: return
+	_anim_pre_special()
 	match boss_type:
 		0: _special_warship_barrage()        # xả đạn tạp trung
 		1: _special_interceptor_dash()       # teleport rồi bắn chéo
@@ -536,8 +751,7 @@ func _start_charge() -> void:
 	_charge_remaining = CHARGE_DURATION
 	_charging = true
 	shoot_timer.stop()
-	if is_instance_valid(sprite):
-		sprite.color = Color.WHITE
+	_anim_charge_windup()
 	# Interceptor rạp tới lần nữa nhanh hơn
 	_charge_cd = randf_range(3.0, 5.5) if boss_type == 1 else randf_range(6.0, 10.0)
 
@@ -587,3 +801,89 @@ func _drop_boss_reward() -> void:
 		bonus.global_position = global_position + Vector2(30.0, 0.0)
 		bonus.powerup_type = 6
 		container.add_child(bonus)
+
+# ══ ANIMATION SYSTEM ══════──────────────────────────────────────────
+
+func _update_anim(delta: float) -> void:
+	if _is_dying: return
+	_anim_time += delta
+
+	# 1) Nhấp nháy động cơ: sóng sin độ sáng
+	var ep := 0.55 + 0.45 * sin(_anim_time * 4.5)
+	for eng in _engine_nodes:
+		if is_instance_valid(eng):
+			var base_col: Color = (eng as Polygon2D).color
+			(eng as Polygon2D).color = Color(base_col.r, base_col.g, base_col.b,
+				clampf(ep, 0.3, 1.0))
+
+	# 2) Vũ khí nhấp nháy nhanh hơn
+	var wp := 0.6 + 0.4 * sin(_anim_time * 7.0)
+	for w in _weapon_nodes:
+		if is_instance_valid(w):
+			var bc: Color = (w as Polygon2D).color
+			(w as Polygon2D).color = Color(bc.r, bc.g, bc.b, clampf(wp, 0.45, 1.0))
+
+	# 3) Lõi: scale pulse nhẹ
+	if is_instance_valid(_core_node):
+		var sc := 1.0 + 0.1 * sin(_anim_time * 3.2)
+		_core_node.scale = Vector2(sc, sc)
+
+	# 4) Boss lắc lư nhẹ (rotation sway)
+	if is_instance_valid(sprite) and not _charging:
+		sprite.rotation = sin(_anim_time * 1.6) * deg_to_rad(1.8)
+
+# Phóng to + flash màu khi chuyển phase
+func _anim_phase_transition(phase_idx: int) -> void:
+	if not is_instance_valid(sprite): return
+	var target_col: Color = (BOSS_COLORS[boss_type] as Array)[phase_idx]
+	# Scale bounce
+	var tw := create_tween()
+	tw.set_parallel(false)
+	tw.tween_property(sprite, "scale", Vector2(1.3, 1.3), 0.12) \
+		.set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(sprite, "scale", Vector2(1.0, 1.0), 0.25) \
+		.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	# Màu flash riêng biệt
+	var cw := create_tween()
+	cw.tween_property(sprite, "color", Color.WHITE, 0.07)
+	cw.tween_property(sprite, "color", target_col, 0.35) \
+		.set_trans(Tween.TRANS_SINE)
+
+# Đỏ đỏ nhấp màu vàng/trắng trước chiêu đặc biệt
+func _anim_pre_special() -> void:
+	if not is_instance_valid(sprite): return
+	var ph_idx := 0
+	match current_phase:
+		Phase.TWO:   ph_idx = 1
+		Phase.THREE: ph_idx = 2
+	var base_col: Color = (BOSS_COLORS[boss_type] as Array)[ph_idx]
+	var warn := Color(1.0, 0.9, 0.1)
+	var tw := create_tween()
+	tw.set_parallel(false)
+	tw.tween_property(sprite, "color", warn, 0.08)
+	tw.tween_property(sprite, "color", base_col, 0.08)
+	tw.tween_property(sprite, "color", warn, 0.08)
+	tw.tween_property(sprite, "color", base_col, 0.12)
+
+# Xây trắng dần + rung trước khi lao
+func _anim_charge_windup() -> void:
+	if not is_instance_valid(sprite): return
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(sprite, "color", Color(2.0, 2.0, 2.0, 1.0), 0.3) \
+		.set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	for w in _weapon_nodes:
+		if is_instance_valid(w):
+			create_tween().tween_property(w, "color",
+				 Color(2.0, 2.0, 0.5, 1.0), 0.3).set_trans(Tween.TRANS_EXPO)
+
+# Flash nhanh vũ khí khi bắn
+func _anim_fire_flash() -> void:
+	for w in _weapon_nodes:
+		if is_instance_valid(w):
+			var wn := w as Polygon2D
+			var tw := create_tween()
+			tw.set_parallel(false)
+			tw.tween_property(wn, "color", Color(1.8, 1.8, 0.6, 1.0), 0.04)
+			tw.tween_property(wn, "color", wn.color, 0.14) \
+				.set_trans(Tween.TRANS_SINE)

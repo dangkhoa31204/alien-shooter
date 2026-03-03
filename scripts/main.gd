@@ -30,7 +30,14 @@ var _shake_time:  float = 0.0
 
 func _ready() -> void:
 	get_tree().paused = false
+	# Root chạy ALWAYS — chỉ để bắt phím ESC và hiển pause overlay
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# ── Đặt tất cả node game-world thành PAUSABLE ──────────────────────
+	# (Buộc phải gản tường minh vì root là ALWAYS nên con INHERIT sẽ thừa hưởng ALWAYS)
+	for child_name in ["Player", "WaveManager", "BulletContainer",
+			"EnemySpawner", "AsteroidContainer", "Background"]:
+		var n := get_node_or_null(child_name)
+		if n: n.process_mode = Node.PROCESS_MODE_PAUSABLE
 	# Camera2D for screen shake — position at viewport centre so world origin stays top-left
 	_cam = Camera2D.new()
 	_cam.name = "MainCamera"
@@ -38,6 +45,8 @@ func _ready() -> void:
 	add_child(_cam)
 	_cam.position = get_viewport_rect().size * 0.5
 	wave_manager.wave_cleared.connect(_on_wave_cleared)
+	if wave_manager.has_signal("level_completed"):
+		wave_manager.level_completed.connect(_on_level_completed)
 	refresh_hp(MAX_HP)
 	boss_hp_bar.visible = false
 	if boss_label: boss_label.visible = false
@@ -209,6 +218,11 @@ func _on_pause_menu_pressed() -> void:
 
 func start_next_wave() -> void:
 	current_wave += 1
+	# Kiểm tra giới hạn wave của level
+	var max_w: int = PlayerData.current_level.get("max_waves", 999)
+	if current_wave > max_w:
+		_on_level_completed()
+		return
 	refresh_ui()
 	wave_manager.start_wave(current_wave)
 
@@ -216,6 +230,22 @@ func _on_wave_cleared() -> void:
 	await get_tree().create_timer(2.0).timeout
 	if not is_game_over:
 		start_next_wave()
+
+func _on_level_completed() -> void:
+	if is_game_over: return
+	is_game_over = true
+	hide_boss_hp()
+	var earned_coins: int = score / 8   # bonus coins khi hoàn thành level
+	PlayerData.add_coins(earned_coins)
+	if ui_label:
+		var lv_name: String = PlayerData.current_level.get("name", "Level")
+		ui_label.text = "✓ %s COMPLETE!\nScore: %d\n+%d coins" % [lv_name, score, earned_coins]
+	if hp_label:
+		hp_label.text = ""
+	HighScore.save_score(score, current_wave)
+	show_alert("★ LEVEL COMPLETE! ★")
+	await get_tree().create_timer(3.0).timeout
+	get_tree().change_scene_to_file("res://scenes/level_select.tscn")
 
 func add_score(points: int) -> void:
 	score += points
@@ -227,6 +257,8 @@ func screen_shake(intensity: float, duration: float) -> void:
 
 func refresh_ui() -> void:
 	if ui_label:
+		var lv_name: String = PlayerData.current_level.get("name", "")
+		var max_w: int = PlayerData.current_level.get("max_waves", 999)
 		var wave_tag: String
 		if current_wave % 5 == 0:
 			wave_tag = " ☠ BOSS!"
@@ -234,7 +266,8 @@ func refresh_ui() -> void:
 			wave_tag = " ☄ ASTEROID"
 		else:
 			wave_tag = ""
-		ui_label.text = "Wave: %d%s   Score: %d" % [current_wave, wave_tag, score]
+		var prog_str: String = "%d/%d" % [current_wave, max_w] if max_w < 999 else str(current_wave)
+		ui_label.text = "%s  Wave: %s%s   Score: %d" % [lv_name, prog_str, wave_tag, score]
 
 # Cập nhật thanh máu — gọi từ player.gd khi bị damage
 func refresh_hp(hp: int, p_max: int = -1) -> void:
