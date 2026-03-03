@@ -1,0 +1,88 @@
+[gd_scene format=3 uid="uid://shop001"]
+
+[ext_resource type="Script" path="res://scripts/shop.gd" id="1_shop"]
+[ext_resource type="Script" path="res://scripts/background.gd" id="2_bg"]
+
+[node name="Shop" type="Node2D"]
+script = ExtResource("1_shop")
+
+[node name="Background" type="Node2D" parent="."]
+z_index = -10
+script = ExtResource("2_bg")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="TopBar" type="HBoxContainer" parent="UI"]
+offset_left = 16.0
+offset_top = 14.0
+offset_right = 1136.0
+offset_bottom = 52.0
+
+[node name="BackBtn" type="Button" parent="UI/TopBar"]
+custom_minimum_size = Vector2(110, 36)
+theme_override_font_sizes/font_size = 17
+text = "◀  BACK"
+
+[node name="Spacer" type="Control" parent="UI/TopBar"]
+size_flags_horizontal = 3
+
+[node name="CoinLabel" type="Label" parent="UI/TopBar"]
+custom_minimum_size = Vector2(160, 0)
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1.0, 0.88, 0.2, 1)
+text = "💰 0 coins"
+horizontal_alignment = 2
+
+[node name="ShopTitle" type="Label" parent="UI"]
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -140.0
+offset_top = 56.0
+offset_right = 140.0
+offset_bottom = 96.0
+theme_override_font_sizes/font_size = 30
+theme_override_colors/font_color = Color(0.5, 0.9, 1.0, 1)
+text = "🛒  SHOP"
+horizontal_alignment = 1
+
+[node name="Tabs" type="HBoxContainer" parent="UI"]
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -180.0
+offset_top = 100.0
+offset_right = 180.0
+offset_bottom = 136.0
+alignment = 1
+
+[node name="SkinTab" type="Button" parent="UI/Tabs"]
+custom_minimum_size = Vector2(160, 34)
+theme_override_font_sizes/font_size = 18
+text = "🎨  SKIN TÀU"
+
+[node name="StarterTab" type="Button" parent="UI/Tabs"]
+custom_minimum_size = Vector2(190, 34)
+theme_override_font_sizes/font_size = 18
+text = "🔫  ĐẠN KHỞI ĐẦU"
+
+[node name="Scroll" type="ScrollContainer" parent="UI"]
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -340.0
+offset_top = 148.0
+offset_right = 340.0
+offset_bottom = 660.0
+
+[node name="ItemList" type="VBoxContainer" parent="UI/Scroll"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="StatusLabel" type="Label" parent="UI"]
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 668.0
+offset_right = 200.0
+offset_bottom = 698.0
+theme_override_font_sizes/font_size = 18
+text = ""
+horizontal_alignment = 1
