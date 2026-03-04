@@ -84,10 +84,10 @@ func _apply_color() -> void:
 	if is_max_power:
 		_lc = Color(0.0, 1.0, 1.0) if bullet_type == BulletType.NORMAL else _lc.lightened(0.35)
 	_gc = Color(_lc.r * 0.45, _lc.g * 0.45, _lc.b * 0.45)
-	var lv_s := 1.0 + float(bullet_level - 1) * 0.20
-	if is_max_power: lv_s *= 1.4
-	_beam_len = (18.0 + float(bullet_level) * 7.0) * lv_s
-	_beam_w   = (1.8 + float(bullet_level) * 0.28) * lv_s
+	var lv_s := 1.0 + float(bullet_level - 1) * 0.12
+	if is_max_power: lv_s *= 1.15
+	_beam_len = minf((10.0 + float(bullet_level) * 3.5) * lv_s, 30.0)  # cap: tail never reaches plane
+	_beam_w   = (2.4 + float(bullet_level) * 0.36) * lv_s
 
 func _physics_process(delta: float) -> void:
 	_fx_timer += delta
@@ -129,7 +129,7 @@ func _draw() -> void:
 		draw_line(tip, tail * 0.6, Color(1.0, 1.0, 1.0, 0.70 * p), _beam_w * 0.35)
 		draw_circle(tip, _beam_w * 1.4, Color(1.0, 1.0, 1.0, 0.90 * p))
 		return
-	# Player: bright coloured laser bolt
+	# Player: bright coloured laser bolt with stronger glow
 	var flicker := 1.0
 	if bullet_type == BulletType.ELECTRIC:
 		flicker = 0.7 + 0.3 * float(int(_fx_timer * 22.0) % 2)
@@ -137,10 +137,13 @@ func _draw() -> void:
 		var h := fmod(_fx_timer * 0.6, 1.0)
 		_lc = Color.from_hsv(h, 0.85, 1.0)
 		_gc = Color.from_hsv(h, 0.5, 0.5)
-	draw_line(tip, tail, Color(_gc.r, _gc.g, _gc.b, 0.32), _beam_w * 3.2)  # outer glow
-	draw_line(tip, tail, Color(_lc.r, _lc.g, _lc.b, 0.92 * flicker), _beam_w)  # core
-	draw_line(tip, tail * 0.58, Color(1.0, 1.0, 1.0, 0.72 * flicker), _beam_w * 0.32)  # white centre
-	draw_circle(tip, _beam_w * 1.1, Color(1.0, 1.0, 1.0, 0.88 * flicker))  # tip flare
+	var pulse := 0.85 + 0.15 * sin(_fx_timer * 14.0)
+	draw_line(tip, tail, Color(_gc.r, _gc.g, _gc.b, 0.28 * pulse), _beam_w * 5.0)  # wide soft halo
+	draw_line(tip, tail, Color(_lc.r, _lc.g, _lc.b, 0.55 * pulse), _beam_w * 2.4)  # mid glow
+	draw_line(tip, tail, Color(_lc.r, _lc.g, _lc.b, 0.96 * flicker), _beam_w)       # core
+	draw_line(tip, tail * 0.5, Color(1.0, 1.0, 1.0, 0.82 * flicker), _beam_w * 0.38) # white centre
+	draw_circle(tip, _beam_w * 1.6, Color(_lc.r, _lc.g, _lc.b, 0.70 * pulse))        # colour flare
+	draw_circle(tip, _beam_w * 0.85, Color(1.0, 1.0, 1.0, 0.95 * flicker))            # bright tip
 
 func _on_body_entered(body: Node) -> void:
 	if is_enemy_bullet:

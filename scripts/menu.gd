@@ -11,10 +11,12 @@ func _ready() -> void:
 	var shop_btn     = get_node_or_null("UI/ShopBtn")
 	var hi_btn       = get_node_or_null("UI/HighscoreBtn")
 	var settings_btn = get_node_or_null("UI/SettingsBtn")
+	var themes_btn   = get_node_or_null("UI/ThemesBtn")
 	if play_btn:     play_btn.pressed.connect(_on_play_pressed)
 	if shop_btn:     shop_btn.pressed.connect(_on_shop_pressed)
 	if hi_btn:       hi_btn.pressed.connect(_on_highscore_pressed)
 	if settings_btn: settings_btn.pressed.connect(_on_settings_pressed)
+	if themes_btn:   themes_btn.pressed.connect(_on_themes_pressed)
 	_refresh_coins()
 	Audio.refresh_music()
 
@@ -37,3 +39,7 @@ func _on_highscore_pressed() -> void:
 func _on_settings_pressed() -> void:
 	Audio.play("button_click")
 	get_tree().change_scene_to_file("res://scenes/settings.tscn")
+
+func _on_themes_pressed() -> void:
+	Audio.play("button_click")
+	get_tree().change_scene_to_file("res://scenes/themes.tscn")

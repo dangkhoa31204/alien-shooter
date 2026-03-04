@@ -7,9 +7,17 @@ const BULLET_SCENE  = preload("res://scenes/bullet.tscn")
 const POWERUP_SCENE = preload("res://scenes/powerup.tscn")
 const HEART_SCENE   = preload("res://scenes/heart.tscn")
 
-const DROP_CHANCE: float  = 0.04   # 4% rơi powerup (giảm từ 7%)
-const HEART_CHANCE: float = 0.025  # 2.5% rơi tim (giảm từ 4%)
-const POWERUP_COUNT: int  = 7    # các loại powerup (0–6)
+const DROP_CHANCE: float  = 0.05
+const HEART_CHANCE: float = 0.03
+const POWERUP_COUNT: int  = 7
+
+# Tỷ lệ drop hiệu quả — tăng theo độ khó màn chơi (difficulty 1–10)
+func _eff_heart_chance() -> float:
+	var diff: int = PlayerData.current_level.get("difficulty", 1)
+	return HEART_CHANCE + maxf(0.0, float(diff - 4)) * 0.005   # +0.005/độ từ diff 5 → max ~0.058
+func _eff_drop_chance() -> float:
+	var diff: int = PlayerData.current_level.get("difficulty", 1)
+	return DROP_CHANCE + maxf(0.0, float(diff - 4)) * 0.007    # +0.007/độ từ diff 5 → max ~0.092
 
 var base_speed: float = 150.0
 var hp: int = 3
@@ -101,12 +109,20 @@ func _ready() -> void:
 	_shoot_timer = randf_range(2.5, shoot_interval + 2.0)
 	if is_instance_valid(sprite):
 		var pts: Array = ENEMY_POLYGONS[enemy_type]
+		# Aerial Warfare pack ghi đè hình dạng: Scout→F-4, Fighter→F-105, Bomber→B-52
+		var theme_pts: Array = ThemePack.theme_enemy_poly(enemy_type)
+		if theme_pts.size() > 0:
+			pts = theme_pts
 		var packed := PackedVector2Array()
 		for p in pts: packed.append(p)
 		sprite.polygon = packed
-		_base_color = ENEMY_BASE_COLORS[enemy_type]
+		_base_color = ThemePack.enemy_color(enemy_type)
 		sprite.color = _base_color
 		_add_type_details()
+		# Aerial Warfare: phóng to ngang bằng player để dễ nhìn
+		if ThemePack.get_pack().get("shape_mode", "") == "aerial_warfare":
+			_natural_scale = 1.8
+			sprite.scale = Vector2(_natural_scale, _natural_scale)
 	if has_node("EnemyAI"):
 		$EnemyAI.setup(self)
 
@@ -118,6 +134,10 @@ func start_fly_in(target: Vector2) -> void:
 
 func _add_type_details() -> void:
 	_clear_dr()
+	# Aerial Warfare pack — hình máy bay Mỹ thay thế
+	if ThemePack.get_pack().get("shape_mode", "") == "aerial_warfare":
+		_add_vnam_details_enemy()
+		return
 	# Soft glow aura behind body
 	match enemy_type:
 		0: _dp_glow(22.0, Color(1.00, 0.30, 0.10, 0.13))
@@ -158,6 +178,102 @@ func _add_type_details() -> void:
 			_dp([Vector2(-2,1),Vector2(2,1),Vector2(2,7),Vector2(-2,7)],
 				Color(1.0, 0.0, 0.5, 0.8))         # cẩu nối trung tâm
 
+# ── AERIAL WARFARE — Chi tiết sơn máy bay Mỹ ─────────────────────────────────
+func _add_vnam_details_enemy() -> void:
+	match enemy_type:
+		0: # F-4 Phantom II — tandem 2-seat canopy, cranked wing, twin intakes, USAF roundel
+			# ── Canopy greenhouse: front + rear cockpit sections ──
+			_dp([Vector2(-2.5,-14), Vector2(2.5,-14), Vector2(3.5,-9),
+			     Vector2(3.5,-4),   Vector2(-3.5,-4),  Vector2(-3.5,-9)],
+				Color(0.18, 0.20, 0.28))
+			_dp([Vector2(-1.8,-13), Vector2(1.8,-13), Vector2(2.8,-9.5),
+			     Vector2(2.8,-5),   Vector2(-2.8,-5),  Vector2(-2.8,-9.5)],
+				Color(0.40, 0.68, 0.90, 0.70))
+			# ── Cranked LE kink markers at ~55% semi-span ──
+			_dp([Vector2(9,-1), Vector2(11,-0.5), Vector2(17,6), Vector2(15,7),  Vector2(9,0.5)],
+				Color(0.35, 0.42, 0.18, 0.40))
+			_dp([Vector2(-9,-1),Vector2(-11,-0.5),Vector2(-17,6),Vector2(-15,7), Vector2(-9,0.5)],
+				Color(0.35, 0.42, 0.18, 0.40))
+			# ── Twin rectangular engine intakes (sides of forward fuselage) ──
+			_dp([Vector2(-5.5,-3), Vector2(-3,-3), Vector2(-2.5,2), Vector2(-5.5,2)],
+				Color(0.12, 0.12, 0.16))
+			_dp([Vector2( 3,-3),   Vector2( 5.5,-3), Vector2(5.5,2),  Vector2(2.5,2)],
+				Color(0.12, 0.12, 0.16))
+			# ── Twin engine nozzles ──
+			_dp([Vector2(-4,14), Vector2(-2,14), Vector2(-2,17), Vector2(-4,17)],
+				Color(0.16, 0.16, 0.20))
+			_dp([Vector2( 2,14), Vector2( 4,14), Vector2( 4,17), Vector2( 2,17)],
+				Color(0.16, 0.16, 0.20))
+			_dp([Vector2(-3.5,17), Vector2(-1.5,17), Vector2(-1,19), Vector2(-4,19)],
+				Color(1.0, 0.55, 0.10, 0.85))
+			_dp([Vector2( 1.5,17), Vector2( 3.5,17), Vector2( 4,19), Vector2( 1,19)],
+				Color(1.0, 0.55, 0.10, 0.85))
+			# ── USAF National Insignia: blue rect + white bars + white star ──
+			_dp([Vector2(-8,3), Vector2(8,3), Vector2(8,9), Vector2(-8,9)],
+				Color(0.10, 0.22, 0.62, 0.82))
+			_dp([Vector2(-8,3), Vector2(-6,3), Vector2(-6,9), Vector2(-8,9)],
+				Color(0.88, 0.88, 0.90))
+			_dp([Vector2( 6,3), Vector2( 8,3), Vector2( 8,9), Vector2( 6,9)],
+				Color(0.88, 0.88, 0.90))
+			var spts: Array = []
+			for i in 5:
+				var ao := float(i)*TAU/5.0 - PI/2.0
+				var ai := ao + TAU/10.0
+				spts.append(Vector2(cos(ao)*2.6,      sin(ao)*2.6 + 6.0))
+				spts.append(Vector2(cos(ai)*1.0,      sin(ai)*1.0 + 6.0))
+			_dp(spts, Color(0.92, 0.92, 0.96))
+		1: # F-105 Thunderchief — circular nose intake, Vulcan stub, internal bomb, AIM-9, single exhaust
+			# ── Circular nose intake (D-shaped cross section at nose) ──
+			_dp([Vector2(-3,-16), Vector2(3,-16), Vector2(3.5,-12),
+			     Vector2(3.5,-8), Vector2(-3.5,-8), Vector2(-3.5,-12)],
+				Color(0.10, 0.10, 0.14))
+			# ── Bubble canopy (single-seat, raised hump) ──
+			_dp([Vector2(-2,-7.5), Vector2(2,-7.5), Vector2(2.5,-3), Vector2(-2.5,-3)],
+				Color(0.18, 0.20, 0.28))
+			_dp([Vector2(-1.5,-7), Vector2(1.5,-7), Vector2(2,-3.5), Vector2(-2,-3.5)],
+				Color(0.42, 0.70, 0.92, 0.65))
+			# ── M61 Vulcan barrel stub (right cheek of nose) ──
+			_dp([Vector2(2,-16), Vector2(3.2,-16), Vector2(3.2,-6), Vector2(2,-6)],
+				Color(0.55, 0.52, 0.22))
+			# ── Internal weapons bay doors (characteristic "wasp waist") ──
+			_dp([Vector2(-2.5,0), Vector2(2.5,0), Vector2(2.5,10), Vector2(-2.5,10)],
+				Color(0.28, 0.26, 0.12, 0.55))
+			# ── AIM-9 Sidewinder under each wing ──
+			_dp([Vector2(-13,4), Vector2(-10,4), Vector2(-10,11), Vector2(-13,11)],
+				Color(0.55, 0.52, 0.20))
+			_dp([Vector2( 10,4), Vector2( 13,4), Vector2( 13,11), Vector2( 10,11)],
+				Color(0.55, 0.52, 0.20))
+			_dp([Vector2(-14.5,11), Vector2(-11,11), Vector2(-11.5,13.5), Vector2(-15,13.5)],
+				Color(0.78, 0.16, 0.04))
+			_dp([Vector2( 11,11), Vector2( 14.5,11), Vector2( 15,13.5), Vector2( 11.5,13.5)],
+				Color(0.78, 0.16, 0.04))
+			# ── Single large afterburner nozzle ──
+			_dp([Vector2(-2.5,14), Vector2(2.5,14), Vector2(2.5,17), Vector2(-2.5,17)],
+				Color(0.16, 0.16, 0.20))
+			_dp([Vector2(-3,17),   Vector2(3,17),   Vector2(4,19),   Vector2(-4,19)],
+				Color(1.0, 0.55, 0.12, 0.82))
+		2: # B-52 Stratofortress — flat greenhouse cockpit, 8-engine pods, tall tail fin
+			# ── Flat greenhouse cockpit (2 rows, 5 crew) ──
+			_dp([Vector2(-2,-7), Vector2(2,-7), Vector2(2,-3), Vector2(-2,-3)],
+				Color(0.20, 0.20, 0.26))
+			_dp([Vector2(-1.5,-6.5), Vector2(1.5,-6.5), Vector2(1.5,-3.5), Vector2(-1.5,-3.5)],
+				Color(0.44, 0.70, 0.92, 0.55))
+			# ── 4 pairs of engine pods (8 total) under swept wings ──
+			for side in [-1, 1]:
+				for pi2 in 4:
+					var xi := (6.0 + float(pi2) * 5.5) * float(side)
+					_dp([Vector2(xi-1.5, 0),  Vector2(xi+1.5, 0),
+					     Vector2(xi+1.5, 8),  Vector2(xi-1.5, 8)],
+						Color(0.18, 0.18, 0.22))
+					_dp([Vector2(xi-1.5, 8),  Vector2(xi+1.5, 8),
+					     Vector2(xi+2,   9.5), Vector2(xi-2,  9.5)],
+						Color(1.0, 0.65, 0.14, 0.65))
+			# ── Bomb bay (internal, dashed line effect) ──
+			_dp([Vector2(-2,0), Vector2(2,0), Vector2(2,12), Vector2(-2,12)],
+				Color(0.26, 0.24, 0.10, 0.45))
+			# ── Tall vertical stabilizer (B-52 signature) ──
+			_dp([Vector2(-1,10), Vector2(1,10), Vector2(1,15), Vector2(-1,15)],
+				Color(0.30, 0.30, 0.32))
 
 func _physics_process(delta: float) -> void:
 	# ── Fly-in: bay từ trên vào vị trí — chưa bắn, chưa AI ──
@@ -182,9 +298,9 @@ func _physics_process(delta: float) -> void:
 	if position.y > vp.y + 80.0 or position.y < -200.0:
 		_silent_die()
 	# 2.5D depth perspective: objects near top (far) appear smaller
-	if not _fly_in_active and is_instance_valid(sprite) and sprite.scale.y > 0.85:
+	if not _fly_in_active and is_instance_valid(sprite) and sprite.scale.y > 0.85 * _natural_scale * 0.5:
 		var d := clampf(position.y / maxf(1.0, vp.y), 0.05, 1.0)
-		var ds := lerpf(0.68, 1.0, d * d)
+		var ds := lerpf(0.68, 1.0, d * d) * _natural_scale
 		sprite.scale = Vector2(ds * _bank, ds)
 	# Throttle redraw: every other frame
 	if _rd_frame % 2 == 0:
@@ -192,6 +308,7 @@ func _physics_process(delta: float) -> void:
 
 var _depth_s: float = 1.0   # 2.5D depth scale cache
 var _bank:    float = 1.0   # 2.5D side-bank (set by AI when strafing)
+var _natural_scale: float = 1.0  # pack-based size multiplier (1.8 for Aerial Warfare)
 var _aura_t:  float = 0.0
 var _vp_size: Vector2 = Vector2(1152, 720)  # cached viewport
 var _rd_frame: int = 0                       # redraw throttle
@@ -200,6 +317,25 @@ func _draw() -> void:
 	# Pulsing aura glow — per enemy type
 	_aura_t += 0.05
 	var pulse := 0.52 + 0.48 * sin(_aura_t)
+	if ThemePack.get_pack().get("shape_mode", "") == "aerial_warfare":
+		# Viền sáng nổi bật quanh máy bay (outline glow)
+		match enemy_type:
+			0: # F-4 — viền + jet blast kép
+				draw_circle(Vector2.ZERO, 38.0, Color(0.65, 0.85, 0.30, 0.10 * pulse))
+				draw_circle(Vector2.ZERO, 28.0, Color(0.75, 0.95, 0.40, 0.08 * pulse))
+				draw_circle(Vector2(0.0, 24.0), 18.0, Color(0.55, 0.55, 0.60, 0.22 * pulse))
+				draw_circle(Vector2(0.0, 24.0), 9.0,  Color(1.0,  0.72, 0.20, 0.40 * pulse))
+			1: # F-105 — viền + jet blast đơn
+				draw_circle(Vector2.ZERO, 34.0, Color(0.80, 0.78, 0.35, 0.10 * pulse))
+				draw_circle(Vector2.ZERO, 24.0, Color(0.90, 0.88, 0.45, 0.08 * pulse))
+				draw_circle(Vector2(0.0, 26.0), 14.0, Color(0.42, 0.40, 0.18, 0.20 * pulse))
+				draw_circle(Vector2(0.0, 26.0), 7.0,  Color(1.0,  0.80, 0.25, 0.42 * pulse))
+			2: # B-52 — viền lớn + khói rộng 8 ống
+				draw_circle(Vector2.ZERO, 62.0, Color(0.55, 0.65, 0.30, 0.09 * pulse))
+				draw_circle(Vector2.ZERO, 46.0, Color(0.60, 0.70, 0.35, 0.07 * pulse))
+				draw_circle(Vector2(0.0, 18.0), 50.0, Color(0.28, 0.28, 0.30, 0.18 * pulse))
+				draw_circle(Vector2(0.0, 18.0), 28.0, Color(0.55, 0.52, 0.38, 0.25 * pulse))
+		return
 	match enemy_type:
 		0: # Scout — orange-red
 			draw_circle(Vector2.ZERO, 24.0, Color(1.00, 0.28, 0.08, 0.11 * pulse))
@@ -221,8 +357,8 @@ func _do_fly_in(delta: float) -> void:
 		if is_instance_valid(sprite):
 			sprite.modulate = Color(1.0, 1.0, 1.0, 1.0)  # khôi phục opacity
 			var tw := sprite.create_tween()
-			tw.tween_property(sprite, "scale", Vector2(1.18, 0.76), 0.07)
-			tw.tween_property(sprite, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_ELASTIC)
+			tw.tween_property(sprite, "scale", Vector2(1.18, 0.76) * _natural_scale, 0.07)
+			tw.tween_property(sprite, "scale", Vector2.ONE * _natural_scale, 0.18).set_trans(Tween.TRANS_ELASTIC)
 		return
 	# Di chuyển thẳng xuống theo hướng fly_in_target
 	var fly_dir := diff.normalized()
@@ -446,9 +582,9 @@ func _kamikaze_explode() -> void:
 	var main := get_tree().current_scene
 	if main and main.has_method("add_score"): main.add_score(score_value)
 	var roll := randf()
-	if roll < HEART_CHANCE:
+	if roll < _eff_heart_chance():
 		_drop_heart()
-	elif roll < HEART_CHANCE + DROP_CHANCE:
+	elif roll < _eff_heart_chance() + _eff_drop_chance():
 		_drop_powerup()
 	emit_signal("died")
 	if main and main.has_method("screen_shake"):
@@ -523,9 +659,9 @@ func _die() -> void:
 	if main and main.has_method("screen_shake"):
 		main.screen_shake(4.5, 0.14)
 	var roll := randf()
-	if roll < HEART_CHANCE:
+	if roll < _eff_heart_chance():
 		_drop_heart()
-	elif roll < HEART_CHANCE + DROP_CHANCE:
+	elif roll < _eff_heart_chance() + _eff_drop_chance():
 		_drop_powerup()
 	_spawn_explosion_rings(global_position)
 	# Ẩn sprite ngay, chờ một frame để explosion rings kịp spawn

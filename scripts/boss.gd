@@ -53,7 +53,7 @@ const BOSS_POLYGONS: Array = [
 # Loại đạn đặc trưng cho từng boss (NORMAL=0,ELECTRIC=1,FIRE=2,ICE=3,EXPLOSIVE=4)
 const BOSS_BULLET_TYPES: Array = [2, 1, 3, 4, 0]  # Warship=FIRE, Interceptor=ELECTRIC, Dreadnought=ICE, Carrier=EXPLOSIVE, Mothership=NORMAL
 
-# Màu [phase1, phase2, phase3] cho từng boss_type
+# Màu [phase1, phase2, phase3] cho từng boss_type (mặc định; override bởi ThemePack)
 const BOSS_COLORS: Array = [
 	[Color(0.8,  0.2,  0.8),  Color(1.0, 0.5,  0.0),  Color(1.0, 0.1,  0.1)],  # 0 Warship
 	[Color(0.1,  0.6,  1.0),  Color(0.0, 1.0,  0.9),  Color(0.1, 1.0,  0.4)],  # 1 Interceptor
@@ -61,6 +61,7 @@ const BOSS_COLORS: Array = [
 	[Color(0.6,  0.55, 0.05), Color(0.9, 0.85, 0.0),  Color(1.0, 1.0,  0.2)],  # 3 Carrier
 	[Color(0.65, 0.65, 0.8),  Color(0.9, 0.3,  0.95), Color(1.0, 0.05, 0.85)], # 4 Mothership
 ]
+var _boss_colors: Array = []   # set trong _ready() từ ThemePack
 
 # Phase thresholds (theo % máu còn lại)
 const PHASE2_HP: float = 0.66  # dưới 66% → phase 2
@@ -81,6 +82,9 @@ var _charge_dir:       Vector2 = Vector2.ZERO
 var _charge_remaining: float = 0.0
 const CHARGE_SPEED:    float = 580.0
 const CHARGE_DURATION: float = 0.65
+# Cảnh báo trước khi lao
+var _charge_warning:   bool   = false
+var _warn_line_node:   Node2D = null
 
 # ── ANIMATION ────────────────────────────────────────────────────────────────
 var _anim_time:    float   = 0.0
@@ -129,6 +133,8 @@ func _ready() -> void:
 	add_to_group("enemy")
 	add_to_group("boss")
 	shoot_timer.timeout.connect(_on_shoot_timer)
+	_boss_colors = ThemePack.boss_color_set(boss_type).duplicate()
+	if _boss_colors.is_empty(): _boss_colors = BOSS_COLORS[boss_type]
 	_apply_boss_type()
 	_apply_phase()
 	Audio.play("boss_appear")
@@ -142,6 +148,10 @@ func _ready() -> void:
 func _apply_boss_type() -> void:
 	if sprite:
 		var pts: Array = BOSS_POLYGONS[boss_type]
+		# Aerial Warfare pack ghi đè hình boss bằng máy bay Mỹ
+		var pack_polys: Array = ThemePack.get_pack().get("boss_polys", [])
+		if boss_type < pack_polys.size():
+			pts = pack_polys[boss_type]
 		var packed := PackedVector2Array()
 		for p in pts:
 			packed.append(p)
@@ -150,6 +160,9 @@ func _apply_boss_type() -> void:
 
 func _add_type_details() -> void:
 	_clear_dr()
+	if ThemePack.get_pack().get("shape_mode", "") == "aerial_warfare":
+		_add_vnam_details_boss()
+		return
 	match boss_type:
 
 		# ══════════ 0 WARSHIP ══════════ tím-lửa, thiết giáp hạm nặng
@@ -420,7 +433,7 @@ func _physics_process(delta: float) -> void:
 					Phase.THREE: ph_idx = 2
 				var tw := create_tween()
 				tw.tween_property(sprite, "color",
-					(BOSS_COLORS[boss_type] as Array)[ph_idx], 0.25) \
+					(_boss_colors as Array)[ph_idx], 0.25) \
 					.set_trans(Tween.TRANS_SINE)
 		return
 	_update_anim(delta)
@@ -430,10 +443,174 @@ func _physics_process(delta: float) -> void:
 		_do_special()
 	_charge_cd -= delta
 	if _charge_cd <= 0.0 and current_phase != Phase.ONE \
-			and BOSS_CAN_CHARGE[boss_type]:
-		_start_charge()
+			and BOSS_CAN_CHARGE[boss_type] and not _charge_warning:
+		_start_charge_warn()
 	_update_phase()
-	_move(delta)
+	if not _charge_warning:
+		_move(delta)
+	else:
+		velocity = Vector2.ZERO
+		move_and_slide()
+
+# ── AERIAL WARFARE — Chi tiết máy bay Mỹ cho boss ────────────────────────────────────
+func _add_vnam_details_boss() -> void:
+	match boss_type:
+		0: # B-52 Stratofortress — greenhouse cockpit, 8 engine pods, bomb bay, tall tail
+			# ── Greenhouse cockpit (flat, 2 rows, 5 crew wide) ──
+			_dp([Vector2(-6,-14), Vector2(6,-14), Vector2(7,-6), Vector2(-7,-6)],
+				Color(0.18, 0.18, 0.24))
+			_dp([Vector2(-4.5,-13), Vector2(4.5,-13), Vector2(5.5,-7), Vector2(-5.5,-7)],
+				Color(0.40, 0.65, 0.88, 0.55))
+			# ── Radome (nose forward bulge) ──
+			_dp([Vector2(-3,-16), Vector2(3,-16), Vector2(4,-14), Vector2(-4,-14)],
+				Color(0.25, 0.25, 0.30))
+			# ── 4 pairs of engine pods (8 total) along underside of swept wings ──
+			for side in [-1, 1]:
+				for ei in 4:
+					var xi := (10.0 + float(ei) * 11.0) * float(side)
+					_dp_e([Vector2(xi-3.0, -2.0), Vector2(xi+3.0, -2.0),
+					       Vector2(xi+3.0, 16.0), Vector2(xi-3.0, 16.0)],
+						Color(0.18, 0.18, 0.23))
+					_dp_e([Vector2(xi-3.2, 16.0), Vector2(xi+3.2, 16.0),
+					       Vector2(xi+4.0, 19.0), Vector2(xi-4.0, 19.0)],
+						Color(1.0, 0.62, 0.12, 0.72))
+			# ── Internal bomb bay ──
+			_dp([Vector2(-4,-2), Vector2(4,-2), Vector2(4,22), Vector2(-4,22)],
+				Color(0.26, 0.24, 0.10, 0.40))
+			# ── Tall vertical stabilizer (B-52 signature fin) ──
+			_dp([Vector2(-2,18), Vector2(2,18), Vector2(2,30), Vector2(-2,30)],
+				Color(0.30, 0.30, 0.32))
+			# ── 3 falling Mk82 bombs ──
+			for bi in 3:
+				var bx := float(bi-1) * 4.0
+				_dp_c([Vector2(bx-1.5,22), Vector2(bx+1.5,22),
+				       Vector2(bx+1.2,30), Vector2(bx-1.2,30)],
+					Color(0.48, 0.44, 0.18))
+		1: # F-4 Phantom boss — long tandem greenhouse, splayed stabs, twin intakes + nozzles, USAF roundel
+			# ── Long tandem-seat greenhouse canopy ──
+			_dp([Vector2(-6,-38), Vector2(6,-38), Vector2(7,-22), Vector2(0,-16), Vector2(-7,-22)],
+				Color(0.18, 0.20, 0.28))
+			_dp([Vector2(-4,-37), Vector2(4,-37), Vector2(5.5,-24), Vector2(0,-18), Vector2(-5.5,-24)],
+				Color(0.42, 0.70, 0.92, 0.62))
+			# ── Twin rectangular engine intakes (flanking lower fuselage) ──
+			_dp([Vector2(-13,-8), Vector2(-6,-8), Vector2(-5,12), Vector2(-13,12)],
+				Color(0.12, 0.12, 0.16))
+			_dp([Vector2( 6,-8),  Vector2(13,-8), Vector2(13,12), Vector2( 5,12)],
+				Color(0.12, 0.12, 0.16))
+			# ── Twin nozzle outlets + afterburner flame ──
+			_dp_e([Vector2(-12,28), Vector2(-5,28), Vector2(-5,40), Vector2(-12,40)],
+				Color(0.16, 0.16, 0.20))
+			_dp_e([Vector2( 5,28),  Vector2(12,28), Vector2(12,40), Vector2(  5,40)],
+				Color(0.16, 0.16, 0.20))
+			_dp_e([Vector2(-13,40), Vector2(-4,40), Vector2(-3,46), Vector2(-14,46)],
+				Color(1.0, 0.60, 0.12, 0.82))
+			_dp_e([Vector2(  4,40), Vector2(13,40), Vector2(14,46), Vector2(  3,46)],
+				Color(1.0, 0.60, 0.12, 0.82))
+			# ── USAF National Insignia (large): blue rect + white bars + white star ──
+			_dp([Vector2(-18,8), Vector2(18,8), Vector2(18,24), Vector2(-18,24)],
+				Color(0.10, 0.22, 0.62, 0.85))
+			_dp([Vector2(-18,8), Vector2(-12,8), Vector2(-12,24), Vector2(-18,24)],
+				Color(0.88, 0.88, 0.90))
+			_dp([Vector2( 12,8), Vector2( 18,8), Vector2( 18,24), Vector2( 12,24)],
+				Color(0.88, 0.88, 0.90))
+			var spts: Array = []
+			for i in 5:
+				var ao := float(i)*TAU/5.0 - PI/2.0
+				var ai := ao + TAU/10.0
+				spts.append(Vector2(cos(ao)*7.0, sin(ao)*7.0+16.0))
+				spts.append(Vector2(cos(ai)*2.8, sin(ai)*2.8+16.0))
+			_dp(spts, Color(0.92, 0.92, 0.96))
+			# ── Upturned stabilizer tip markers (dihedral) ──
+			_dp([Vector2( 18,32), Vector2( 28,36), Vector2( 24,40), Vector2( 16,38)],
+				Color(0.30, 0.36, 0.16, 0.60))
+			_dp([Vector2(-18,32), Vector2(-28,36), Vector2(-24,40), Vector2(-16,38)],
+				Color(0.30, 0.36, 0.16, 0.60))
+		2: # AC-130 Spectre — flat cockpit, 4 turboprop spinners, 105mm howitzer, 40mm Bofors
+			# ── Side-by-side crew cockpit ──
+			_dp([Vector2(-6,-22), Vector2(6,-22), Vector2(7,-14), Vector2(-7,-14)],
+				Color(0.20, 0.20, 0.26))
+			_dp([Vector2(-4.5,-21), Vector2(4.5,-21), Vector2(5.5,-15), Vector2(-5.5,-15)],
+				Color(0.42, 0.68, 0.90, 0.55))
+			# ── 4 turboprop pods (2 per wing, straight wing) ──
+			for side in [-1, 1]:
+				for ei in 2:
+					var xi := (18.0 + float(ei)*18.0) * float(side)
+					_dp_e([Vector2(xi-4.0, -6.0), Vector2(xi+4.0, -6.0),
+					       Vector2(xi+4.0, 14.0), Vector2(xi-4.0, 14.0)],
+						Color(0.20, 0.20, 0.26))
+					# Propeller disc (4-blade spinner silhouette)
+					_dp([Vector2(xi-8.0,-8.5), Vector2(xi+8.0,-8.5),
+					     Vector2(xi+5.5,-4.0), Vector2(xi-5.5,-4.0)],
+						Color(0.38, 0.36, 0.18, 0.80))
+					_dp_e([Vector2(xi-4.0,14.0), Vector2(xi+4.0,14.0),
+					       Vector2(xi+5.0,17.0), Vector2(xi-5.0,17.0)],
+						Color(0.95, 0.82, 0.20, 0.60))
+			# ── 105mm howitzer barrel on left fuselage sponson ──
+			_dp_w([Vector2(-54,-4), Vector2(-40,-8), Vector2(-36,-2), Vector2(-42,4)],
+				Color(0.75, 0.22, 0.04))
+			_dp_w([Vector2(-66,-4), Vector2(-54,-4), Vector2(-54,4), Vector2(-66,4)],
+				Color(0.60, 0.56, 0.22))
+			# ── 40mm Bofors + 20mm Vulcan companion ──
+			_dp_w([Vector2(-46,-8), Vector2(-38,-12), Vector2(-36,-7), Vector2(-40,-4)],
+				Color(0.55, 0.50, 0.20))
+		3: # C-130 Hercules — boxy fuselage, 4 turboprops, rear ramp, tall tail
+			# ── Cockpit (boxy nose, two pilots side-by-side) ──
+			_dp([Vector2(-6,-20), Vector2(6,-20), Vector2(7,-12), Vector2(-7,-12)],
+				Color(0.22, 0.22, 0.28))
+			_dp([Vector2(-4.5,-19), Vector2(4.5,-19), Vector2(5.5,-13), Vector2(-5.5,-13)],
+				Color(0.40, 0.65, 0.88, 0.52))
+			# ── 4 turboprop pods (2 per straight wing) ──
+			for side in [-1, 1]:
+				for ei in 2:
+					var xi := (16.0 + float(ei)*16.0) * float(side)
+					_dp_e([Vector2(xi-3.5,-7.0), Vector2(xi+3.5,-7.0),
+					       Vector2(xi+3.5,10.0), Vector2(xi-3.5,10.0)],
+						Color(0.22, 0.22, 0.28))
+					_dp([Vector2(xi-7.0,-9.0), Vector2(xi+7.0,-9.0),
+					     Vector2(xi+4.5,-5.0), Vector2(xi-4.5,-5.0)],
+						Color(0.38, 0.36, 0.18, 0.75))
+					_dp_e([Vector2(xi-3.5,10.0), Vector2(xi+3.5,10.0),
+					       Vector2(xi+4.5,13.0), Vector2(xi-4.5,13.0)],
+						Color(0.95, 0.80, 0.18, 0.62))
+			# ── Rear loading ramp ──
+			_dp([Vector2(-6,22), Vector2(6,22), Vector2(6,32), Vector2(-6,32)],
+				Color(0.22, 0.20, 0.10, 0.55))
+			# ── Vertical stabilizer + horizontal tail spars ──
+			_dp([Vector2(-2,26), Vector2(2,26), Vector2(2,34), Vector2(-2,34)],
+				Color(0.30, 0.30, 0.32))
+		4: # B-29 Superfortress — greenhouse nose, 4 radial-engine pods, bomb bay
+			# ── Greenhouse bombardier/pilot nose (iconic "glass" nose) ──
+			_dp([Vector2(-7,-38), Vector2(7,-38), Vector2(8,-26), Vector2(0,-20), Vector2(-8,-26)],
+				Color(0.20, 0.20, 0.26))
+			_dp([Vector2(-5,-37), Vector2(5,-37), Vector2(6.5,-28), Vector2(0,-22), Vector2(-6.5,-28)],
+				Color(0.42, 0.68, 0.90, 0.55))
+			# ── 4 radial engine nacelles (2 per wing, on leading edge) ──
+			for side in [-1, 1]:
+				for ei in 2:
+					var xi := (14.0 + float(ei)*16.0) * float(side)
+					# Circular nacelle cross-section (8-point polygon)
+					var cpts: Array = []
+					for ci in 8:
+						cpts.append(Vector2(
+							cos(float(ci)/8.0*TAU)*5.0 + xi,
+							sin(float(ci)/8.0*TAU)*5.0 + 4.0))
+					_dp_e(cpts, Color(0.20, 0.20, 0.25))
+					# 4-blade propeller disc
+					for pi3 in 4:
+						var pa := float(pi3)*PI/2.0
+						_dp([Vector2(cos(pa)*4.0+xi,    sin(pa)*4.0+4.0),
+						     Vector2(cos(pa+0.28)*9.0+xi, sin(pa+0.28)*9.0+4.0),
+						     Vector2(cos(pa-0.28)*9.0+xi, sin(pa-0.28)*9.0+4.0)],
+							Color(0.38, 0.36, 0.15, 0.72))
+					_dp_e([Vector2(xi-4.0,14.0), Vector2(xi+4.0,14.0),
+					       Vector2(xi+5.0,18.0), Vector2(xi-5.0,18.0)],
+						Color(0.90, 0.75, 0.16, 0.50))
+			# ── Central bomb bay (large internal) ──
+			_dp_c([Vector2(-4,28), Vector2(4,28), Vector2(4,44), Vector2(-4,44)],
+				Color(0.50, 0.46, 0.20))
+			# ── Bomb bay target marker (red stripe) ──
+			_dp_w([Vector2(-3,40), Vector2(3,40), Vector2(3,48), Vector2(-3,48)],
+				Color(0.80, 0.20, 0.04))
 
 # ── PHASE MANAGEMENT ──────────────────────────────────────────────────────────
 func _update_phase() -> void:
@@ -452,15 +629,15 @@ func _update_phase() -> void:
 		_apply_phase()
 
 func _apply_phase() -> void:
-	var colors: Array = BOSS_COLORS[boss_type]
+	var colors: Array = _boss_colors
 	# Shoot timer per boss_type per phase
 	# Warship: nhanh | Interceptor: chậm | Dreadnought: chậm | Carrier: vừa | Mothership: vừa
 	const SHOOT_TIMES: Array = [
-		[0.7,  0.38, 0.22],   # 0 Warship — xả đạn rất nhanh
-		[3.5,  2.4,  1.6 ],   # 1 Interceptor — hiếm khi bắn
-		[2.8,  2.0,  1.3 ],   # 2 Dreadnought — chậm, gọi quân là chính
-		[2.2,  1.6,  1.0 ],   # 3 Carrier — bắn vừa + gọi quân
-		[1.2,  0.7,  0.45],   # 4 Mothership — all-rounder
+		[1.0,  0.55, 0.35],   # 0 Warship
+		[4.2,  3.0,  2.0 ],   # 1 Interceptor
+		[3.5,  2.5,  1.6 ],   # 2 Dreadnought
+		[2.8,  2.0,  1.3 ],   # 3 Carrier
+		[1.8,  1.1,  0.70],   # 4 Mothership
 	]
 	var phase_idx: int
 	match current_phase:
@@ -615,7 +792,7 @@ func _shoot_circle(count: int = 8) -> void:
 		_spawn_bullet(Vector2(cos(angle), sin(angle)))
 
 func _shoot_double_ring() -> void:
-	var count := 7   # giảm từ 10 → 7 (14 → 10 đạn tổng)
+	var count := 5   # tổng 10 đạn
 	for i in range(count):
 		var a1 := TAU * i / count
 		var a2 := TAU * (i + 0.5) / count
@@ -623,10 +800,9 @@ func _shoot_double_ring() -> void:
 		_spawn_bullet(Vector2(cos(a2), sin(a2)))
 
 func _shoot_spiral() -> void:
-	# Giảm từ 8 → 6 đạn
 	var base_angle := float(Time.get_ticks_msec()) * 0.002
-	for i in range(6):
-		var a := base_angle + TAU * i / 6.0
+	for i in range(5):
+		var a := base_angle + TAU * i / 5.0
 		_spawn_bullet(Vector2(cos(a), sin(a)))
 
 func _get_player_dir() -> Vector2:
@@ -746,6 +922,68 @@ func _summon_enemies(count: int) -> void:
 		spawner.add_child(enemy)
 
 # ── CHARGE (lao thẳng về phía player) ────────────────────────────────────────
+func _start_charge_warn() -> void:
+	if _is_dying: return
+	var p := get_tree().current_scene.get_node_or_null("Player")
+	if p == null or not is_instance_valid(p): return
+	_charge_warning = true
+	_charge_cd = 9999.0   # Chặn lần kế
+
+	# ── Tạo node vẽ đường cảnh báo ──
+	var line_node := Node2D.new()
+	var script := GDScript.new()
+	script.source_code = """
+extends Node2D
+var boss_ref: Node2D
+var player_ref: Node2D
+var _t: float = 0.0
+const DURATION: float = 0.70
+func _process(d: float) -> void:
+\t_t += d
+\tif _t >= DURATION or not is_instance_valid(boss_ref) or not is_instance_valid(player_ref):
+\t\tqueue_free(); return
+\tqueue_redraw()
+func _draw() -> void:
+\tif not is_instance_valid(boss_ref) or not is_instance_valid(player_ref): return
+\tvar a := boss_ref.global_position
+\tvar b := player_ref.global_position
+\tvar progress := _t / DURATION
+\t# Nhấp nháy nhanh càng gần cuối càng nhanh
+\tvar blink := 0.55 + 0.45 * sin(_t * (18.0 + progress * 24.0))
+\tvar alpha := blink * (0.6 + progress * 0.4)
+\t# Vẽ đường kẻ đứt quãng từ boss → player
+\tvar total := a.distance_to(b)
+\tvar dir := (b - a).normalized()
+\tvar dash := 14.0; var gap := 7.0; var dp := 0.0; var seg := 0
+\tvar line_col := Color(1.0, 0.12, 0.0, alpha)
+\twhile dp < total:
+\t\tvar s2 := a + dir * dp
+\t\tvar e2 := a + dir * minf(dp + dash, total)
+\t\tif seg % 2 == 0: draw_line(s2, e2, line_col, 2.5)
+\t\tdp += dash + gap; seg += 1
+\t# Vòng đỏ nhấp nháy tại player
+\tvar ring_r := 8.0 + 5.0 * sin(_t * 14.0)
+\tdraw_circle(b, ring_r, Color(1.0, 0.08, 0.0, alpha * 0.65))
+\tdraw_circle(b, ring_r * 0.45, Color(1.0, 0.7, 0.2, alpha * 0.9))
+"""
+	script.reload()
+	line_node.set_script(script)
+	line_node.set("boss_ref", self)
+	line_node.set("player_ref", p)
+	line_node.z_index = 20
+	_warn_line_node = line_node
+	var container := get_tree().current_scene
+	if container: container.add_child(line_node)
+
+	# Flash trắng cảnh báo rồi sau 0.70s mới lao
+	_anim_charge_windup()
+	await get_tree().create_timer(0.70).timeout
+	if not is_instance_valid(self) or _is_dying: return
+	_charge_warning = false
+	if is_instance_valid(_warn_line_node): _warn_line_node.queue_free()
+	_warn_line_node = null
+	_start_charge()
+
 func _start_charge() -> void:
 	if _is_dying: return
 	var p := get_tree().current_scene.get_node_or_null("Player")
@@ -754,7 +992,8 @@ func _start_charge() -> void:
 	_charge_remaining = CHARGE_DURATION
 	_charging = true
 	shoot_timer.stop()
-	_anim_charge_windup()
+	# Cập nhật hướng tại thời điểm lao (player có thể đã di chuyển)
+	# _anim_charge_windup đã gọi ở _start_charge_warn rồi, không gọi lại
 	# Interceptor rạp tới lần nữa nhanh hơn
 	_charge_cd = randf_range(3.0, 5.5) if boss_type == 1 else randf_range(6.0, 10.0)
 
@@ -838,7 +1077,7 @@ func _update_anim(delta: float) -> void:
 # Phóng to + flash màu khi chuyển phase
 func _anim_phase_transition(phase_idx: int) -> void:
 	if not is_instance_valid(sprite): return
-	var target_col: Color = (BOSS_COLORS[boss_type] as Array)[phase_idx]
+	var target_col: Color = (_boss_colors as Array)[phase_idx]
 	# Scale bounce
 	var tw := create_tween()
 	tw.set_parallel(false)
@@ -859,7 +1098,7 @@ func _anim_pre_special() -> void:
 	match current_phase:
 		Phase.TWO:   ph_idx = 1
 		Phase.THREE: ph_idx = 2
-	var base_col: Color = (BOSS_COLORS[boss_type] as Array)[ph_idx]
+	var base_col: Color = (_boss_colors as Array)[ph_idx]
 	var warn := Color(1.0, 0.9, 0.1)
 	var tw := create_tween()
 	tw.set_parallel(false)

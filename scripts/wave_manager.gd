@@ -12,7 +12,7 @@ const BOSS_SCENE           = preload("res://scenes/boss.tscn")
 const ASTEROID_SCENE       = preload("res://scenes/asteroid.tscn")
 const SPECIAL_PICKUP_SCENE = preload("res://scenes/special_pickup.tscn")
 
-const SPEED_SCALE: float = 0.12   # tốc độ tăng mỗi wave
+const SPEED_SCALE: float = 0.07   # tốc độ tăng mỗi wave (giảm từ 0.12)
 
 var current_wave:    int  = 0
 var enemies_alive:   int  = 0
@@ -105,12 +105,12 @@ func _spawn_boss() -> void:
 	_drop_special_pickups()
 	var vp := get_viewport().get_visible_rect().size
 	var boss_tier: int   = current_wave / 5
-	var base_hp:   int   = 200 + boss_tier * 100
-	var base_spd:  float = 120.0 + float(boss_tier) * 15.0
+	var base_hp:   int   = 180 + boss_tier * 75
+	var base_spd:  float = 105.0 + float(boss_tier) * 12.0
 	var btype: int = (_boss_encounter - 1) % 5
 	enemies_alive = 0
-	if current_wave >= 20:
-		# Từ wave 20 trở đi: xuất hiện 2 boss cùng lúc, loại luân phiên
+	if current_wave >= 22:
+		# Từ wave 22 trở đi: xuất hiện 2 boss cùng lúc, loại luân phiên
 		_make_boss(btype,             base_hp, base_spd, vp.x * 0.30)
 		_make_boss((btype + 1) % 5,   base_hp, base_spd, vp.x * 0.70)
 	else:
@@ -163,10 +163,10 @@ func _spawn_formation() -> void:
 	if not spawner: return
 	enemies_alive = positions.size()
 
-	var shoot_interval: float = max(5.0 - float(current_wave) * 0.18, 1.2)
+	var shoot_interval: float = max(5.5 - float(current_wave) * 0.16, 1.5)
 	var attack_tier: int      = clampi((current_wave - 1) / 4, 0, 4)
 	var patterns_avail: int   = mini(attack_tier + 1, 5)
-	var spd_base: float       = 45.0 + float(current_wave) * 1.5
+	var spd_base: float       = 42.0 + float(current_wave) * 1.2
 
 	# Hiển thị alert tên hình thái
 	var shape_names := [
@@ -184,7 +184,7 @@ func _spawn_formation() -> void:
 			await get_tree().create_timer(0.22).timeout
 		var target_pos: Vector2 = positions[idx]
 		var enemy = ENEMY_SCENE.instantiate()
-		var scaled_hp: int = max(1, int(float(1 + (current_wave - 1) / 2) * _hp_mult))
+		var scaled_hp: int = max(1, int(float(1 + (current_wave - 1) / 3) * _hp_mult))
 		enemy.base_speed     *= 1.0 + float(current_wave - 1) * SPEED_SCALE
 		enemy.max_hp          = scaled_hp
 		enemy.hp              = scaled_hp
@@ -350,7 +350,8 @@ func _spawn_asteroid_wave() -> void:
 	var container := _asteroid_container
 
 	if main and main.has_method("show_alert"):
-		main.show_alert("☄  ASTEROID SHOWER!")
+		var msg := "⚠  AA MISSILE BARRAGE!" if ThemePack.get_pack().get("shape_mode","") == "aerial_warfare" else "☄  ASTEROID SHOWER!"
+		main.show_alert(msg)
 
 	var shower_idx: int = current_wave / 3
 	# Số lượng random tăng theo wave

@@ -20,8 +20,8 @@ var _skin_shield:        bool  = false
 var _shield_regen_timer: float = 0.0
 
 # ── SKILL (J) ──────────────────────────────────────────────────────
-const SKILL_COOLDOWNS: Array = [20.0, 15.0, 15.0, 20.0, 25.0]  # theo sid
-const SKILL_DURATIONS: Array = [ 8.0,  4.0,  4.0, 10.0, 10.0]
+const SKILL_COOLDOWNS: Array = [18.0, 13.0, 14.0, 17.0, 21.0]  # theo sid
+const SKILL_DURATIONS: Array = [ 8.0,  5.0,  5.0, 10.0, 10.0]
 var _skill_cd:           float = 0.0   # thời gian chờ trước lần kế
 var _skill_active:       bool  = false
 var _skill_timer:        float = 0.0   # thời gian còn lại của skill
@@ -60,13 +60,8 @@ const SW_POD_COLORS: Array = [
 	Color(1.0, 0.15, 0.1),  # MISSILE    — đỏ
 	Color(0.2, 0.0, 0.9),   # BLACK HOLE — xanh đậm
 ]
-# Pod polygon (tính theo tọa độ local sprite, x > 0 = phải, x < 0 = trái)
-const _POD_R: Array = [
-	Vector2(16, -8), Vector2(24, -6), Vector2(26, 0),
-	Vector2(24,  6), Vector2(16,  8), Vector2(14,  0)
-]
-var _pod_left_node:  Polygon2D = null
-var _pod_right_node: Polygon2D = null
+var _pod_left_node:  Node2D = null
+var _pod_right_node: Node2D = null
 var _pod_label_left:  Label = null
 var _pod_label_right: Label = null
 
@@ -146,10 +141,14 @@ func _apply_skin() -> void:
 	if not is_instance_valid(sprite): return
 	var sid: int = PlayerData.equipped_skin
 	var pts: Array = SKIN_POLYGONS[sid]
+	# Gói Aerial Warfare ghi đè hình dạng phi thuyền (giữ nguyên stats của skin đã chọn)
+	var theme_pts: Array = ThemePack.theme_player_poly(sid)
+	if theme_pts.size() > 0:
+		pts = theme_pts
 	var packed := PackedVector2Array()
 	for p in pts: packed.append(p)
 	sprite.polygon = packed
-	sprite.color = PlayerData.get_skin_color()
+	sprite.color = _get_sprite_color()
 	# ── Passive theo skin ────────────────────────────────────────
 	_move_speed       = SPEED
 	_fire_rate        = FIRE_RATE
@@ -171,7 +170,7 @@ func _apply_skin() -> void:
 			extra_streams = maxi(extra_streams, 2)
 			_fire_rate    = 0.17
 		3:  # Neon Dart — di chuyển nhanh, bắn vừa, 30% né tránh đòn
-			_move_speed = SPEED * 1.45
+			_move_speed = SPEED * 1.38
 			_fire_rate  = 0.13
 		4:  # Purple Heavy — 7HP, sát thương +1, LV đạn +1, mỗi đòn giảm 1 sát thương (min 1)
 			skin_damage_bonus = 1
@@ -185,6 +184,14 @@ func _apply_skin() -> void:
 		_main.set_max_hp(_max_hp)
 		_main.refresh_hp(hp, _max_hp)
 	_add_skin_details(sid)
+
+# Màu thật của sprite: trả về màu camo quân sự khi Aerial Warfare theme đang bật
+func _get_sprite_color() -> Color:
+	if ThemePack.get_pack().get("shape_mode", "") == "aerial_warfare":
+		var vcols: Array = ThemePack.get_pack().get("player_colors", [])
+		if _skin_id < vcols.size(): return vcols[_skin_id]
+		return Color(0.20, 0.28, 0.12)
+	return PlayerData.get_skin_color()
 
 func _add_skin_details(sid: int) -> void:
 	_clear_dr()
@@ -401,6 +408,215 @@ func _add_skin_details(sid: int) -> void:
 				Color(0.85, 0.15, 1.0, 0.9))                      # vành trái
 			_dp([Vector2(6,19),Vector2(14,19),Vector2(14,20.5),Vector2(6,20.5)],
 				Color(0.85, 0.15, 1.0, 0.9))                      # vành phải
+	# Lớp overlay Aerial Warfare — vẽ đè lên mọi skin khi pack Aerial Warfare đang bật
+	if ThemePack.get_pack().get("shape_mode", "") == "aerial_warfare":
+		_add_vnam_details_player()
+
+# Chi tiết sơn máy bay VPAF — gọi khi Aerial Warfare theme đang bật
+func _add_vnam_details_player() -> void:
+	match _skin_id:
+		0: _vnam_mig21()
+		1: _vnam_mig17()
+		2: _vnam_mi24()
+		3: _vnam_mig19()
+		4: _vnam_il28()
+
+func _vnam_star(sx: float, sy: float, rs: float = 3.8) -> void:
+	var ri := rs * 0.40
+	var pts: Array = []
+	for i in 5:
+		var ao := float(i)*TAU/5.0 - PI/2.0
+		var ai := ao + TAU/10.0
+		pts.append(Vector2(cos(ao)*rs+sx, sin(ao)*rs+sy))
+		pts.append(Vector2(cos(ai)*ri+sx, sin(ai)*ri+sy))
+	_dp(pts, Color(1.0, 0.92, 0.05, 0.95))
+
+func _vnam_mig21() -> void:
+	# Miệng hút không khí tròn ở mũi (đặc trưng MiG-21)
+	var intake: Array = []
+	for i in 14:
+		var a := float(i) / 14.0 * TAU
+		intake.append(Vector2(cos(a) * 4.5, sin(a) * 4.5 - 20.0))
+	_dp(intake, Color(0.06, 0.06, 0.08))
+	var intake_c: Array = []
+	for i in 14:
+		var a := float(i) / 14.0 * TAU
+		intake_c.append(Vector2(cos(a) * 2.8, sin(a) * 2.8 - 20.0))
+	_dp(intake_c, Color(0.02, 0.02, 0.04))
+	# Buồng lái dạng bong bóng nhỏ
+	_dp([Vector2(-3,-12),Vector2(3,-12),Vector2(4,-7),Vector2(0,-4),Vector2(-4,-7)],
+		Color(0.08, 0.25, 0.55))                                  # khung cockpit
+	_dp([Vector2(-2,-11),Vector2(2,-11),Vector2(3,-8),Vector2(0,-6),Vector2(-3,-8)],
+		Color(0.4, 0.78, 1.0, 0.65))                              # kính
+	_dp([Vector2(-0.8,-10),Vector2(0.8,-10),Vector2(1.2,-7.5),Vector2(-1.2,-7.5)],
+		Color(0.9, 1.0, 1.0, 0.5))                               # điểm sáng
+	# Bề mặt cánh delta (xanh rêu quân sự)
+	_dp([Vector2(2,-12),Vector2(14,-2),Vector2(16,4),Vector2(6,4)],
+		Color(0.25, 0.38, 0.15, 0.45))                           # cánh phải
+	_dp([Vector2(-2,-12),Vector2(-14,-2),Vector2(-16,4),Vector2(-6,4)],
+		Color(0.25, 0.38, 0.15, 0.45))                           # cánh trái
+	# Vạch nhận dạng đỏ trên cánh
+	_dp([Vector2(6,0),Vector2(14,-1),Vector2(14,1.5),Vector2(6,2.5)],
+		Color(0.82, 0.06, 0.06, 0.80))                           # vạch đỏ phải
+	_dp([Vector2(-6,0),Vector2(-14,-1),Vector2(-14,1.5),Vector2(-6,2.5)],
+		Color(0.82, 0.06, 0.06, 0.80))                           # vạch đỏ trái
+	# Ngôi sao vàng (sao 5 cánh — biểu tượng VPAF) — cánh phải
+	var col_star := Color(1.0, 0.92, 0.05, 0.95)
+	var sx := 12.0; var sy := 6.0; var rs := 4.0; var ri := 1.6
+	for tier in [col_star]:
+		var spts: Array = []
+		for i in 5:
+			var ao := float(i) * TAU / 5.0 - PI / 2.0
+			var ai := ao + TAU / 10.0
+			spts.append(Vector2(cos(ao) * rs + sx, sin(ao) * rs + sy))
+			spts.append(Vector2(cos(ai) * ri + sx, sin(ai) * ri + sy))
+		_dp(spts, tier)
+	# Ngôi sao cánh trái (đối xứng)
+	for tier in [col_star]:
+		var spts: Array = []
+		for i in 5:
+			var ao := float(i) * TAU / 5.0 - PI / 2.0
+			var ai := ao + TAU / 10.0
+			spts.append(Vector2(cos(ao) * rs - sx, sin(ao) * rs + sy))
+			spts.append(Vector2(cos(ai) * ri - sx, sin(ai) * ri + sy))
+		_dp(spts, tier)
+	# Ống phun đuôi đơn (afterburner)
+	_dp([Vector2(-3.5,18),Vector2(3.5,18),Vector2(4,24),Vector2(-4,24)],
+		Color(0.18, 0.18, 0.22))                                  # vỏ nozzle
+	_dp([Vector2(-3.5,18),Vector2(3.5,18),Vector2(4.5,20),Vector2(-4.5,20)],
+		Color(1.0, 0.55, 0.10, 0.88))                            # vành lửa
+	# Cánh đuôi đứng
+	_dp([Vector2(4,16),Vector2(8,12),Vector2(9,20),Vector2(5,22)],
+		Color(0.30, 0.45, 0.18))
+	_dp([Vector2(-4,16),Vector2(-8,12),Vector2(-9,20),Vector2(-5,22)],
+		Color(0.30, 0.45, 0.18))
+
+func _vnam_mig17() -> void:
+	# MiG-17 Fresco — cánh xuôi 45°, thân mập xanh rêu
+	_dp([Vector2(-3,-18),Vector2(3,-18),Vector2(4,-13),Vector2(0,-10),Vector2(-4,-13)],
+		Color(0.12, 0.28, 0.55))
+	_dp([Vector2(-2,-17),Vector2(2,-17),Vector2(3,-14),Vector2(0,-11),Vector2(-3,-14)],
+		Color(0.45, 0.78, 1.0, 0.60))
+	_dp([Vector2(3,-8),Vector2(18,4),Vector2(16,8),Vector2(2,-2)],
+		Color(0.28, 0.40, 0.16, 0.50))
+	_dp([Vector2(-3,-8),Vector2(-18,4),Vector2(-16,8),Vector2(-2,-2)],
+		Color(0.28, 0.40, 0.16, 0.50))
+	_dp([Vector2(4,14),Vector2(12,10),Vector2(13,18),Vector2(5,20)],
+		Color(0.30, 0.44, 0.18))
+	_dp([Vector2(-4,14),Vector2(-12,10),Vector2(-13,18),Vector2(-5,20)],
+		Color(0.30, 0.44, 0.18))
+	_dp([Vector2(-3.5,18),Vector2(3.5,18),Vector2(4,24),Vector2(-4,24)],
+		Color(0.16, 0.16, 0.20))
+	_dp([Vector2(-3.5,18),Vector2(3.5,18),Vector2(4.2,20),Vector2(-4.2,20)],
+		Color(1.0, 0.55, 0.10, 0.88))
+	# Vạch nhận dạng đỏ + sao
+	_dp([Vector2(4,2),Vector2(14,4),Vector2(14,7),Vector2(4,5)],
+		Color(0.82, 0.06, 0.06, 0.80))
+	_dp([Vector2(-4,2),Vector2(-14,4),Vector2(-14,7),Vector2(-4,5)],
+		Color(0.82, 0.06, 0.06, 0.80))
+	_vnam_star(11.0, 5.5, 3.2)
+	_vnam_star(-11.0, 5.5, 3.2)
+
+func _vnam_mi24() -> void:
+	# Mi-24 Hind — trực thăng tấn công, thân armored, stub wings
+	# Đĩa rotor chính (từ trên nhìn xuống)
+	var rot_pts: Array = []
+	for i in 24:
+		var a := float(i)/24.0*TAU
+		rot_pts.append(Vector2(cos(a)*22.0, sin(a)*4.5))
+	_dp(rot_pts, Color(0.28, 0.38, 0.20, 0.30))
+	# Thân bọc giáp
+	_dp([Vector2(-4,-14),Vector2(4,-14),Vector2(5,-8),Vector2(0,-5),Vector2(-5,-8)],
+		Color(0.10, 0.24, 0.08))
+	_dp([Vector2(-2,-13),Vector2(2,-13),Vector2(3,-9),Vector2(0,-6),Vector2(-3,-9)],
+		Color(0.40, 0.75, 0.95, 0.60))
+	# Stub wings
+	_dp([Vector2(8,-2),Vector2(24,-2),Vector2(24,4),Vector2(8,4)],
+		Color(0.25, 0.38, 0.14, 0.60))
+	_dp([Vector2(-8,-2),Vector2(-24,-2),Vector2(-24,4),Vector2(-8,4)],
+		Color(0.25, 0.38, 0.14, 0.60))
+	# Pods tên lửa dưới cánh
+	_dp([Vector2(20,-3),Vector2(24,-3),Vector2(24,10),Vector2(20,10)],
+		Color(0.55, 0.52, 0.20))
+	_dp([Vector2(-24,-3),Vector2(-20,-3),Vector2(-20,10),Vector2(-24,10)],
+		Color(0.55, 0.52, 0.20))
+	_dp([Vector2(20,10),Vector2(24,10),Vector2(23,13),Vector2(21,13)],
+		Color(0.85, 0.20, 0.05))
+	_dp([Vector2(-24,10),Vector2(-20,10),Vector2(-21,13),Vector2(-23,13)],
+		Color(0.85, 0.20, 0.05))
+	# Súng nose 12.7mm
+	_dp([Vector2(-1.5,-15),Vector2(1.5,-15),Vector2(1.5,-22),Vector2(-1.5,-22)],
+		Color(0.45, 0.42, 0.18))
+	# Đuôi ngắn + tail rotor
+	_dp([Vector2(-2,16),Vector2(2,16),Vector2(3,22),Vector2(-3,22)],
+		Color(0.22, 0.32, 0.12))
+	_vnam_star(0.0, 8.0, 3.5)
+
+func _vnam_mig19() -> void:
+	# MiG-19 Farmer — twin engine, swept wing
+	# Buồng lái
+	_dp([Vector2(-3,-20),Vector2(3,-20),Vector2(4,-15),Vector2(0,-12),Vector2(-4,-15)],
+		Color(0.10, 0.26, 0.50))
+	_dp([Vector2(-2,-19),Vector2(2,-19),Vector2(3,-16),Vector2(0,-13),Vector2(-3,-16)],
+		Color(0.45, 0.78, 1.0, 0.62))
+	# Cánh xuôi mỏng
+	_dp([Vector2(2,-8),Vector2(16,2),Vector2(14,8),Vector2(1,0)],
+		Color(0.26, 0.38, 0.14, 0.50))
+	_dp([Vector2(-2,-8),Vector2(-16,2),Vector2(-14,8),Vector2(-1,0)],
+		Color(0.26, 0.38, 0.14, 0.50))
+	# Twin engine intakes
+	_dp([Vector2(-5,-6),Vector2(-2,-6),Vector2(-2,4),Vector2(-5,4)],
+		Color(0.12, 0.12, 0.16))
+	_dp([Vector2(2,-6),Vector2(5,-6),Vector2(5,4),Vector2(2,4)],
+		Color(0.12, 0.12, 0.16))
+	# Twin nozzles
+	_dp([Vector2(-6,18),Vector2(-2,18),Vector2(-2,26),Vector2(-6,26)],
+		Color(0.16, 0.16, 0.20))
+	_dp([Vector2(2,18),Vector2(6,18),Vector2(6,26),Vector2(2,26)],
+		Color(0.16, 0.16, 0.20))
+	_dp([Vector2(-7,18),Vector2(-1,18),Vector2(-1,20),Vector2(-7,20)],
+		Color(1.0, 0.55, 0.10, 0.88))
+	_dp([Vector2(1,18),Vector2(7,18),Vector2(7,20),Vector2(1,20)],
+		Color(1.0, 0.55, 0.10, 0.88))
+	# Cánh đuôi + sao
+	_dp([Vector2(3,14),Vector2(8,10),Vector2(9,18),Vector2(4,20)],
+		Color(0.28, 0.42, 0.16))
+	_dp([Vector2(-3,14),Vector2(-8,10),Vector2(-9,18),Vector2(-4,20)],
+		Color(0.28, 0.42, 0.16))
+	_vnam_star(0.0, 6.0, 3.2)
+
+func _vnam_il28() -> void:
+	# Il-28 Beagle — máy bay ném bom twin-jet, cánh thẳng rộng
+	# Phòng lái mũi kính lớn
+	_dp([Vector2(-4,-14),Vector2(4,-14),Vector2(5,-9),Vector2(0,-6),Vector2(-5,-9)],
+		Color(0.08, 0.20, 0.45))
+	_dp([Vector2(-3,-13),Vector2(3,-13),Vector2(4,-10),Vector2(0,-7),Vector2(-4,-10)],
+		Color(0.45, 0.75, 0.95, 0.60))
+	# Cánh thẳng rộng
+	_dp([Vector2(4,-2),Vector2(25,2),Vector2(24,8),Vector2(4,6)],
+		Color(0.26, 0.38, 0.14, 0.48))
+	_dp([Vector2(-4,-2),Vector2(-25,2),Vector2(-24,8),Vector2(-4,6)],
+		Color(0.26, 0.38, 0.14, 0.48))
+	# Pod động cơ pod dưới cánh (đặc trưng Il-28)
+	_dp([Vector2(14,-4),Vector2(18,-4),Vector2(18,12),Vector2(14,12)],
+		Color(0.20, 0.20, 0.26))
+	_dp([Vector2(-18,-4),Vector2(-14,-4),Vector2(-14,12),Vector2(-18,12)],
+		Color(0.20, 0.20, 0.26))
+	_dp([Vector2(13.5,12),Vector2(18.5,12),Vector2(19,14),Vector2(13,14)],
+		Color(1.0, 0.55, 0.10, 0.88))
+	_dp([Vector2(-18.5,12),Vector2(-13.5,12),Vector2(-13,14),Vector2(-19,14)],
+		Color(1.0, 0.55, 0.10, 0.88))
+	# Khoang bom bụng
+	_dp([Vector2(-3,2),Vector2(3,2),Vector2(3,14),Vector2(-3,14)],
+		Color(0.28, 0.26, 0.10, 0.60))
+	# Đuôi đứng + ngang
+	_dp([Vector2(-1,18),Vector2(1,18),Vector2(1.5,24),Vector2(-1.5,24)],
+		Color(0.30, 0.44, 0.18))
+	_dp([Vector2(-8,22),Vector2(8,22),Vector2(8,24),Vector2(-8,24)],
+		Color(0.30, 0.44, 0.18))
+	# Sao vàng cánh
+	_vnam_star(18.0, 4.0, 3.0)
+	_vnam_star(-18.0, 4.0, 3.0)
 
 func _physics_process(_delta: float) -> void:
 	_sw_cd_left  = maxf(_sw_cd_left  - _delta, 0.0)
@@ -444,7 +660,7 @@ func _draw() -> void:
 	# Convert to player-local: rotate then add sprite.position (hover bob).
 	var rot  := sprite.rotation
 	var back := sprite.position + Vector2(-sin(rot), cos(rot)) * 22.0
-	var glow := PlayerData.get_skin_color()
+	var glow := _get_sprite_color()
 	var pulse := 0.7 + 0.3 * sin(_hover_phase * 2.8)
 	for i in range(4):
 		var r := 20.0 - float(i) * 4.5
@@ -604,14 +820,14 @@ func _flash_blink() -> void:
 	sprite.color = Color(0.2, 1.0, 0.8)
 	await get_tree().create_timer(0.07).timeout
 	if is_instance_valid(self) and is_instance_valid(sprite):
-		sprite.color = PlayerData.get_skin_color()
+		sprite.color = _get_sprite_color()
 
 func _flash_blink_smooth() -> void:
 	# Tween: trắng cyan -> màu skin trong 0.12s
 	if not is_instance_valid(sprite): return
 	var tw := create_tween()
 	sprite.color = Color(0.7, 1.0, 1.0, 1.0)
-	tw.tween_property(sprite, "color", PlayerData.get_skin_color(), 0.12).set_trans(Tween.TRANS_EXPO)
+	tw.tween_property(sprite, "color", _get_sprite_color(), 0.12).set_trans(Tween.TRANS_EXPO)
 
 func _squish_sprite(dir: Vector2) -> void:
 	# Squish theo hướng di chuyển rồi nảy đàn hồi về
@@ -624,44 +840,84 @@ func _squish_sprite(dir: Vector2) -> void:
 	tw.tween_property(sprite, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_ELASTIC)
 
 func _try_auto_dodge() -> void:
-	# Quét đạn địch + thiên thạch gần, tìm vị trí an toàn rồi teleport
+	# Chỉ blink khi có đạn đang bay THẲNG VỀ PHÍA player và đủ gần
 	var vp := get_viewport_rect().size
 	var danger: Array = []
-	# --- đạn địch ---
+	var max_threat: float = 0.0
+
+	# --- lọc đạn địch đang nhắm vào player ---
 	for b in get_tree().get_nodes_in_group("bullet"):
 		if not is_instance_valid(b): continue
 		if not b.get("is_enemy_bullet"): continue
-		var d := global_position.distance_to(b.global_position)
-		if d < 200.0:
-			var bdir: Vector2 = b.get("direction") if b.get("direction") != null else Vector2.DOWN
-			danger.append({"pos": b.global_position, "dir": bdir, "dist": d})
-	# --- thiên thạch ---
+		var bpos: Vector2 = b.global_position
+		var d := global_position.distance_to(bpos)
+		if d > 220.0: continue
+		var bdir: Vector2 = b.get("direction") if b.get("direction") != null else Vector2.DOWN
+		var incoming := bdir.dot((global_position - bpos).normalized())
+		if incoming < 0.40: continue
+		var threat := incoming * (1.0 - d / 220.0)
+		max_threat  = maxf(max_threat, threat)
+		danger.append({"pos": bpos, "dir": bdir, "dist": d})
+
+	# --- thiên thạch / tên lửa AA đang nhắm vào player ---
 	for a in get_tree().get_nodes_in_group("asteroid"):
 		if not is_instance_valid(a): continue
-		var d := global_position.distance_to((a as Node2D).global_position)
-		if d < 260.0:
-			var adir: Vector2 = a.get("direction") if a.get("direction") != null else Vector2.DOWN
-			danger.append({"pos": (a as Node2D).global_position, "dir": adir, "dist": d})
-	if danger.is_empty(): return
-	var cur_score := _danger_score(global_position, danger)
+		var apos: Vector2 = (a as Node2D).global_position
+		var d := global_position.distance_to(apos)
+		if d > 270.0: continue
+		var adir: Vector2 = a.get("direction") if a.get("direction") != null else Vector2.DOWN
+		var incoming := adir.dot((global_position - apos).normalized())
+		if incoming < 0.28: continue
+		var threat := incoming * (1.0 - d / 270.0)
+		max_threat  = maxf(max_threat, threat)
+		danger.append({"pos": apos, "dir": adir, "dist": d})
+
+	# Không có mối đe dọa thực sự → giữ nguyên vị trí
+	if max_threat < 0.28: return
+
+	# --- thu thập vật phẩm gần kề ---
+	var items: Array = []
+	for grp in ["powerup", "heart", "special_pickup"]:
+		for item in get_tree().get_nodes_in_group(grp):
+			if not is_instance_valid(item): continue
+			var ipos: Vector2 = (item as Node2D).global_position
+			var idist := global_position.distance_to(ipos)
+			items.append({"pos": ipos, "dist": idist})
+
+	# Nếu có item rất gần (< 80px) và mối đe dọa không cực kỳ lớn → nhịn blink
+	if max_threat < 0.70:
+		for it in items:
+			if (it["dist"] as float) < 80.0:
+				return   # sắp nhặt vật phẩm, không né vội
+
+	# Tìm vùng an toàn: quét lưới 5×5 toàn màn hình ưu tiên nửa dưới
+	var margin    := 36.0
 	var best_pos  := global_position
-	var best_score := cur_score
-	for deg in [0, 45, 90, 135, 180, 225, 270, 315]:
-		for dist_step in [85.0, 145.0]:
-			var rd   := deg_to_rad(float(deg))
-			var cand: Vector2 = global_position + Vector2(cos(rd), sin(rd)) * float(dist_step)
-			cand.x = clamp(cand.x, 28.0, vp.x - 28.0)
-			cand.y = clamp(cand.y, 28.0, vp.y - 28.0)
-			var sc := _danger_score(cand, danger)
+	var best_score := _danger_score(global_position, danger) * 1.50
+
+	for ci in 5:
+		for ri in 5:
+			var cx := margin + (vp.x - margin * 2.0) * float(ci) / 4.0
+			var cy := vp.y * 0.45 + (vp.y * 0.50) * float(ri) / 4.0
+			cy = clampf(cy, margin, vp.y - margin)
+			var cand := Vector2(cx, cy)
+			var sc   := _danger_score(cand, danger)
+			# Bonus nếu ứng viên gần vật phẩm (bán kính 200px → tối đa +25% điểm)
+			for it in items:
+				var id: float = cand.distance_to(it["pos"] as Vector2)
+				if id < 200.0:
+					sc *= 1.0 + 0.25 * (1.0 - id / 200.0)
 			if sc > best_score:
 				best_score = sc
 				best_pos   = cand
-	if best_pos.distance_to(global_position) < 35.0: return
-	if best_score <= cur_score * 1.18: return
+
+	# Vị trí tốt nhất quá gần vị trí hiện tại → không blink
+	if best_pos.distance_to(global_position) < 45.0: return
+
 	_spawn_blink_afterimage()
 	var old_pos := global_position
-	position = best_pos
-	_blink_cd = 0.32
+	position    = best_pos
+	_blink_cd   = 0.60
 	_flash_blink_smooth()
 	_squish_sprite((best_pos - old_pos).normalized())
 
@@ -827,11 +1083,11 @@ func _update_blink_mode_glow(active: bool) -> void:
 		_blink_glow_tween.tween_property(sprite, "color",
 			Color(0.3, 1.0, 0.95, 1.0), 0.35).set_trans(Tween.TRANS_SINE)
 		_blink_glow_tween.tween_property(sprite, "color",
-			PlayerData.get_skin_color(), 0.35).set_trans(Tween.TRANS_SINE)
+			_get_sprite_color(), 0.35).set_trans(Tween.TRANS_SINE)
 	else:
 		_blink_glow_tween = null
 		var tw := create_tween()
-		tw.tween_property(sprite, "color", PlayerData.get_skin_color(), 0.25)
+		tw.tween_property(sprite, "color", _get_sprite_color(), 0.25)
 
 func _fire_special(type: int, side: int) -> void:
 	# side: -1 = trái, +1 = phải (dùng để xác định vị trí xuyển ra)
@@ -878,17 +1134,85 @@ func _rebuild_pods() -> void:
 		_pod_right_node  = _make_pod(1, sw_right)
 		_pod_label_right = _make_pod_label(1, sw_right)
 
-func _make_pod(side: int, wtype: int) -> Polygon2D:
+func _make_pod_poly(parent: Node2D, pts: Array, col: Color) -> void:
 	var poly := Polygon2D.new()
 	var pv := PackedVector2Array()
-	# Mir po — phải dùng binggo x theo side
-	for v in _POD_R:
-		pv.append(Vector2(v.x * float(side), v.y))
+	for v in pts: pv.append(v)
 	poly.polygon = pv
-	poly.color   = SW_POD_COLORS[wtype]
+	poly.color   = col
 	poly.z_index = 2
-	sprite.add_child(poly)
-	return poly
+	parent.add_child(poly)
+
+func _make_pod(side: int, wtype: int) -> Node2D:
+	var root := Node2D.new()
+	root.z_index = 2
+	sprite.add_child(root)
+	var s := float(side)   # +1 = phải, -1 = trái
+	var col: Color = SW_POD_COLORS[wtype]
+	match wtype:
+		0: # MACHINEGUN — hộp dẹt rộng + 3 nòng súng
+			# Thân pod
+			_make_pod_poly(root, [
+				Vector2(s*12,-5), Vector2(s*25,-5), Vector2(s*27, 0),
+				Vector2(s*25, 5), Vector2(s*12, 5), Vector2(s*10, 0)
+			], col)
+			# Highlight thân
+			_make_pod_poly(root, [
+				Vector2(s*13,-3), Vector2(s*24,-3), Vector2(s*25, 0), Vector2(s*24, 1), Vector2(s*13, 1)
+			], col.lightened(0.35))
+			# 3 nòng (hướng -y = phía trước)
+			for bx: float in [s*14.5, s*18.5, s*22.5]:
+				_make_pod_poly(root, [
+					Vector2(bx - s*0.9, -5), Vector2(bx + s*0.9, -5),
+					Vector2(bx + s*0.7,-12), Vector2(bx - s*0.7,-12)
+				], col.lightened(0.22))
+				_make_pod_poly(root, [
+					Vector2(bx - s*1.1,-12), Vector2(bx + s*1.1,-12), Vector2(bx,-14)
+				], Color(1.0, 0.95, 0.4, 0.9))
+		1: # MISSILE — thân nhọn dài + 2 cánh đuôi
+			# Thân tên lửa
+			_make_pod_poly(root, [
+				Vector2(s*18,-15),
+				Vector2(s*23,-10), Vector2(s*24,-2), Vector2(s*24, 7),
+				Vector2(s*21, 12), Vector2(s*15, 12),
+				Vector2(s*14, 7),  Vector2(s*14,-2), Vector2(s*13,-10)
+			], col)
+			# Cánh đuôi trong (phía tâm tàu)
+			_make_pod_poly(root, [
+				Vector2(s*14,4), Vector2(s*10,11), Vector2(s*14,11)
+			], col.darkened(0.22))
+			# Cánh đuôi ngoài
+			_make_pod_poly(root, [
+				Vector2(s*24,4), Vector2(s*28,11), Vector2(s*24,11)
+			], col.darkened(0.22))
+			# Mũi sáng
+			_make_pod_poly(root, [
+				Vector2(s*18,-15), Vector2(s*21,-12), Vector2(s*18,-10)
+			], Color(1.0, 0.68, 0.6, 0.9))
+			# Cửa sổ
+			_make_pod_poly(root, [
+				Vector2(s*15,-3), Vector2(s*23,-3), Vector2(s*23, 2), Vector2(s*15, 2)
+			], Color(0.35, 0.85, 1.0, 0.65))
+		2: # BLACK HOLE — cầu tròn + vòng quỹ đạo
+			# Thân cầu (14 đỉnh)
+			var body: Array = []
+			for i in 14:
+				var a := float(i)/14.0*TAU
+				body.append(Vector2(s*(19.0+cos(a)*7.5), sin(a)*7.5))
+			_make_pod_poly(root, body, col)
+			# Vòng tím giữa
+			var mid: Array = []
+			for i in 10:
+				var a := float(i)/10.0*TAU
+				mid.append(Vector2(s*(19.0+cos(a)*4.5), sin(a)*4.5))
+			_make_pod_poly(root, mid, Color(0.55, 0.1, 1.0, 0.9))
+			# Lõi trắng
+			var core: Array = []
+			for i in 8:
+				var a := float(i)/8.0*TAU
+				core.append(Vector2(s*(19.0+cos(a)*2.0), sin(a)*2.0))
+			_make_pod_poly(root, core, Color(0.88, 0.72, 1.0, 0.95))
+	return root
 
 func _make_pod_label(side: int, wtype: int) -> Label:
 	var short_names: Array = ["MGun", "Msl", "BHole"]
@@ -1031,7 +1355,7 @@ func heal(amount: int = 1) -> void:
 		sprite.color = Color(0.4, 1.0, 0.4)  # flash xanh lá
 		await get_tree().create_timer(0.18).timeout
 		if is_instance_valid(self) and is_instance_valid(sprite):
-			sprite.color = PlayerData.get_skin_color()
+			sprite.color = _get_sprite_color()
 			# shape không cần reapply saat flash restore
 
 # ── HEALTH ─────────────────────────────────────────────────────────────────────
@@ -1078,21 +1402,21 @@ func take_damage(dmg: int = 1) -> void:
 		sprite.color = Color.RED
 		await get_tree().create_timer(0.1).timeout
 		if is_instance_valid(self) and is_instance_valid(sprite):
-			sprite.color = PlayerData.get_skin_color()
+			sprite.color = _get_sprite_color()
 
 func _flash_shield_ready() -> void:
 	if not is_instance_valid(sprite): return
 	sprite.color = Color.CYAN
 	await get_tree().create_timer(0.18).timeout
 	if is_instance_valid(self) and is_instance_valid(sprite):
-		sprite.color = PlayerData.get_skin_color()
+		sprite.color = _get_sprite_color()
 
 func _flash_shield_break() -> void:
 	if not is_instance_valid(sprite): return
 	sprite.color = Color(0.5, 1.0, 1.0)
 	await get_tree().create_timer(0.12).timeout
 	if is_instance_valid(self) and is_instance_valid(sprite):
-		sprite.color = PlayerData.get_skin_color()
+		sprite.color = _get_sprite_color()
 
 func _show_dodge_text() -> void:
 	Audio.play("dodge", -4.0)
@@ -1103,7 +1427,88 @@ func _show_dodge_text() -> void:
 		sprite.color = Color.YELLOW
 		await get_tree().create_timer(0.1).timeout
 		if is_instance_valid(self) and is_instance_valid(sprite):
-			sprite.color = PlayerData.get_skin_color()
+			sprite.color = _get_sprite_color()
 
 func _die() -> void:
-	get_tree().current_scene.trigger_game_over()
+	set_physics_process(false)
+	can_shoot = false
+	# Dọn exhaust
+	for grp in _exhaust_groups:
+		for p in grp:
+			if is_instance_valid(p): p.queue_free()
+	_exhaust_groups.clear()
+	Audio.play("explosion", 0.0)
+	if not is_instance_valid(sprite):
+		get_tree().current_scene.trigger_game_over()
+		return
+	sprite.color = _get_sprite_color()   # xóa flash màu
+	# ── Hoạt ảnh rơi + xoay ──
+	var tw := create_tween()
+	tw.set_parallel(true)
+	# Xoay 2.5 vòng khi rơi
+	tw.tween_property(sprite, "rotation",
+		sprite.rotation + TAU * 2.5, 1.15
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	# Rơi xuống
+	tw.tween_property(self, "position:y",
+		position.y + 160.0, 1.15
+	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	# Lắc ngang
+	tw.tween_property(self, "position:x",
+		position.x + randf_range(-55.0, 55.0), 1.15
+	).set_trans(Tween.TRANS_SINE)
+	# Mờ dần từ giây 0.45
+	tw.tween_property(sprite, "modulate:a",
+		0.0, 0.70
+	).set_trans(Tween.TRANS_EXPO).set_delay(0.45)
+	# 5 vụ nổ tuần tự
+	_spawn_death_burst(0.05, 22.0)
+	_spawn_death_burst(0.24, 30.0)
+	_spawn_death_burst(0.44, 38.0)
+	_spawn_death_burst(0.65, 28.0)
+	_spawn_death_burst(0.88, 20.0)
+	await get_tree().create_timer(1.30).timeout
+	if is_instance_valid(self):
+		get_tree().current_scene.trigger_game_over()
+
+func _spawn_death_burst(delay: float, radius: float) -> void:
+	await get_tree().create_timer(delay).timeout
+	if not is_instance_valid(self): return
+	var container := get_tree().current_scene
+	if container == null: return
+	var col := _get_sprite_color()
+	var offset := Vector2(randf_range(-20.0, 20.0), randf_range(-16.0, 16.0))
+	# Vòng nổ ngoài (cam/vàng mở rộng)
+	var ring := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in 16:
+		var a := float(i)/16.0*TAU
+		pts.append(Vector2(cos(a), sin(a)) * 3.5)
+	ring.polygon = pts
+	ring.color = Color(1.0, 0.6 + randf()*0.35, 0.08, 0.92)
+	ring.global_position = global_position + offset
+	ring.z_index = 10
+	container.add_child(ring)
+	var tw1 := ring.create_tween()
+	tw1.set_parallel(true)
+	tw1.tween_property(ring, "scale", Vector2.ONE * (radius/3.5), 0.42).set_trans(Tween.TRANS_EXPO)
+	tw1.tween_property(ring, "color:a", 0.0, 0.42).set_trans(Tween.TRANS_EXPO)
+	await tw1.finished
+	if is_instance_valid(ring): ring.queue_free()
+	# Flash trắng gọi tâm
+	var flash := Polygon2D.new()
+	var fpts := PackedVector2Array()
+	for i in 10:
+		var a := float(i)/10.0*TAU
+		fpts.append(Vector2(cos(a), sin(a)) * 2.0)
+	flash.polygon = fpts
+	flash.color = Color(1.0, 1.0, 1.0, 0.95)
+	flash.global_position = global_position + offset
+	flash.z_index = 11
+	container.add_child(flash)
+	var tw2 := flash.create_tween()
+	tw2.set_parallel(true)
+	tw2.tween_property(flash, "scale", Vector2.ONE * (radius*0.38), 0.24).set_trans(Tween.TRANS_EXPO)
+	tw2.tween_property(flash, "color:a", 0.0, 0.24).set_trans(Tween.TRANS_EXPO)
+	await tw2.finished
+	if is_instance_valid(flash): flash.queue_free()

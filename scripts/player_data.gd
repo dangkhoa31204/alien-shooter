@@ -30,6 +30,8 @@ static var equipped_skin:    int = 0
 static var equipped_starter: int = 0
 static var sound_enabled:   bool  = true
 static var volume:          float = 0.8   # 0.0 – 1.0
+static var active_theme:    int   = 0     # index vào ThemePack.PACKS
+static var owned_themes:    Array = [0]   # theme đã sở hữu
 
 # Level config cho màn đang chơi (set bởi level_select.gd)
 static var current_level: Dictionary = {
@@ -96,13 +98,14 @@ static func reset_data() -> void:
 	owned_starters   = [0]
 	equipped_skin    = 0
 	equipped_starter = 0
-	# giữ sound_enabled khi reset
+	# giữ sound, volume, theme khi reset
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify({
 			"coins": 0, "owned_skins": [0], "owned_starters": [0],
 			"equipped_skin": 0, "equipped_starter": 0,
-			"sound_enabled": sound_enabled, "volume": volume
+			"sound_enabled": sound_enabled, "volume": volume,
+			"active_theme": active_theme, "owned_themes": owned_themes
 		}))
 		f.close()
 
@@ -115,6 +118,8 @@ static func save_data() -> void:
 		"equipped_starter": equipped_starter,
 		"sound_enabled":    sound_enabled,
 		"volume":           volume,
+		"active_theme":     active_theme,
+		"owned_themes":     owned_themes,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -136,6 +141,8 @@ static func load_data() -> void:
 	equipped_starter = int(parsed.get("equipped_starter", 0))
 	sound_enabled    = bool(parsed.get("sound_enabled",   true))
 	volume           = float(parsed.get("volume",          0.8))
+	active_theme     = int(parsed.get("active_theme",      0))
+	owned_themes     = (parsed.get("owned_themes",  [0]) as Array).map(func(x): return int(x))
 	apply_volume()
 
 static func apply_volume() -> void:

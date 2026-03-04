@@ -92,12 +92,12 @@ func _generate_levels() -> void:
 		# Độ khó ngẫu nhiên 1–10 (phân bố đều)
 		var diff: int = rng.randi_range(1, 10)
 
-		# Số wave = CLAMP(diff * 3, 5, 30)
-		var waves: int = clampi(diff * 3, 5, MAX_WAVES)
+		# Số wave = CLAMP(diff * 3, 5, 25)
+		var waves: int = clampi(diff * 3, 5, 25)
 
 		# Bội số máu địch tăng theo độ khó
-		var hp_m: float    = 1.0 + float(diff - 1) * 0.22
-		var boss_hp_m: float = 1.0 + float(diff - 1) * 0.35
+		var hp_m: float    = 1.0 + float(diff - 1) * 0.17
+		var boss_hp_m: float = 1.0 + float(diff - 1) * 0.26
 
 		_levels.append({
 			"theme"         : theme_idx,

@@ -1,4 +1,4 @@
-extends Node2D
+﻿extends Node2D
 # background.gd -- 2.5D deep-space parallax
 
 const STAR_COUNTS: Array = [70, 38, 16, 6]   # was [150,85,42,14]
@@ -18,15 +18,68 @@ var _nebulae:  Array = []
 var _planets:  Array = []
 var _shooters: Array = []
 var _shoot_cd: float = 2.2
+# Theme pack colors (set dựa theo PlayerData.active_theme trong _ready)
+var _bg_top:      Color = Color(0.010, 0.008, 0.055)
+var _bg_bot:      Color = Color(0.002, 0.002, 0.022)
+var _grid_col:    Color = Color(0.12, 0.40, 0.88)
+var _galaxy_col:  Color = Color(0.52, 0.42, 0.80)
+var _nebula_cols: Array = []
+var _star_cols:   Array = []
+var _shooter_cols:Array = []
+var _planet_cfgs: Array = []
+# ── Vietnam Battlefield vars ────────────────────────────────────────────
+var _vietnam_mode: bool  = false
+const BF_SCROLL:   float = 50.0
+const BF_AREA:     float = 2.5
+var _bf_trees:     Array = []
+var _bf_craters:   Array = []
+var _bf_fires:     Array = []
+var _bf_roads:     Array = []
+var _bf_bomb_cd:   float = 3.0
 
 func _ready() -> void:
 	_vp = get_viewport_rect().size
-	_gen_stars()
-	_gen_nebulae()
-	_gen_planets()
+	_load_theme()
+	if _vietnam_mode:
+		_gen_battlefield()
+	else:
+		_gen_stars()
+		_gen_nebulae()
+		_gen_planets()
+
+func _load_theme() -> void:
+	var p: Dictionary = ThemePack.get_pack()
+	_bg_top       = p.get("bg_top",   Color(0.010, 0.008, 0.055))
+	_bg_bot       = p.get("bg_bot",   Color(0.002, 0.002, 0.022))
+	_grid_col     = p.get("grid",     Color(0.12, 0.40, 0.88))
+	_galaxy_col   = p.get("galaxy",   Color(0.52, 0.42, 0.80))
+	_nebula_cols  = p.get("nebulae",  [])
+	_star_cols    = p.get("stars",    [])
+	_shooter_cols = p.get("shooters", [])
+	_planet_cfgs  = p.get("planets",  [])
+	_vietnam_mode = p.get("shape_mode", "") == "aerial_warfare"
 
 func _process(delta: float) -> void:
-	_t           += delta
+	_t += delta
+	if _vietnam_mode:
+		_scroll_bf_items(delta)
+		_shoot_cd -= delta
+		if _shoot_cd <= 0.0:
+			_spawn_vietnam_tracer()
+			_shoot_cd = randf_range(0.4, 1.6)
+		var i := 0
+		while i < _shooters.size():
+			var sh: Array = _shooters[i]
+			sh[4] = float(sh[4]) - delta
+			sh[0] = float(sh[0]) + float(sh[2]) * delta
+			sh[1] = float(sh[1]) + float(sh[3]) * delta
+			if float(sh[4]) <= 0.0:
+				_shooters.remove_at(i)
+			else:
+				_shooters[i] = sh
+				i += 1
+		queue_redraw()
+		return
 	_grid_scroll += GRID_SCROLL_SPD * delta
 	for s in _stars:
 		s[1] = float(s[1]) + float(STAR_SPEEDS[int(s[2])]) * delta
@@ -56,15 +109,15 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	if _vietnam_mode:
+		_draw_battlefield()
+		return
 	var gp := PackedVector2Array([
 		Vector2(0.0, 0.0), Vector2(_vp.x, 0.0),
 		Vector2(_vp.x, _vp.y), Vector2(0.0, _vp.y)
 	])
 	var gc := PackedColorArray([
-		Color(0.010, 0.008, 0.055),
-		Color(0.010, 0.008, 0.055),
-		Color(0.002, 0.002, 0.022),
-		Color(0.002, 0.002, 0.022),
+		_bg_top, _bg_top, _bg_bot, _bg_bot,
 	])
 	draw_polygon(gp, gc)
 	_draw_grid()
@@ -100,7 +153,7 @@ func _draw_grid() -> void:
 		var t  := float(i) / float(GRID_V_LINES)
 		var bx := _vp.x * t
 		var a  := clampf(0.048 - absf(t - 0.5) * 0.025, 0.012, 0.06)
-		draw_line(Vector2(bx, by), Vector2(cx, vpy), Color(0.12, 0.40, 0.88, a), 1.0)
+		draw_line(Vector2(bx, by), Vector2(cx, vpy), Color(_grid_col.r, _grid_col.g, _grid_col.b, a), 1.0)
 	var gfrac := fmod(_grid_scroll / _vp.y, 1.0)
 	for i in range(GRID_H_ROWS + 2):
 		var t := (float(i) - gfrac) / float(GRID_H_ROWS)
@@ -108,15 +161,16 @@ func _draw_grid() -> void:
 			continue
 		var sy := vpy + (by - vpy) * (t * t)
 		var hw := (t * t) * (_vp.x * 0.5)
-		draw_line(Vector2(cx - hw, sy), Vector2(cx + hw, sy), Color(0.12, 0.40, 0.88, t * t * 0.052), 1.0)
+		draw_line(Vector2(cx - hw, sy), Vector2(cx + hw, sy), Color(_grid_col.r, _grid_col.g, _grid_col.b, t * t * 0.052), 1.0)
 
 func _draw_galaxy_band() -> void:
 	var cx := _vp.x * 0.5
 	var cy := _vp.y * 0.28
-	for i in range(3):   # was 6
+	for i in range(3):
 		var ratio := 1.0 - float(i) * 0.30
 		var a     := maxf(0.0, 0.024 - float(i) * 0.007)
-		_draw_ellipse(Vector2(cx, cy), _vp.x * 0.58 * ratio, _vp.y * 0.065 * ratio, Color(0.52, 0.42, 0.80, a))
+		_draw_ellipse(Vector2(cx, cy), _vp.x * 0.58 * ratio, _vp.y * 0.065 * ratio,
+			Color(_galaxy_col.r, _galaxy_col.g, _galaxy_col.b, a))
 
 func _draw_nebula(x: float, y: float, rx: float, ry: float, c: Color, phase: float) -> void:
 	var pulse := 0.82 + 0.18 * sin(_t * 0.38 + phase)
@@ -176,7 +230,8 @@ func _spawn_shooter() -> void:
 	var sy  := randf() * _vp.y * 0.45
 	var spd := randf_range(260.0, 440.0)
 	var ang := PI * 0.38 + randf() * (PI * 0.24)
-	var palette: Array = [Color(1.0, 1.0, 1.0), Color(0.85, 0.90, 1.0), Color(1.00, 0.95, 0.72), Color(0.72, 0.88, 1.0)]
+	var palette: Array = _shooter_cols if not _shooter_cols.is_empty() else \
+		[Color(1.0,1.0,1.0), Color(0.85,0.90,1.0), Color(1.00,0.95,0.72), Color(0.72,0.88,1.0)]
 	var c: Color  = palette[randi() % palette.size()]
 	var ml: float = randf_range(0.18, 0.42)
 	_shooters.append([sx, sy, cos(ang) * spd, sin(ang) * spd, ml, ml, c])
@@ -192,7 +247,8 @@ func _draw_ellipse(center: Vector2, rx: float, ry: float, color: Color) -> void:
 
 func _gen_stars() -> void:
 	_stars.clear()
-	var palettes: Array = [Color(1.00, 1.00, 1.00, 0.45), Color(0.72, 0.83, 1.00, 0.55), Color(1.00, 0.93, 0.65, 0.62), Color(0.90, 0.72, 1.00, 0.52), Color(0.65, 1.00, 0.88, 0.48)]
+	var palettes: Array = _star_cols if not _star_cols.is_empty() else \
+		[Color(1.00,1.00,1.00,0.45), Color(0.72,0.83,1.00,0.55), Color(1.00,0.93,0.65,0.62), Color(0.90,0.72,1.00,0.52), Color(0.65,1.00,0.88,0.48)]
 	for layer in range(4):
 		for _i in range(STAR_COUNTS[layer]):
 			var x        := randf() * _vp.x
@@ -204,7 +260,8 @@ func _gen_stars() -> void:
 
 func _gen_nebulae() -> void:
 	_nebulae.clear()
-	var nebula_colors: Array = [Color(0.28, 0.14, 0.88, 1.0), Color(0.08, 0.32, 0.92, 1.0), Color(0.90, 0.12, 0.55, 1.0), Color(0.12, 0.72, 0.65, 1.0), Color(0.65, 0.20, 0.92, 1.0), Color(0.92, 0.38, 0.10, 1.0), Color(0.18, 0.55, 0.88, 1.0)]
+	var nebula_colors: Array = _nebula_cols if not _nebula_cols.is_empty() else \
+		[Color(0.28,0.14,0.88), Color(0.08,0.32,0.92), Color(0.90,0.12,0.55), Color(0.12,0.72,0.65), Color(0.65,0.20,0.92), Color(0.92,0.38,0.10), Color(0.18,0.55,0.88)]
 	for i in range(NEBULA_COUNT):
 		var x:     float = randf() * _vp.x
 		var y:     float = randf() * _vp.y
@@ -218,6 +275,140 @@ func _gen_nebulae() -> void:
 func _gen_planets() -> void:
 	_planets.clear()
 	var vp := _vp
-	_planets.append([vp.x * 0.83, vp.y * 0.17, 66.0, Color(0.12, 0.10, 0.30), Color(0.40, 0.32, 0.90), false, 0.0])
-	_planets.append([vp.x * 0.14, vp.y * 0.30, 40.0, Color(0.08, 0.20, 0.28), Color(0.18, 0.72, 0.85), true, 0.23])
-	_planets.append([vp.x * 0.52, vp.y * 0.09, 23.0, Color(0.26, 0.16, 0.09), Color(0.74, 0.50, 0.20), false, 0.0])
+	var cfgs: Array = _planet_cfgs if not _planet_cfgs.is_empty() else [
+		[Color(0.12,0.10,0.30), Color(0.40,0.32,0.90), false, 0.0,  66.0, 0.83, 0.17],
+		[Color(0.08,0.20,0.28), Color(0.18,0.72,0.85), true,  0.23, 40.0, 0.14, 0.30],
+		[Color(0.26,0.16,0.09), Color(0.74,0.50,0.20), false, 0.0,  23.0, 0.52, 0.09],
+	]
+	for cfg in cfgs:
+		_planets.append([vp.x * float(cfg[5]), vp.y * float(cfg[6]), float(cfg[4]),
+			cfg[0] as Color, cfg[1] as Color, bool(cfg[2]), float(cfg[3])])
+
+# ── VIETNAM BATTLEFIELD ────────────────────────────────────────────────────────
+func _gen_battlefield() -> void:
+	_bf_trees.clear(); _bf_craters.clear()
+	_bf_fires.clear(); _bf_roads.clear()
+	var h := _vp.y * BF_AREA
+	# Rừng rậm — 280 cây xanh
+	for _i in 280:
+		_bf_trees.append([randf()*_vp.x, randf()*h, randf_range(5.0, 18.0), randf()])
+	# Hố bom sẵn + lửa tại hiện trường
+	for _i in 30:
+		var cx := randf()*_vp.x
+		var cy := randf()*h
+		var cr := randf_range(10.0, 30.0)
+		_bf_craters.append([cx, cy, cr, randf()*TAU])
+		if randf() > 0.45:
+			_bf_fires.append([cx + randf_range(-cr*0.4, cr*0.4),
+			                  cy + randf_range(-cr*0.4, cr*0.4),
+			                  randf()*TAU, randf_range(0.5, 1.0)])
+	# Đường mòn — 6 con đường gồ ghề
+	for _i in 6:
+		var ry := randf()*h
+		var seg_x := 0.0
+		for _s in 5:
+			var nx := seg_x + randf_range(120.0, 280.0)
+			var ny := ry + randf_range(-45.0, 45.0)
+			_bf_roads.append([seg_x, ry, nx, ny])
+			seg_x = nx; ry = ny
+
+func _scroll_bf_items(delta: float) -> void:
+	var h := _vp.y * BF_AREA
+	for item in _bf_trees:
+		item[1] = float(item[1]) + BF_SCROLL * delta
+		if float(item[1]) > _vp.y + 22.0: item[1] -= h
+	for item in _bf_craters:
+		item[1] = float(item[1]) + BF_SCROLL * delta
+		if float(item[1]) > _vp.y + 42.0: item[1] -= h
+	for item in _bf_fires:
+		item[1] = float(item[1]) + BF_SCROLL * delta
+		if float(item[1]) > _vp.y + 42.0: item[1] -= h
+		item[2] = float(item[2]) + delta * 4.2
+	for item in _bf_roads:
+		item[1] = float(item[1]) + BF_SCROLL * delta
+		item[3] = float(item[3]) + BF_SCROLL * delta
+		if float(item[1]) > _vp.y + 10.0: item[1] -= h; item[3] -= h
+	_bf_bomb_cd -= delta
+	if _bf_bomb_cd <= 0.0:
+		_drop_bomb()
+		_bf_bomb_cd = randf_range(2.0, 5.0)
+
+func _drop_bomb() -> void:
+	var ex := randf_range(60.0, _vp.x - 60.0)
+	var ey := randf_range(80.0, _vp.y - 80.0)
+	var er := randf_range(12.0, 28.0)
+	_bf_craters.append([ex, ey, er, 0.0])
+	_bf_fires.append([ex, ey, 0.0, 1.0])
+	if _bf_craters.size() > 55: _bf_craters.remove_at(0)
+	if _bf_fires.size()   > 26: _bf_fires.remove_at(0)
+
+func _spawn_vietnam_tracer() -> void:
+	var sx  := randf() * _vp.x
+	var sy  := _vp.y + 8.0
+	var spd := randf_range(380.0, 640.0)
+	var ang := -PI * 0.5 + randf_range(-0.32, 0.32)
+	var ml  := randf_range(0.20, 0.52)
+	_shooters.append([sx, sy, cos(ang)*spd, sin(ang)*spd, ml, ml, Color(1.0, 0.92, 0.28)])
+
+func _draw_battlefield() -> void:
+	# 1. Nền đất rừng đủ xanh
+	draw_rect(Rect2(0.0, 0.0, _vp.x, _vp.y), Color(0.07, 0.13, 0.04))
+	# 2. Texture đất (patch tối/sáng)
+	for yi in range(0, int(_vp.y) + 60, 64):
+		for xi in range(0, int(_vp.x) + 64, 64):
+			var s := sin(float(xi)*0.027 + float(yi)*0.019 + _t*0.05) * 0.5 + 0.5
+			draw_rect(Rect2(float(xi), float(yi), 64.0, 64.0),
+				Color(0.05+s*0.04, 0.10+s*0.06, 0.03+s*0.03, 0.40))
+	# 3. Đường mòn đất
+	for rd in _bf_roads:
+		var y1 := float(rd[1]); var y2 := float(rd[3])
+		if y1 < -8.0 and y2 < -8.0: continue
+		if y1 > _vp.y+8.0 and y2 > _vp.y+8.0: continue
+		draw_line(Vector2(float(rd[0]),y1), Vector2(float(rd[2]),y2),
+			Color(0.42, 0.32, 0.14, 0.58), 5.5)
+		draw_line(Vector2(float(rd[0]),y1), Vector2(float(rd[2]),y2),
+			Color(0.55, 0.42, 0.20, 0.22), 2.0)
+	# 4. Cây rừng
+	for tree in _bf_trees:
+		var tx := float(tree[0]); var ty := float(tree[1])
+		var tr := float(tree[2]); var sh := float(tree[3])
+		if ty < -tr or ty > _vp.y+tr: continue
+		draw_circle(Vector2(tx,ty), tr,       Color(0.08+sh*0.10, 0.17+sh*0.15, 0.04+sh*0.06))
+		draw_circle(Vector2(tx,ty), tr*0.55,  Color(0.12+sh*0.08, 0.24+sh*0.12, 0.06+sh*0.04))
+	# 5. Hố bom
+	for crater in _bf_craters:
+		var cx := float(crater[0]); var cy := float(crater[1])
+		var cr := float(crater[2])
+		if cy < -cr*2.0 or cy > _vp.y+cr*2.0: continue
+		draw_circle(Vector2(cx,cy), cr*1.4,  Color(0.28, 0.10, 0.02, 0.22))
+		draw_circle(Vector2(cx,cy), cr,      Color(0.05, 0.04, 0.02))
+		draw_circle(Vector2(cx,cy), cr*0.45, Color(0.12, 0.09, 0.06))
+	# 6. Lửa + khói
+	for fire in _bf_fires:
+		var fx := float(fire[0]); var fy := float(fire[1])
+		var phase := float(fire[2]); var inten := float(fire[3])
+		if fy < -70.0 or fy > _vp.y+55.0: continue
+		var pulse := 0.55 + 0.45 * sin(phase)
+		# Khói phượng lên
+		for k in 5:
+			var sk := float(k)
+			var sa := 0.20 * inten * (1.0 - sk*0.18) * pulse
+			draw_circle(Vector2(fx + sin(sk*1.1 + _t*0.7)*6.0, fy - sk*15.0*inten),
+				13.0 - sk*2.0, Color(0.09, 0.08, 0.07, sa))
+		# Lưởi lửa
+		draw_circle(Vector2(fx,fy), 22.0*inten*pulse, Color(0.75, 0.18, 0.02, 0.28*pulse))
+		draw_circle(Vector2(fx,fy), 13.0*inten*pulse, Color(1.00, 0.50, 0.05, 0.52*pulse))
+		draw_circle(Vector2(fx,fy), 7.0 *inten*pulse, Color(1.00, 0.82, 0.12, 0.78*pulse))
+		draw_circle(Vector2(fx,fy), 3.2 *inten,       Color(1.00, 0.97, 0.80, 0.96))
+	# 7. Đạn phào cao xạ (AA tracers)
+	for sh in _shooters:
+		var sx := float(sh[0]); var sy := float(sh[1])
+		var vx := float(sh[2]); var vy := float(sh[3])
+		var life := float(sh[4]); var maxlife := float(sh[5])
+		var alpha := (life / maxf(0.001, maxlife)) * 0.92
+		var spd2 := maxf(1.0, absf(vx) + absf(vy))
+		draw_line(Vector2(sx,sy), Vector2(sx - vx/spd2*34.0, sy - vy/spd2*34.0),
+			Color(1.0, 0.92, 0.28, alpha * 0.85), 2.0)
+		draw_circle(Vector2(sx,sy), 2.5, Color(1.0, 0.99, 0.65, minf(1.0, alpha*1.5)))
+	# 8. Sương khói chiến trường
+	draw_rect(Rect2(0.0, 0.0, _vp.x, _vp.y), Color(0.04, 0.08, 0.02, 0.09))

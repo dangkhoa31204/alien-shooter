@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://levelcomplete01"]
+[gd_scene format=3 uid="uid://c44acnuqpgvlk"]
 
 [ext_resource type="Script" path="res://scripts/level_complete.gd" id="1_lc"]
 [ext_resource type="Script" uid="uid://c8co51twf2ksw" path="res://scripts/background.gd" id="2_bg"]
