@@ -178,8 +178,8 @@ func _process(delta: float) -> void:
 		# Continuous Spawning: 4-5 soldiers every ~3s on BOTH paths
 		_army_spawn_timer -= delta
 		if _army_spawn_timer <= 0:
-			# Spawn 5-6 soldiers per wave, spread out widely
-			var spawn_count = randi_range(5, 6)
+			# Spawn 5-6 soldiers per wave, spread out widely (Fewer on Stage 5)
+			var spawn_count = randi_range(2, 3) if current_stage == 5 else randi_range(5, 6)
 			for _si in spawn_count:
 				var sx = camera.position.x + 800 + randf_range(0, 1500)
 				var sy: float
@@ -192,13 +192,13 @@ func _process(delta: float) -> void:
 				else:
 					sy = _get_ground_y(sx)
 				_add_individual_background_soldier(sx, sy)
-			_army_spawn_timer = randf_range(7.0, 9.0)
+			_army_spawn_timer = randf_range(12.0, 16.0) if current_stage == 5 else randf_range(7.0, 9.0)
 		
 		# Dynamic Enemy Spawning (To keep the action going)
 		_enemy_spawn_timer -= delta
 		if _enemy_spawn_timer <= 0:
 			var enemies = tree.get_nodes_in_group("enemy").size()
-			var max_enemies = 12 if current_stage == 2 else (6 if current_stage == 3 else 8)
+			var max_enemies = 12 if current_stage == 2 else (6 if current_stage == 3 else (4 if current_stage == 5 else 8))
 			if enemies < max_enemies:
 				var spawn_x = camera.position.x + 900 + randf_range(100, 400) # Spaced further away
 				if spawn_x < STAGE_LENGTH - 400:
@@ -209,6 +209,7 @@ func _process(delta: float) -> void:
 			var st_timer = randf_range(2.0, 4.0)
 			if current_stage == 2: st_timer = randf_range(1.5, 3.0)
 			if current_stage == 3: st_timer = randf_range(3.5, 6.0) # Thưa ra
+			if current_stage == 5: st_timer = randf_range(4.5, 8.0) # Rất thưa
 			_enemy_spawn_timer = st_timer
 
 		# Random Bomber Spawns (Scales with difficulty/stage)
@@ -339,6 +340,8 @@ func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 
 func _start_stage(stage_num: int) -> void:
 	current_stage = stage_num
+	STAGE_LENGTH = 12000.0 # Reset to default
+	if progress_bar: progress_bar.max_value = STAGE_LENGTH
 	_cleanup_level()
 	_load_stage_data(stage_num)
 	_spawn_player()
@@ -1028,14 +1031,19 @@ func _setup_base() -> void:
 		var tw = create_tween().set_loops()
 		tw.tween_property(r_light, "modulate:a", 0.1, 0.5); tw.tween_property(r_light, "modulate:a", 1.0, 0.5)
 
-	_spawn_enemy_wave(35, 0.6) # Elite guards heavily armed
-	for i in 6:
-		var t_tx = 1200 + i * 1600 + randf_range(-100, 100)
+	# Reduced initial static enemies to 15 to prevent CPU lag (Slow-motion effect). 
+	# The dynamic spawner in _process() will keep the action alive as player progresses.
+	_spawn_enemy_wave(15, 0.5) 
+	for i in 3:
+		var t_tx = 1800 + i * 3000 + randf_range(-100, 100)
 		_spawn_heavy_enemy(t_tx, 595, "tank")
 	_bomber_timer = 2.0
 	_spawn_background_soldiers(6)
 
 func _setup_final_push() -> void:
+	STAGE_LENGTH = 16000.0 # Make Phase 5 notably longer
+	if progress_bar: progress_bar.max_value = STAGE_LENGTH
+	
 	# Stage 5: Giải phóng miền Nam - Tiến vào Sài Gòn (10:30 AM)
 	_setup_background_sky(Color(0.35, 0.65, 0.9)) # Clear blue sky
 	
@@ -1045,29 +1053,37 @@ func _setup_final_push() -> void:
 
 	# City Skyline (Sài Gòn 1975 - Colonial Style / Thấp hơn, màu vàng/trắng cũ)
 	for i in 60:
-		var bw = randf_range(120, 250)
-		var bh = randf_range(60, 180) # Shorter buildings
-		var bx = i * 300 + randf_range(-100, 100)
+		var bw = randf_range(160, 280)
+		var bh = randf_range(80, 220) # Colonial buildings
+		var bx = i * 250 + randf_range(-50, 50)
 		var b = ColorRect.new()
 		b.size = Vector2(bw, bh); b.position = Vector2(bx, 600 - bh)
 		
 		# Colonial colors: Pale yellow, off-white, faded green/brown
-		b.color = [Color(0.8, 0.75, 0.5), Color(0.75, 0.75, 0.65), Color(0.6, 0.65, 0.55), Color(0.6, 0.5, 0.4)].pick_random()
-		b.color = b.color.darkened(randf_range(0.1, 0.2))
+		b.color = [Color(0.85, 0.8, 0.6), Color(0.8, 0.8, 0.75), Color(0.65, 0.7, 0.6), Color(0.7, 0.6, 0.5)].pick_random()
+		b.color = b.color.darkened(randf_range(0.1, 0.15))
 		b.z_index = -80; _world.add_child(b)
 		
 		# Slanted Roofs (Mái ngói)
 		if randf() < 0.7:
-			var roof = Polygon2D.new(); roof.polygon = PackedVector2Array([Vector2(-10, 0), Vector2(bw/2, -30), Vector2(bw+10, 0)])
-			roof.color = Color(0.6, 0.3, 0.2).darkened(randf_range(0.0, 0.2)); roof.position = Vector2(bx, 600 - bh); roof.z_index = -80
+			var roof = Polygon2D.new(); roof.polygon = PackedVector2Array([Vector2(-15, 0), Vector2(bw/2, -40), Vector2(bw+15, 0)])
+			roof.color = Color(0.65, 0.35, 0.25).darkened(randf_range(0.0, 0.2)); roof.position = Vector2(bx, 600 - bh); roof.z_index = -80
 			_world.add_child(roof)
 		
-		# Windows (Louvers/Cửa chớp)
-		for r in int(bh/35):
-			for c in int(bw/35):
-				if randf() > 0.2:
-					var win = ColorRect.new(); win.size = Vector2(16, 22); win.position = Vector2(c*35 + 10, r*35 + 10)
-					win.color = Color(0.3, 0.4, 0.3, 0.6); b.add_child(win)
+		# Windows & Balconies
+		for r in int(bh/40):
+			for c in int(bw/45):
+				if randf() > 0.1:
+					var wx = c*45 + 15
+					var wy = r*40 + 15
+					var win = ColorRect.new(); win.size = Vector2(18, 25); win.position = Vector2(wx, wy)
+					win.color = Color(0.3, 0.4, 0.3, 0.7); b.add_child(win)
+					# Add colonial balcony for some windows
+					if randf() < 0.4 and r > 0:
+						var balc = ColorRect.new(); balc.size = Vector2(26, 8); balc.position = Vector2(wx-4, wy+22)
+						balc.color = Color(0.3, 0.3, 0.3); b.add_child(balc)
+						var railing = ColorRect.new(); railing.size = Vector2(26, 12); railing.position = Vector2(wx-4, wy+10)
+						railing.color = Color(0.1, 0.1, 0.1, 0.5); b.add_child(railing)
 
 	# Smoke pillars rising from the city
 	for i in 12:
@@ -1098,28 +1114,71 @@ func _setup_final_push() -> void:
 	_stage_terrain.append(Vector2(-200, 600))
 	_stage_terrain.append(Vector2(STAGE_LENGTH + 800, 600))
 
-	# Streetlights and Sidewalk elements
-	for i in range(int(STAGE_LENGTH/500)):
-		var px = i * 500 + randf_range(-50, 50)
-		var pole = ColorRect.new(); pole.size = Vector2(8, 250); pole.position = Vector2(px, 315); pole.color = Color(0.4, 0.4, 0.4); pole.z_index = -30; _world.add_child(pole)
-		var light = ColorRect.new(); light.size = Vector2(40, 6); light.position = Vector2(px-16, 315); light.color = Color(0.3, 0.3, 0.3); pole.z_index = -30; _world.add_child(light)
+	# Streetlights, Palm Trees and Celebration Flags across the street
+	for i in range(int(STAGE_LENGTH/400)):
+		var px = i * 400 + randf_range(-20, 20)
+		
+		# Streetlight
+		var pole = ColorRect.new(); pole.size = Vector2(6, 280); pole.position = Vector2(px, 300); pole.color = Color(0.3, 0.3, 0.3); pole.z_index = -30; _world.add_child(pole)
+		var light = ColorRect.new(); light.size = Vector2(35, 8); light.position = Vector2(px-15, 300); light.color = Color(0.25, 0.25, 0.25); pole.z_index = -30; _world.add_child(light)
+		
+		# Palm Trees lining the avenue
+		if randf() < 0.6:
+			_create_palm_tree(Vector2(px + 100, 600))
+			# Push palm trees back visually
+			var last_tree = _world.get_child(_world.get_child_count()-1)
+			last_tree.z_index = -28
+			last_tree.scale = Vector2(0.8, 0.8)
+			
+		# Liberation Flags hanging across street
+		if i % 3 == 0:
+			var wire = Line2D.new(); wire.width = 1.0; wire.default_color = Color(0.1, 0.1, 0.1, 0.6); wire.z_index = -29
+			wire.add_point(Vector2(px, 350)); wire.add_point(Vector2(px+400, 370)); _world.add_child(wire)
+			
+			for f in 3:
+				var flag_x = px + 80 + f * 100
+				var flag_y = 350 + (flag_x - px) * 0.05
+				var flag = Polygon2D.new()
+				flag.polygon = PackedVector2Array([Vector2(0,0), Vector2(30,0), Vector2(30,40), Vector2(0,40)])
+				flag.position = Vector2(flag_x, flag_y); flag.z_index = -28
+				_world.add_child(flag)
+				
+				# Cờ nửa đỏ nửa xanh (Mặt trận Dân tộc Giải phóng miền Nam)
+				var red = ColorRect.new(); red.size = Vector2(30, 20); red.color = Color(0.8, 0.1, 0.1); flag.add_child(red)
+				var blue = ColorRect.new(); blue.size = Vector2(30, 20); blue.position = Vector2(0, 20); blue.color = Color(0.1, 0.4, 0.8); flag.add_child(blue)
+				var star = Polygon2D.new(); var pts = []
+				for j in 10:
+					var r = 6 if j%2==0 else 2.5
+					pts.append(Vector2(cos(j*TAU/10-PI/2)*r, sin(j*TAU/10-PI/2)*r))
+				star.polygon = PackedVector2Array(pts); star.color = Color.YELLOW; star.position = Vector2(15, 20); flag.add_child(star)
 
-	# Realistic Parkour Obstacles: Destroyed Trucks and Sandbag Piles
+	# Realistic Parkour Obstacles: Vintage Vespas, Jeeps and Sandbags
 	for i in 25:
-		var cx = randf_range(300, STAGE_LENGTH - 800)
-		if randf() < 0.5:
+		var cx = randf_range(300, STAGE_LENGTH - 1000)
+		var r = randf()
+		if r < 0.3:
 			_create_truck_husk(Vector2(cx, 600))
-		else:
+		elif r < 0.6:
 			_create_sandbag_fort(Vector2(cx, 600), randf_range(40, 80))
+		else:
+			# Vintage Vespa Scooter (Abandoned)
+			var vespa = StaticBody2D.new(); vespa.position = Vector2(cx, 600); vespa.z_index = -24; _world.add_child(vespa)
+			var vbody = Polygon2D.new(); vbody.polygon = PackedVector2Array([Vector2(-20,-10), Vector2(25,-10), Vector2(35,10), Vector2(-30,10)])
+			vbody.color = [Color(0.4, 0.7, 0.8), Color(0.8, 0.9, 0.8), Color(0.9, 0.3, 0.3)].pick_random() # Retro colors
+			vbody.position = Vector2(0, -20); vespa.add_child(vbody)
+			var seat = ColorRect.new(); seat.size=Vector2(25,6); seat.position=Vector2(-10,-36); seat.color=Color(0.1,0.1,0.1); vespa.add_child(seat)
+			var handle = Line2D.new(); handle.width=3.0; handle.default_color=Color(0.8,0.8,0.8); handle.add_point(Vector2(25,-30)); handle.add_point(Vector2(20,-50)); vespa.add_child(handle)
+			var w1 = ColorRect.new(); w1.size=Vector2(14,14); w1.position=Vector2(-25,-14); w1.color=Color(0.05,0.05,0.05); vespa.add_child(w1)
+			var w2 = ColorRect.new(); w2.size=Vector2(14,14); w2.position=Vector2(20,-14); w2.color=Color(0.05,0.05,0.05); vespa.add_child(w2)
 			
 	# Giảm địch cho thưa thớt
-	_spawn_enemy_wave(25, 0.3) 
-	for i in 4:
-		var t_tx = 1500 + i * 3500 + randf_range(-100, 100) # Tanks spread out heavily
+	_spawn_enemy_wave(12, 0.2) 
+	for i in 2:
+		var t_tx = 3000 + i * 5000 + randf_range(-100, 100) # Tanks spread out heavily
 		_spawn_heavy_enemy(t_tx, 595, "tank")
 	
-	_bomber_timer = 2.5 
-	_spawn_background_soldiers(12) # Heavy allied presence marching in
+	_bomber_timer = 5.0 
+	_spawn_background_soldiers(4) # Heavy allied presence marching in
 	
 	# Boss Fortress at the end (Dinh Độc Lập Gates)
 	var bx = STAGE_LENGTH - 400
@@ -1132,36 +1191,38 @@ func _spawn_turret(x, y) -> void:
 	t.position = Vector2(x, y)
 
 func _spawn_boss(x, y) -> void:
-	# Cổng Dinh Độc Lập / Iron Gates Barricade
-	var gate_bg = ColorRect.new(); gate_bg.size = Vector2(600, 450); gate_bg.position = Vector2(x, y-450); gate_bg.color = Color(0.1, 0.1, 0.1, 0.5); gate_bg.z_index = -20; _world.add_child(gate_bg)
+	# Cổng Dinh Độc Lập / Independence Palace Gates
 	
-	# Iron fences
-	for i in 20:
-		var bar = ColorRect.new(); bar.size = Vector2(8, 450); bar.position = Vector2(x + i*30, y-450); bar.color = Color(0.2, 0.2, 0.2); bar.z_index = -15; _world.add_child(bar)
-		var spike = Polygon2D.new(); spike.polygon = PackedVector2Array([Vector2(0,0), Vector2(4, -15), Vector2(8, 0)]); spike.color = Color(0.8, 0.7, 0.2); spike.position = Vector2(x + i*30, y-450); spike.z_index = -15; _world.add_child(spike)
+	# Palace Yard (Green grass behind the gate)
+	var yard = ColorRect.new(); yard.size = Vector2(800, 150); yard.position = Vector2(x, y-150); yard.color = Color(0.15, 0.4, 0.15); yard.z_index = -35; _world.add_child(yard)
+	var palace_bg = ColorRect.new(); palace_bg.size = Vector2(800, 300); palace_bg.position = Vector2(x, y-450); palace_bg.color = Color(0.85, 0.85, 0.8); palace_bg.z_index = -36; _world.add_child(palace_bg)
+	
+	# Tropical Palm Trees in the palace yard
+	for i in 4:
+		_create_palm_tree(Vector2(x + 100 + i*150, y))
+		var last_tree = _world.get_child(_world.get_child_count()-1)
+		last_tree.z_index = -34
+	
+	# Iron fences (Broken in the middle)
+	for i in 22:
+		# Create a gap in the middle where the tank crashed
+		if i > 7 and i < 15: continue 
+		var bar = ColorRect.new(); bar.size = Vector2(8, 450); bar.position = Vector2(x-80 + i*35, y-450); bar.color = Color(0.2, 0.2, 0.2); bar.z_index = -15; _world.add_child(bar)
+		var spike = Polygon2D.new(); spike.polygon = PackedVector2Array([Vector2(0,0), Vector2(4, -15), Vector2(8, 0)]); spike.color = Color(0.8, 0.7, 0.2); spike.position = Vector2(x-80 + i*35, y-450); spike.z_index = -15; _world.add_child(spike)
 
 	# Concrete Pillars
-	for i in 3:
-		var px = x + i * 280
-		var pillar = ColorRect.new(); pillar.size = Vector2(60, 500); pillar.position = Vector2(px, y-500); pillar.color = Color(0.8, 0.8, 0.75); pillar.z_index = -10; _world.add_child(pillar)
+	for i in 4:
+		var px = x -100 + i * 260
+		# Destroyed central pillars
+		var pillar_h = 500 if (i == 0 or i == 3) else randf_range(100, 200)
+		var pillar = ColorRect.new(); pillar.size = Vector2(60, pillar_h); pillar.position = Vector2(px, y-pillar_h); pillar.color = Color(0.8, 0.8, 0.75); pillar.z_index = -10; _world.add_child(pillar)
 		var base = ColorRect.new(); base.size = Vector2(80, 40); base.position = Vector2(px-10, y-40); base.color = Color(0.6, 0.6, 0.55); pillar.add_child(base)
-		var cap = ColorRect.new(); cap.size = Vector2(80, 20); cap.position = Vector2(px-10, y-500); cap.color = Color(0.6, 0.6, 0.55); pillar.add_child(cap)
 
-	# Turrets mounted behind sandbags at the gate
-	for i in 5:
-		var bt = TURRET_SCENE.instantiate()
-		bt.hp = 25 
-		bt.shoot_cooldown = 0.75 
-		bt.detection_range = 1000.0
-		bt.scale = Vector2(1.5, 1.5)
-		_world.add_child(bt)
-		var ty = y - 350 + i * 70 # Spread vertically but lower
-		var tx = x + 100 + (i%2) * 200 
-		bt.position = Vector2(tx, ty)
-		bt.add_to_group("boss_core")
+	# Banner above the gate
+	var banner = ColorRect.new(); banner.size = Vector2(500, 60); banner.position = Vector2(x-100, y-550); banner.color = Color(0.8, 0.1, 0.1); banner.z_index = -9; _world.add_child(banner)
 	
-	# Player Parkour Platforms (T-54 Tank husk that rammed the gate)
-	var tank_husk = StaticBody2D.new(); tank_husk.position = Vector2(x - 250, y); _world.add_child(tank_husk)
+	# Iconic T-54 Tank husk that rammed the center gate
+	var tank_husk = StaticBody2D.new(); tank_husk.position = Vector2(x + 100, y); _world.add_child(tank_husk)
 	var tcol = CollisionShape2D.new(); var tshp = RectangleShape2D.new(); tshp.size = Vector2(250, 100); tcol.shape = tshp; tcol.position = Vector2(0, -50); tcol.one_way_collision = true; tank_husk.add_child(tcol)
 	var tbody = Polygon2D.new(); tbody.polygon = PackedVector2Array([Vector2(-125, 0), Vector2(-100, -80), Vector2(100, -100), Vector2(125, 0)])
 	tbody.color = Color(0.1, 0.35, 0.1) # Viet Cong Green
@@ -1172,18 +1233,7 @@ func _spawn_boss(x, y) -> void:
 		pts.append(Vector2(cos(j*TAU/10 - PI/2)*r, sin(j*TAU/10 - PI/2)*r))
 	star.polygon = PackedVector2Array(pts); star.color = Color.YELLOW; star.position = Vector2(-20, -50); tank_husk.add_child(star)
 
-	# Additional rubble platform higher up
-	_create_sandbag_fort(Vector2(x - 450, y), 200)
-	_create_sandbag_fort(Vector2(x - 650, y), 100)
-
-	var win_check = Timer.new()
-	win_check.wait_time = 1.0; win_check.autostart = true; win_check.name = "BossCheck"
-	win_check.process_mode = Node.PROCESS_MODE_PAUSABLE
-	add_child(win_check)
-	win_check.timeout.connect(func():
-		if get_tree().get_nodes_in_group("boss_core").is_empty():
-			on_stage_complete()
-	)
+	# Note: No win_check timer needed. Winning is triggered by walking over STAGE_LENGTH - 100
 
 func _create_truck_husk(pos: Vector2) -> void:
 	var husk = StaticBody2D.new(); husk.position = pos; _world.add_child(husk)
@@ -1450,12 +1500,17 @@ func _add_individual_background_soldier(x: float, y: float = 600) -> void:
 	stw.tween_property(soldier, "scale:y", 1.0, anim_speed).set_trans(Tween.TRANS_SINE)
 	
 	# --- Stage 5 feature: Spawn an occasional Allied Tank moving alongside soldiers ---
-	if current_stage == 5 and randf() < 0.15:
+	if current_stage == 5 and randf() < 0.4: # Increased spawn rate
 		_add_allied_tank(x - randf_range(100, 300), y)
 
 func _add_allied_tank(x: float, y: float) -> void:
+	var tank_count = 0
 	for s in get_tree().get_nodes_in_group("ally_army"):
-		if s.has_meta("is_tank") and abs(s.position.x - x) < 400: return # Limit tank density
+		if s.has_meta("is_tank"):
+			tank_count += 1
+			if abs(s.position.x - x) < 800: return # Keep them spread out
+			
+	if tank_count >= 2: return # Limit total allied tanks on screen
 
 	var tank = Node2D.new()
 	tank.position = Vector2(x, y)
@@ -1592,6 +1647,44 @@ func _show_victory():
 	
 	stage_label.text = "CHIẾN THẮNG HUY HOÀNG!\nGIẢI PHÓNG MIỀN NAM"
 	stage_label.visible = true
+	
+	# === LÁ CỜ MẶT TRẬN GIẢI PHÓNG KÉO LÊN ===
+	if current_stage == 5:
+		# Cột cờ Dinh Độc Lập
+		var flag_pole = ColorRect.new()
+		flag_pole.size = Vector2(12, 500)
+		flag_pole.position = Vector2(STAGE_LENGTH - 150, 100)
+		flag_pole.color = Color(0.7, 0.7, 0.7)
+		flag_pole.z_index = -8
+		_world.add_child(flag_pole)
+		
+		# Chân đế cột cờ
+		var base = ColorRect.new(); base.size = Vector2(40, 20); base.position = Vector2(STAGE_LENGTH - 164, 600); base.color = Color(0.4, 0.4, 0.4); base.z_index = -8; _world.add_child(base)
+		
+		# Lá cờ nửa trên đỏ, nửa dưới xanh, sao vàng
+		var giant_flag = Node2D.new()
+		giant_flag.position = Vector2(STAGE_LENGTH - 144, 450) # Cờ bắt đầu kéo ở dưới
+		giant_flag.z_index = -7
+		_world.add_child(giant_flag)
+		
+		var red_half = ColorRect.new(); red_half.size = Vector2(240, 75); red_half.color = Color(0.85, 0.15, 0.15); giant_flag.add_child(red_half)
+		var blue_half = ColorRect.new(); blue_half.size = Vector2(240, 75); blue_half.position = Vector2(0, 75); blue_half.color = Color(0.1, 0.4, 0.85); giant_flag.add_child(blue_half)
+		
+		var big_star = Polygon2D.new(); var s_pts = []
+		for j in 10:
+			var sr = 42 if j%2==0 else 16
+			s_pts.append(Vector2(cos(j*TAU/10-PI/2)*sr, sin(j*TAU/10-PI/2)*sr))
+		big_star.polygon = PackedVector2Array(s_pts); big_star.color = Color.YELLOW; big_star.position = Vector2(120, 75)
+		giant_flag.add_child(big_star)
+		
+		# Anime kéo cờ từ từ lên đỉnh cột
+		var tw_flag = create_tween()
+		tw_flag.tween_property(giant_flag, "position:y", 100, 3.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		
+		# Hiệu ứng cờ bay phấp phới trong gió
+		var wave_tw = create_tween().set_loops()
+		wave_tw.tween_property(giant_flag, "scale:y", 0.95, 0.2)
+		wave_tw.tween_property(giant_flag, "scale:y", 1.05, 0.2)
 	
 	# Victory SFX and slow mo
 	Engine.time_scale = 0.5

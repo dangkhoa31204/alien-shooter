@@ -43,6 +43,9 @@ var _muzzle_flash_timer: float = 0.0
 var _recoil_offset: float = 0.0
 var _air_rotation: float = 0.0
 
+var _space_was_pressed: bool = false
+var _shift_was_pressed: bool = false
+
 @onready var sprite: Node2D = $Sprite
 @onready var gun_point: Marker2D = $GunPoint
 @onready var shoot_timer: Timer = $ShootTimer
@@ -179,6 +182,14 @@ func _setup_rpg_visuals() -> void:
 	_heavy_weapon_node.position = Vector2(8, -8)
 
 func _physics_process(delta: float) -> void:
+	var space_pressed = Input.is_key_pressed(KEY_SPACE)
+	var space_just_pressed = space_pressed and not _space_was_pressed
+	_space_was_pressed = space_pressed
+	
+	var shift_pressed = Input.is_key_pressed(KEY_SHIFT)
+	var shift_just_pressed = shift_pressed and not _shift_was_pressed
+	_shift_was_pressed = shift_pressed
+
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 	else:
@@ -186,7 +197,7 @@ func _physics_process(delta: float) -> void:
 		_air_rotation = 0
 
 	# Jump and Double Jump
-	if Input.is_action_just_pressed("ui_up"):
+	if space_just_pressed:
 		# Dropping down through one-way platforms (Down + Jump)
 		if is_on_floor() and Input.is_action_pressed("ui_down"):
 			position.y += 1
@@ -210,7 +221,7 @@ func _physics_process(delta: float) -> void:
 		if is_on_floor() and Input.is_action_pressed("ui_down"):
 			is_crouching = true
 			velocity.x = 0
-			if Input.is_action_just_pressed("ui_accept"): # Shift/Action for roll
+			if shift_just_pressed: # Shift for roll
 				is_rolling = true; _roll_timer = 0.4
 		else:
 			is_crouching = false
@@ -235,10 +246,11 @@ func _physics_process(delta: float) -> void:
 			ammo = MAX_AMMO
 			_sync_hp()
 	
-	if Input.is_action_pressed("ui_accept") and shoot_timer.is_stopped() and not _is_firing_rpg and not is_reloading:
+	var s_pressed = Input.is_key_pressed(KEY_S)
+	if s_pressed and shoot_timer.is_stopped() and not _is_firing_rpg and not is_reloading:
 		_shoot()
 		shoot_timer.start(0.12)
-	elif not Input.is_action_pressed("ui_accept"):
+	elif not s_pressed:
 		# Force muzzle flash off when button is released
 		_muzzle_flash.color.a = 0.0
 		_muzzle_flash_timer = 0.0

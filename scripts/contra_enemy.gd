@@ -129,6 +129,7 @@ func _find_player() -> Node2D:
 func _patrol(delta: float) -> void:
 	velocity.x = patrol_direction * (SPEED * (1.4 if is_officer else 1.0))
 	sprite.scale.x = patrol_direction
+	var old_walk = int(_walk_time)
 	_walk_time += delta * 12
 	var step = sin(_walk_time)
 	var l1 = sprite.get_node("LegL"); var l2 = sprite.get_node("LegR")
@@ -136,8 +137,9 @@ func _patrol(delta: float) -> void:
 	l2.position.x = 3 - step * 6
 	_body_node.position.y = abs(step) * -3
 	
-	# Dust particles when running
-	if int(_walk_time) % 4 == 0: _spawn_dust()
+	# Dust particles when running (Only once per cycle to prevent Tween memory leak / lag)
+	if int(_walk_time) % 4 == 0 and int(_walk_time) != old_walk: 
+		_spawn_dust()
 
 func _aim_and_fire(player: Node2D) -> void:
 	var dir = (player.global_position - global_position).normalized()
