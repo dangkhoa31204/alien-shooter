@@ -54,8 +54,10 @@ var _shift_was_pressed: bool = false
 var _body_node: Node2D
 var _head_node: Node2D
 var _weapon_node: Node2D
-var _leg_l: Node2D
-var _leg_r: Node2D
+var _leg_l: Node2D # Back leg
+var _leg_r: Node2D # Front leg
+var _arm_back: Node2D
+var _arm_front: Node2D
 var _muzzle_flash: Polygon2D
 
 func _ready() -> void:
@@ -74,104 +76,95 @@ func _sync_hp() -> void:
 func _setup_complex_visuals() -> void:
 	for n in sprite.get_children(): n.queue_free()
 	
-	_leg_l = Node2D.new()
-	_leg_r = Node2D.new()
-	_body_node = Node2D.new()
-	_head_node = Node2D.new()
-	_weapon_node = Node2D.new()
-	_heavy_weapon_node = Node2D.new()
+	_leg_l = Node2D.new(); _leg_r = Node2D.new()
+	_body_node = Node2D.new(); _head_node = Node2D.new()
+	_weapon_node = Node2D.new(); _heavy_weapon_node = Node2D.new()
+	_arm_back = Node2D.new(); _arm_front = Node2D.new()
 	
+	# Layering: Back Arm -> Back Leg -> Body -> Weapon -> Head -> Front Leg -> Front Arm
+	sprite.add_child(_arm_back)
 	sprite.add_child(_leg_l)
-	sprite.add_child(_leg_r)
 	sprite.add_child(_body_node)
-	_body_node.add_child(_head_node)
 	_body_node.add_child(_weapon_node)
 	_body_node.add_child(_heavy_weapon_node)
+	_body_node.add_child(_head_node)
+	sprite.add_child(_leg_r)
+	_body_node.add_child(_arm_front)
 	_heavy_weapon_node.visible = false
 	
 	_setup_rpg_visuals()
 
-	# Leg Shading & Boots/Sandals
-	var poly_leg = PackedVector2Array([Vector2(-3, 0), Vector2(3, 0), Vector2(4, 18), Vector2(-4, 18)])
-	var l_l = Polygon2D.new(); l_l.polygon = poly_leg; l_l.color = Color(0.12, 0.28, 0.1) # Dark Olive
+	# --- Legs (Powerful Stance) ---
+	var poly_leg = PackedVector2Array([Vector2(-4.5, 0), Vector2(4.5, 0), Vector2(5.5, 18), Vector2(-5.5, 18)])
+	var l_l = Polygon2D.new(); l_l.polygon = poly_leg; l_l.color = Color(0.1, 0.22, 0.08)
 	_leg_l.add_child(l_l); _leg_l.position = Vector2(-3, 0)
-	var l_r = Polygon2D.new(); l_r.polygon = poly_leg; l_r.color = Color(0.14, 0.32, 0.12)
-	_leg_r.add_child(l_r); _leg_r.position = Vector2(3, 0)
+	var l_r = Polygon2D.new(); l_r.polygon = poly_leg; l_r.color = Color(0.16, 0.36, 0.14)
+	_leg_r.add_child(l_r); _leg_r.position = Vector2(4, 0)
 	
-	# Rubber Sandals (Dép cao su)
-	var sandal_l = ColorRect.new(); sandal_l.size = Vector2(10, 3); sandal_l.position = Vector2(-5, 15); sandal_l.color = Color(0.1, 0.1, 0.1)
-	_leg_l.add_child(sandal_l)
-	var sandal_r = ColorRect.new(); sandal_r.size = Vector2(10, 3); sandal_r.position = Vector2(-5, 15); sandal_r.color = Color(0.1, 0.1, 0.1)
-	_leg_r.add_child(sandal_r)
+	for leg in [_leg_l, _leg_r]:
+		var s = ColorRect.new(); s.size = Vector2(13, 4); s.position = Vector2(-6.5, 15); s.color = Color(0.05, 0.05, 0.05)
+		leg.add_child(s)
 
-	# --- Body (Olive Green Uniform) ---
-	var body_poly = Polygon2D.new()
-	body_poly.polygon = PackedVector2Array([Vector2(-9, -18), Vector2(9, -18), Vector2(11, 2), Vector2(-11, 2)])
-	body_poly.color = Color(0.18, 0.38, 0.15) # Classic Bộ Đội Green
-	_body_node.add_child(body_poly)
+	# --- Body (Leaning Combat Stance) ---
+	var body_color = Color(0.18, 0.38, 0.15)
+	var torso = Polygon2D.new()
+	torso.polygon = PackedVector2Array([Vector2(-11, -19), Vector2(10, -19), Vector2(12, 1), Vector2(-12, 1), Vector2(-13, -10)])
+	torso.color = body_color; _body_node.add_child(torso)
 	
-	# Shading/Detail on body (Vest/Straps)
-	var vest = Polygon2D.new()
-	vest.polygon = PackedVector2Array([Vector2(-9, -18), Vector2(9, -18), Vector2(4, -8), Vector2(-4, -8)])
-	vest.color = Color(0.15, 0.3, 0.12); _body_node.add_child(vest)
+	# Detail: Collar
+	var collar = Polygon2D.new(); collar.polygon = [Vector2(-6, -19), Vector2(6, -19), Vector2(8, -15), Vector2(-8, -15)]
+	collar.color = body_color.darkened(0.2); _body_node.add_child(collar)
 	
-	# Ba lô con cóc (Backpack)
-	var bag = Polygon2D.new()
-	bag.polygon = PackedVector2Array([Vector2(-14, -16), Vector2(-8, -16), Vector2(-8, -2), Vector2(-15, -4)])
-	bag.color = Color(0.1, 0.25, 0.1); _body_node.add_child(bag)
+	# Scarf (Khăn rằn - Iconic detail)
+	var scarf = Line2D.new(); scarf.width = 3.0; scarf.default_color = Color(0.2, 0.2, 0.3)
+	scarf.points = [Vector2(-4, -16), Vector2(0, -14), Vector2(4, -16)]
+	_body_node.add_child(scarf)
 
-	# --- Head & Mũ Cối ---
+	# --- Arms (Added Depth) ---
+	var arm_poly = PackedVector2Array([Vector2(-3.5, 0), Vector2(3.5, 0), Vector2(4, 14), Vector2(-4, 14)])
+	var ab = Polygon2D.new(); ab.polygon = arm_poly; ab.color = body_color.darkened(0.1)
+	_arm_back.add_child(ab); _arm_back.position = Vector2(-7, -15)
+	var af = Polygon2D.new(); af.polygon = arm_poly; af.color = body_color; _arm_front.add_child(af)
+	_arm_front.position = Vector2(6, -15)
+
+	# --- Head (Focused Expression) ---
 	var face = Polygon2D.new()
-	face.polygon = PackedVector2Array([Vector2(-4, -22), Vector2(4, -22), Vector2(5.5, -16), Vector2(-5.5, -16)])
-	face.color = Color(0.95, 0.78, 0.62) # Healthier skin tone
-	_head_node.add_child(face)
+	face.polygon = PackedVector2Array([Vector2(-4.5, -23), Vector2(5.5, -23), Vector2(6.5, -16), Vector2(-6.5, -16)])
+	face.color = Color(0.95, 0.82, 0.68); _head_node.add_child(face)
 	
-	# Alert Eyes
-	var eye_l = ColorRect.new(); eye_l.size = Vector2(1.5, 1.5); eye_l.position = Vector2(1, -20); eye_l.color = Color(0.1, 0.05, 0.0)
-	var eye_r = ColorRect.new(); eye_r.size = Vector2(1.5, 1.5); eye_r.position = Vector2(3, -20); eye_r.color = Color(0.1, 0.05, 0.0)
-	_head_node.add_child(eye_l); _head_node.add_child(eye_r)
+	# Eyes with focus
+	var el = ColorRect.new(); el.size = Vector2(2.5, 2); el.position = Vector2(1, -21); el.color = Color(0.1, 0, 0)
+	var er = ColorRect.new(); er.size = Vector2(2.5, 2); er.position = Vector2(4, -21); er.color = Color(0.1, 0, 0)
+	_head_node.add_child(el); _head_node.add_child(er)
 
-	# Mũ Cối (Pith Helmet)
-	var helmet_base = Polygon2D.new()
-	helmet_base.polygon = PackedVector2Array([Vector2(-11, -23), Vector2(11, -23), Vector2(8, -20), Vector2(-8, -20)])
-	helmet_base.color = Color(0.1, 0.35, 0.1)
-	_head_node.add_child(helmet_base)
+	# Curved Mũ Cối
+	var helmet_pts = []
+	for i in 13:
+		var a = i * PI / 12.0 + PI
+		helmet_pts.append(Vector2(cos(a) * 11, sin(a) * 9 - 25))
+	helmet_pts.append(Vector2(13, -24)); helmet_pts.append(Vector2(-13, -24))
+	var helm = Polygon2D.new(); helm.polygon = PackedVector2Array(helmet_pts); helm.color = Color(0.15, 0.38, 0.12)
+	_head_node.add_child(helm)
 	
-	var helmet_dome = Polygon2D.new()
-	helmet_dome.polygon = PackedVector2Array([Vector2(-7, -23), Vector2(7, -23), Vector2(6, -30), Vector2(0, -32), Vector2(-6, -30)])
-	helmet_dome.color = Color(0.12, 0.4, 0.12)
-	_head_node.add_child(helmet_dome)
-	
-	# Red Star on Helmet
-	var star = Polygon2D.new()
-	var s_pts = []
-	for i in 5:
-		var a = i * TAU / 5.0 - PI/2.0
-		s_pts.append(Vector2(cos(a)*1.5, sin(a)*1.5 - 26))
-	star.polygon = PackedVector2Array(s_pts); star.color = Color.RED # Red star on helmet
-	_head_node.add_child(star)
+	# Star
+	var star = Polygon2D.new(); var pts = []
+	for i in 10:
+		var r = 3.5 if i % 2 == 0 else 1.5; var a = i * TAU / 10.0 - PI/2.0
+		pts.append(Vector2(cos(a)*r, sin(a)*r - 28))
+	star.polygon = PackedVector2Array(pts); star.color = Color.YELLOW; _head_node.add_child(star)
 
-	# --- AK-47 Visuals ---
-	var stock = Polygon2D.new()
-	stock.polygon = PackedVector2Array([Vector2(-8,-2), Vector2(0,-2), Vector2(0,2), Vector2(-8,5)])
-	stock.color = Color(0.4, 0.15, 0.05) # Wood
-	_weapon_node.add_child(stock)
+	# --- AK-47 High Detail ---
+	var gun_c = Color(0.1, 0.1, 0.1)
+	var stock = Polygon2D.new(); stock.polygon = [Vector2(-12, -2), Vector2(0, -3), Vector2(0, 4), Vector2(-12, 6)]; stock.color = Color(0.48, 0.22, 0.1)
+	var receiver = ColorRect.new(); receiver.size = Vector2(18, 7); receiver.position = Vector2(0, -3.5); receiver.color = gun_c
+	var handguard = ColorRect.new(); handguard.size = Vector2(10, 5); handguard.position = Vector2(12, -1); handguard.color = Color(0.5, 0.25, 0.1)
+	var barrel = ColorRect.new(); barrel.size = Vector2(22, 2.5); barrel.position = Vector2(18, -1.5); barrel.color = gun_c
+	var mag = Polygon2D.new(); mag.polygon = [Vector2(5, 3), Vector2(11, 3), Vector2(14, 16), Vector2(7, 18)]; mag.color = Color(0.05, 0.05, 0.05)
+	_weapon_node.add_child(stock); _weapon_node.add_child(receiver); _weapon_node.add_child(handguard); _weapon_node.add_child(barrel); _weapon_node.add_child(mag)
+	_weapon_node.position = Vector2(10, -6)
 	
-	var gun_body = ColorRect.new(); gun_body.size = Vector2(15, 6); gun_body.position = Vector2(0, -3); gun_body.color = Color(0.1, 0.1, 0.1)
-	var barrel = ColorRect.new(); barrel.size = Vector2(14, 2); barrel.position = Vector2(15, -1); barrel.color = Color(0.2, 0.2, 0.2)
-	var wooden_handguard = ColorRect.new(); wooden_handguard.size = Vector2(8, 3); wooden_handguard.position = Vector2(8, 0); wooden_handguard.color = Color(0.45, 0.2, 0.1)
-	var mag = Polygon2D.new()
-	# Curved AK-47 Mag
-	mag.polygon = PackedVector2Array([Vector2(3, 3), Vector2(8, 3), Vector2(10, 12), Vector2(4, 12)])
-	mag.color = Color(0.08, 0.08, 0.08)
-	_weapon_node.add_child(gun_body); _weapon_node.add_child(barrel); _weapon_node.add_child(wooden_handguard); _weapon_node.add_child(mag)
-	_weapon_node.position = Vector2(5, -6)
-	
-	_muzzle_flash = Polygon2D.new()
-	_muzzle_flash.polygon = PackedVector2Array([Vector2(0, -5), Vector2(15, 0), Vector2(0, 5)])
-	_muzzle_flash.color = Color(1.0, 0.8, 0.2, 0.0)
-	_weapon_node.add_child(_muzzle_flash)
-	_muzzle_flash.position = Vector2(28, 0)
+	_muzzle_flash = Polygon2D.new(); _muzzle_flash.polygon = [Vector2(0, -7), Vector2(24, 0), Vector2(0, 7)]; _muzzle_flash.color = Color(1, 0.9, 0.4, 0)
+	_weapon_node.add_child(_muzzle_flash); _muzzle_flash.position = Vector2(40, 0)
 
 func _setup_rpg_visuals() -> void:
 	# RPG-7 / B40 Launcher
@@ -366,37 +359,47 @@ func _update_aiming() -> void:
 
 func _animate(delta: float) -> void:
 	if is_rolling:
-		sprite.rotation += delta * 20.0 * sprite.scale.x
-		_body_node.position.y = 10
-		_leg_l.rotation = 1.0; _leg_r.rotation = -1.0
+		sprite.rotation += delta * 25.0 * sprite.scale.x
+		_body_node.position.y = 12
+		_leg_l.rotation = 1.2; _leg_r.rotation = -0.8
+		_arm_back.rotation = 1.0; _arm_front.rotation = -1.0
 	elif is_on_floor() and abs(velocity.x) > 10:
-		_walk_time += delta * 12.0
+		_walk_time += delta * 13.0
 		var step = sin(_walk_time)
-		_leg_l.position.x = -3 + step * 8
-		_leg_r.position.x = 3 - step * 8
-		_body_node.position.y = abs(step) * -4
-		_body_node.rotation = step * 0.05
+		_leg_l.position.x = -4 + step * 9; _leg_r.position.x = 4 - step * 9
+		_leg_l.rotation = step * 0.25; _leg_r.rotation = -step * 0.25
+		_body_node.position.y = abs(step) * -5 + 2 # Adds "lean" bounce
+		_body_node.rotation = 0.1 + step * 0.08 # Leaning forward while running
+		_head_node.position.y = abs(step) * -2
+		_head_node.rotation = -0.05
+		# Arms swing while running
+		_arm_back.rotation = -step * 0.4; _arm_front.rotation = step * 0.4
 		sprite.rotation = 0
 	elif is_on_floor():
-		_walk_time = 0
-		_leg_l.position.x = lerp(_leg_l.position.x, -3.0, 0.2)
-		_leg_r.position.x = lerp(_leg_r.position.x, 3.0, 0.2)
-		_body_node.position.y = lerp(_body_node.position.y, 0.0, 0.2)
-		_body_node.rotation = lerp_angle(_body_node.rotation, 0.0, 0.2)
+		_walk_time += delta * 3.5
+		var breathe = sin(_walk_time) * 1.5
+		_leg_l.position.x = lerp(_leg_l.position.x, -6.0, 0.1) # Wider stance idle
+		_leg_r.position.x = lerp(_leg_r.position.x, 6.0, 0.1)
+		_leg_l.rotation = 0.1; _leg_r.rotation = -0.05
+		_body_node.position.y = breathe + 2
+		_body_node.rotation = 0.1 # Permanent combat lean
+		_head_node.position.y = breathe * 0.6
+		_head_node.rotation = -0.05
+		# Arms grip the weapon
+		_arm_back.rotation = -0.4; _arm_front.rotation = 0.5
 		sprite.rotation = 0
 	else:
 		# Air Animation
-		if is_rolling: pass # handeled above
+		if is_rolling: pass
 		elif jump_count >= 2:
-			# Double Jump Somersault Rotation - Much faster!
-			_air_rotation += delta * 25.0 * sprite.scale.x
+			_air_rotation += delta * 26.0 * sprite.scale.x
 			sprite.rotation = _air_rotation
 		else:
-			# Normal jump pose
 			sprite.rotation = lerp_angle(sprite.rotation, 0, 0.2)
-			_body_node.rotation = velocity.y * 0.0012
-			_leg_l.rotation = 0.6
-			_leg_r.rotation = -0.6
+			_body_node.rotation = 0.15 # Leaning in air
+			_leg_l.rotation = 0.9; _leg_r.rotation = -0.5
+			_head_node.rotation = -0.1
+			_arm_back.rotation = -0.8; _arm_front.rotation = 0.2
 
 	if is_reloading:
 		# Weapon tilts down during reload

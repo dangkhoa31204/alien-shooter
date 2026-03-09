@@ -175,24 +175,25 @@ func _process(delta: float) -> void:
 		# Update Background Army positions to follow player
 		_process_background_army(delta)
 		
-		# Continuous Spawning: 4-5 soldiers every ~3s on BOTH paths
+		# Continuous Spawning: Small groups, capped to prevent clutter
 		_army_spawn_timer -= delta
 		if _army_spawn_timer <= 0:
-			# Spawn 5-6 soldiers per wave, spread out widely (Fewer on Stage 5)
-			var spawn_count = randi_range(2, 3) if current_stage == 5 else randi_range(5, 6)
-			for _si in spawn_count:
-				var sx = camera.position.x + 800 + randf_range(0, 1500)
-				var sy: float
-				# Randomly pick upper (terrain) or lower (tunnel) path
-				var use_tunnel = false
-				if current_stage == 2 or current_stage == 3:
-					use_tunnel = randf() < 0.5
-				if use_tunnel:
-					sy = 650.0 # Tunnel lower path — just above tunnel_y=660
-				else:
-					sy = _get_ground_y(sx)
-				_add_individual_background_soldier(sx, sy)
-			_army_spawn_timer = randf_range(12.0, 16.0) if current_stage == 5 else randf_range(7.0, 9.0)
+			var current_army = get_tree().get_nodes_in_group("ally_army").size()
+			if current_army < 10: # Cap at 10 to keep it clean
+				var spawn_count = 1 if current_stage == 5 else randi_range(2, 3)
+				for _si in spawn_count:
+					var sx = camera.position.x + 800 + randf_range(0, 1500)
+					var sy: float
+					# Randomly pick upper (terrain) or lower (tunnel) path
+					var use_tunnel = false
+					if current_stage == 2 or current_stage == 3:
+						use_tunnel = randf() < 0.5
+					if use_tunnel:
+						sy = 650.0 # Tunnel lower path — just above tunnel_y=660
+					else:
+						sy = _get_ground_y(sx)
+					_add_individual_background_soldier(sx, sy)
+			_army_spawn_timer = randf_range(15.0, 25.0) # Much longer delay between waves
 		
 		# Dynamic Enemy Spawning (To keep the action going)
 		_enemy_spawn_timer -= delta
@@ -321,7 +322,7 @@ func spawn_shell(pos: Vector2, dir: float) -> void:
 	tw.finished.connect(shell.queue_free)
 
 func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
-	var sky = ColorRect.new(); sky.name = "BackgroundSky"; sky.size = Vector2(40000, 1000); sky.position = Vector2(-10000, -200); sky.z_index = -100
+	var sky = ColorRect.new(); sky.name = "BackgroundSky"; sky.size = Vector2(40000, 1000); sky.position = Vector2(-10000, -200); sky.z_index = -120
 	sky.color = sky_color 
 	_world.add_child(sky)
 	
@@ -333,7 +334,7 @@ func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 	glow.polygon = PackedVector2Array(g_pts); glow.color = Color(1.0, 0.8, 0.4, 0.15)
 	
 	for i in range(12):
-		var mt = Polygon2D.new(); _parallax_bg.add_child(mt); mt.z_index = -90
+		var mt = Polygon2D.new(); _parallax_bg.add_child(mt); mt.z_index = -110
 		var mx = i * 800 - 2000; var h = randf_range(200, 450)
 		mt.polygon = PackedVector2Array([Vector2(0, 720), Vector2(400, 720 - h), Vector2(800, 720)])
 		mt.color = Color(0.12, 0.22, 0.4, 0.5)
@@ -389,7 +390,7 @@ func _setup_jungle() -> void:
 			Vector2(0, 600-mh), Vector2(mw*0.5, 600-mh*0.7), Vector2(mw, 600)
 		])
 		mt.color = Color(0.4, 0.6, 0.6, 0.6) # Hazy blue-green
-		mt.position.x = mx; mt.z_index = -9
+		mt.position.x = mx; mt.z_index = -90
 		_parallax_bg.add_child(mt)
 
 	# Mid-ground: Dense Bamboo/Thin trees layer
@@ -397,7 +398,7 @@ func _setup_jungle() -> void:
 		var bx = i * 200 + randf_range(-50, 50)
 		var bamboo = ColorRect.new()
 		bamboo.size = Vector2(8, 600); bamboo.position = Vector2(bx, 0)
-		bamboo.color = Color(0.15, 0.4, 0.1, 0.4); bamboo.z_index = -8
+		bamboo.color = Color(0.15, 0.4, 0.1, 0.4); bamboo.z_index = -80
 		_parallax_bg.add_child(bamboo)
 
 	# Giant Hero Trees (Ancient Gnarled Trees from reference)
@@ -413,12 +414,12 @@ func _setup_jungle() -> void:
 		_create_hanging_vine_detailed(vx)
 
 	_spawn_background_soldiers(8) 
-	_spawn_enemy_wave(12, 0.1) # Pre-spawn some initial enemies
-	# Extra enemies right at the start to ensure visibility
-	_spawn_enemy(400, 500); _spawn_enemy(700, 500)
+	_spawn_enemy_wave(6, 0.15) # Reduced count to prevent clutter
+	# (Removed hardcoded floating spawns)
 
 func _create_giant_ancient_tree(pos: Vector2) -> void:
 	var tree = Node2D.new(); tree.position = pos; _world.add_child(tree)
+	tree.z_index = -50 # Keep giant trunks in background
 	# Thick, curved trunk with roots
 	var trunk = Polygon2D.new()
 	var tw = randf_range(60, 90)
@@ -447,7 +448,7 @@ func _create_giant_ancient_tree(pos: Vector2) -> void:
 			tree.add_child(l)
 
 func _create_jungle_fern(pos: Vector2) -> void:
-	var fern = Node2D.new(); fern.position = pos; _world.add_child(fern); fern.z_index = 1
+	var fern = Node2D.new(); fern.position = pos; _world.add_child(fern); fern.z_index = -5 # Move BEHIND characters
 	for i in 8:
 		var leaf = Polygon2D.new(); var a = -PI/1.2 - i * PI/6.0
 		var lsize = randf_range(20, 45)
@@ -456,7 +457,7 @@ func _create_jungle_fern(pos: Vector2) -> void:
 		fern.add_child(leaf)
 
 func _create_dense_shrub(pos: Vector2) -> void:
-	var shrub = Node2D.new(); shrub.position = pos; _world.add_child(shrub); shrub.z_index = 1
+	var shrub = Node2D.new(); shrub.position = pos; _world.add_child(shrub); shrub.z_index = -5 # Move BEHIND characters
 	for i in 10:
 		var leaf = Polygon2D.new()
 		var s = randf_range(15, 30)
@@ -477,7 +478,7 @@ func _create_hanging_vine_detailed(x: float) -> void:
 	for i in 6:
 		var lp = pts[i+2]
 		var leaf = ColorRect.new(); leaf.size = Vector2(6, 4); leaf.position = lp; leaf.color = Color(0.2, 0.5, 0.1); leaf.rotation = randf()
-		_world.add_child(leaf)
+		_world.add_child(leaf); leaf.z_index = -5 # Less intrusive vines
 
 func _setup_tunnels() -> void:
 	# Stage 2: Củ Chi Tunnels (Dual-path System with Vertical Depth)
@@ -802,10 +803,10 @@ func _setup_highlands() -> void:
 		_world.add_child(mt)
 
 
-	# Light atmospheric mist (fewer layers, lighter, BEHIND player)
+	# Light atmospheric mist
 	for i in 3:
 		var mist = ColorRect.new(); mist.size = Vector2(5000, 600)
-		mist.color = Color(0.3, 0.45, 0.32, 0.08); mist.position = Vector2(i*4000, 50); mist.z_index = -5
+		mist.color = Color(0.3, 0.45, 0.32, 0.08); mist.position = Vector2(i*4000, 50); mist.z_index = -20
 		_world.add_child(mist)
 		var mtw = create_tween().set_loops()
 		mtw.tween_property(mist, "position:x", mist.position.x + 1200, 30.0)
@@ -873,6 +874,7 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 			poly_pts.append(Vector2(cur_x, 1200)) # Bottom left
 			
 		var ground = StaticBody2D.new()
+		ground.z_index = -25 # Ensure background units (z=-5) are above the soil
 		var coll = CollisionPolygon2D.new()
 		coll.polygon = poly_pts
 		if has_gaps: coll.one_way_collision = true
@@ -1261,20 +1263,22 @@ func _spawn_enemy_wave(count: int, officer_p: float) -> void:
 		if x > STAGE_LENGTH - 400: continue
 		
 		var is_off = randf() < officer_p
-		var ey = _get_ground_y(x) - 100
+		var ey = _get_ground_y(x) - 20.0 # Just slightly above to drop onto ground
 		if current_stage == 2:
 			ey = 550 # Only spawn on surface ground
 		
-		# Ensure they are not stacked exactly on top of other enemies
+		# Ensure they are not stacked exactly on top of other enemies (increased spacing)
 		for e in get_tree().get_nodes_in_group("enemy"):
-			if abs(e.position.x - x) < 60:
-				x += 100
-				break
-
+			if abs(e.position.x - x) < 200: 
+				x += 300 # Push much further if too close
+				ey = _get_ground_y(x) - 20.0
+		
+		if x > STAGE_LENGTH - 400: continue
 		_spawn_enemy(x, ey, is_off)
 		
-		# Occasional extra sniper on high platforms
-		if randf() < 0.15: _spawn_enemy(x + 120, ey - 200, false)
+		# Sniper logic restricted: only for Base/Tunnel stages where formal platforms exist
+		if (current_stage == 2 or current_stage == 4) and randf() < 0.1: 
+			_spawn_enemy(x + 120, ey - 200, false)
 		
 		# (Removed the sneaky random tank spawn here. Tanks are only spawned directly by stage logic now)
 	
@@ -1455,37 +1459,45 @@ func _add_individual_background_soldier(x: float, y: float = 600) -> void:
 	for s in get_tree().get_nodes_in_group("ally_army"):
 		if abs(s.position.x - x) < 150: return # Too close, skip this one
 	var soldier = Node2D.new()
+	var body_node = Node2D.new(); soldier.add_child(body_node)
+	var head_node = Node2D.new(); body_node.add_child(head_node)
 	
-	# Visuals: Brighter Green for visibility
-	var soldier_color = Color(0.18, 0.35, 0.18)
+	# Leg visuals (Back & Front)
+	var leg_poly = PackedVector2Array([Vector2(-4, 0), Vector2(4, 0), Vector2(4.5, 16), Vector2(-4.5, 16)])
+	var l_l = Polygon2D.new(); l_l.polygon = leg_poly; l_l.color = Color(0.12, 0.28, 0.1); l_l.name = "LegL"; soldier.add_child(l_l); l_l.position = Vector2(-3, 0)
+	var l_r = Polygon2D.new(); l_r.polygon = leg_poly; l_r.color = Color(0.18, 0.4, 0.15); l_r.name = "LegR"; soldier.add_child(l_r); l_r.position = Vector2(3, 0)
 	
-	var body = Polygon2D.new()
-	body.polygon = PackedVector2Array([Vector2(-8, 0), Vector2(8, 0), Vector2(7, -26), Vector2(-7, -26)])
-	body.color = soldier_color
-	soldier.add_child(body)
+	# --- Body (Olive Green Uniform with depth) ---
+	var soldier_color = Color(0.18, 0.38, 0.15)
+	var torso = Polygon2D.new()
+	torso.polygon = PackedVector2Array([Vector2(-9, -18), Vector2(9, -18), Vector2(10, 0), Vector2(-10, 0)])
+	torso.color = soldier_color
+	body_node.add_child(torso)
 	
-	var head = Polygon2D.new()
-	head.polygon = PackedVector2Array([Vector2(-4, -26), Vector2(4, -26), Vector2(4, -34), Vector2(-4, -34)])
-	head.color = soldier_color
-	soldier.add_child(head)
+	# Shading
+	var t_shade = Polygon2D.new(); t_shade.polygon = PackedVector2Array([Vector2(4, -18), Vector2(9, -18), Vector2(10, 0), Vector2(5, 0)]); t_shade.color = soldier_color.darkened(0.15); body_node.add_child(t_shade)
 	
-	# Nón cối (Pith Helmet)
-	var hat = Polygon2D.new()
-	hat.polygon = PackedVector2Array([Vector2(-10, -32), Vector2(10, -32), Vector2(0, -40)])
-	hat.color = Color(0.22, 0.4, 0.2) # Even brighter hat
-	soldier.add_child(hat)
+	# Ba lô con cóc (Backpack)
+	var pack = Polygon2D.new(); pack.polygon = PackedVector2Array([Vector2(-14, -16), Vector2(-8, -16), Vector2(-8, -4), Vector2(-15, -6)]); pack.color = soldier_color.darkened(0.2); body_node.add_child(pack)
+
+	# --- Head & Realistic Mũ Cối ---
+	var face = ColorRect.new(); face.size = Vector2(10, 7); face.position = Vector2(-5, -23); face.color = Color(0.95, 0.8, 0.65); head_node.add_child(face)
 	
-	# Rifle (Súng trường)
-	var gun = ColorRect.new()
-	gun.size = Vector2(25, 3); gun.position = Vector2(2, -21); gun.color = Color(0.05, 0.05, 0.05)
-	soldier.add_child(gun)
+	# Mũ Cối (High detail)
+	var hat_base = Polygon2D.new(); hat_base.polygon = [Vector2(-11, -24), Vector2(11, -24), Vector2(9, -20), Vector2(-9, -20)]; hat_base.color = Color(0.1, 0.32, 0.1); head_node.add_child(hat_base)
+	var hat_dome = Polygon2D.new(); hat_dome.polygon = [Vector2(-8, -24), Vector2(8, -24), Vector2(7, -33), Vector2(0, -35), Vector2(-7, -33)]; hat_dome.color = Color(0.15, 0.4, 0.15); head_node.add_child(hat_dome)
 	
-	# Decoration: Backpack (Ba lô con cóc)
-	var pack = ColorRect.new()
-	pack.size = Vector2(8, 14); pack.position = Vector2(-12, -22); pack.color = soldier_color.darkened(0.2)
-	soldier.add_child(pack)
+	# Star
+	var star = Polygon2D.new(); var pts = []
+	for j in 5:
+		var a = j*TAU/5-PI/2; pts.append(Vector2(cos(a)*1.5, sin(a)*1.5 - 28))
+	star.polygon = PackedVector2Array(pts); star.color = Color.YELLOW; head_node.add_child(star)
 	
-	soldier.z_index = -5 
+	# Rifle (Súng AK-47 visual)
+	var gun = ColorRect.new(); gun.size = Vector2(28, 4); gun.position = Vector2(2, -12); gun.color = Color(0.08, 0.08, 0.08); body_node.add_child(gun)
+	var stock = ColorRect.new(); stock.size = Vector2(6, 4); stock.position = Vector2(-4, -12); stock.color = Color(0.4, 0.15, 0.05); body_node.add_child(stock)
+	
+	soldier.z_index = -10 
 	soldier.position = Vector2(x, y)
 	soldier.add_to_group("ally_army")
 	
@@ -1564,11 +1576,27 @@ func _process_background_army(delta: float) -> void:
 		# Move forward at their own pace
 		soldier.position.x += base_speed * delta
 		
+		# ── Visual Animation: Procedural Smooth Walking ──
+		var walk_time = (Time.get_ticks_msec() / 1000.0) * 12.0 + float(soldier.get_instance_id() % 100)
+		var step = sin(walk_time)
+		var s_body = soldier.get_child(0)
+		var s_leg_l = soldier.get_node("LegL"); var s_leg_r = soldier.get_node("LegR")
+		
+		# Torso bobbing and swaying
+		s_body.position.y = abs(step) * -4.0
+		s_body.rotation = step * 0.04
+		
+		# Leg swinging
+		s_leg_l.position.x = -3 + step * 8.5
+		s_leg_r.position.x = 3 - step * 8.5
+		s_leg_l.rotation = step * 0.18
+		s_leg_r.rotation = -step * 0.18
+		
 		# ── Ground tracking: keep soldier glued to terrain ──
 		# Tunnel soldiers keep their fixed y; surface soldiers follow terrain
 		var is_tunnel_soldier = soldier.has_meta("on_tunnel") and soldier.get_meta("on_tunnel")
 		if not is_tunnel_soldier:
-			var target_y = _get_ground_y(soldier.position.x)
+			var target_y = _get_ground_y(soldier.position.x) - 16.0 # Adjust for leg height
 			soldier.position.y = lerp(soldier.position.y, target_y, 12.0 * delta)
 		
 		# If they fall too far behind, teleport ahead
@@ -1581,7 +1609,8 @@ func _process_background_army(delta: float) -> void:
 				soldier.position.y = 650.0
 				soldier.set_meta("on_tunnel", true)
 			else:
-				soldier.position.y = _get_ground_y(nx)
+				var nx_y = _get_ground_y(nx)
+				soldier.position.y = nx_y - 16.0 # Adjust for leg height
 				soldier.set_meta("on_tunnel", false)
 		
 		# If they get too far ahead (very fast ones), teleport behind
@@ -1592,7 +1621,8 @@ func _process_background_army(delta: float) -> void:
 				soldier.position.y = 650.0
 				soldier.set_meta("on_tunnel", true)
 			else:
-				soldier.position.y = _get_ground_y(nx)
+				var nx_y = _get_ground_y(nx)
+				soldier.position.y = nx_y - 16.0 # Adjust for leg height
 				soldier.set_meta("on_tunnel", false)
 
 func _spawn_heavy_enemy(x, y, type: String) -> void:
