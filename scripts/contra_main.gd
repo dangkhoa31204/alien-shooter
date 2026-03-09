@@ -27,6 +27,8 @@ var _world: Node2D = null
 var _parallax_bg: Node2D = null
 var _cheat_menu: Control = null
 var _is_cheat_visible: bool = false
+var _pause_menu: Control = null
+var _is_paused: bool = false
 
 # Screen shake state
 var _shake_power: float = 0.0
@@ -34,6 +36,17 @@ var _shake_time: float = 0.0
 var _bomber_timer: float = 5.0
 var _army_spawn_timer: float = 1.0 
 var _enemy_spawn_timer: float = 2.0 # Dynamic enemy spawn
+var _stage_terrain: PackedVector2Array = PackedVector2Array()
+
+func _get_ground_y(x: float) -> float:
+	if current_stage in [1, 2, 3] and not _stage_terrain.is_empty():
+		for i in range(_stage_terrain.size() - 1):
+			var p1 = _stage_terrain[i]
+			var p2 = _stage_terrain[i+1]
+			if x >= p1.x and x <= p2.x:
+				var t = (x - p1.x) / max(0.01, p2.x - p1.x)
+				return lerp(p1.y, p2.y, t)
+	return 600.0
 
 func _ready() -> void:
 	_world = Node2D.new(); _world.name = "World"; add_child(_world)
@@ -50,7 +63,14 @@ func _ready() -> void:
 		camera.make_current()
 	
 	_setup_cheat_menu()
+	_setup_pause_menu()
 	_start_stage(PlayerData.current_selected_stage)
+	
+	# Đảm bảo các đối tượng con của root (world, objects) sẽ pause khi tree paused
+	_world.process_mode = Node.PROCESS_MODE_PAUSABLE
+	if camera: camera.process_mode = Node.PROCESS_MODE_PAUSABLE
+	if bullet_container: bullet_container.process_mode = Node.PROCESS_MODE_PAUSABLE
+	$UI.process_mode = Node.PROCESS_MODE_PAUSABLE
 
 func _setup_progress_ui() -> void:
 	# Add Progress Bar
@@ -132,6 +152,7 @@ func _process(delta: float) -> void:
 	if is_game_over: return
 	var tree = get_tree()
 	if not tree: return
+	if tree.paused: return
 	
 	if is_instance_valid(player):
 		var target_x = player.position.x
@@ -159,20 +180,22 @@ func _process(delta: float) -> void:
 		if _army_spawn_timer <= 0:
 			var current_army = tree.get_nodes_in_group("ally_army").size()
 			if current_army < 12: 
-				var sy = 600
+				var sx = camera.position.x + 800 + randf_range(200, 600)
+				var sy = _get_ground_y(sx)
 				if current_stage == 2 and randf() < 0.5: sy = 740 # Tunnel floor
-				_add_individual_background_soldier(camera.position.x + 800 + randf_range(200, 600), sy)
+				_add_individual_background_soldier(sx, sy)
 			_army_spawn_timer = randf_range(2.5, 4.5)
 		
 		# Dynamic Enemy Spawning (To keep the action going)
 		_enemy_spawn_timer -= delta
 		if _enemy_spawn_timer <= 0:
 			var enemies = tree.get_nodes_in_group("enemy").size()
-			var max_enemies = 15 if current_stage == 2 else 8 # More enemies in Stage 2
+			var max_enemies = 8 if current_stage == 2 else 8 # Stage 2 enemies reduced
 			if enemies < max_enemies:
 				var spawn_x = camera.position.x + 900 + randf_range(0, 300)
 				if spawn_x < STAGE_LENGTH - 400:
-					var ey = 550 if current_stage == 2 else 500
+					var ey = _get_ground_y(spawn_x) - 100
+					if current_stage == 2: ey = 550
 					_spawn_enemy(spawn_x, ey, randf() < 0.25)
 			_enemy_spawn_timer = randf_range(1.5, 3.0) if current_stage == 2 else randf_range(2.0, 4.0)
 
@@ -202,11 +225,12 @@ func _process_bombs(delta: float) -> void:
 		if not is_instance_valid(b) or not b.has_meta("is_bomb"): continue
 		
 		# Check for collision with ground/platforms
-		if b.global_position.y >= 590:
-			var query = PhysicsRayQueryParameters2D.create(b.global_position, b.global_position + Vector2(0, 15))
+		var ground_y = _get_ground_y(b.global_position.x)
+		if b.global_position.y >= ground_y - 15:
+			var query = PhysicsRayQueryParameters2D.create(b.global_position, b.global_position + Vector2(0, 20))
 			var result = space_state.intersect_ray(query)
 			
-			if result:
+			if result or b.global_position.y >= ground_y - 5:
 				_explode_bomb(b.global_position)
 				b.queue_free()
 			elif b.global_position.y > 1000: # Final cleanup if it misses everything
@@ -214,9 +238,9 @@ func _process_bombs(delta: float) -> void:
 		
 		elif b.has_meta("is_tank_shell"):
 			# Tank shells also explode on floor
-			var query = PhysicsRayQueryParameters2D.create(b.global_position, b.global_position + Vector2(0, 10))
+			var query = PhysicsRayQueryParameters2D.create(b.global_position, b.global_position + Vector2(0, 15))
 			var result = space_state.intersect_ray(query)
-			if result or b.global_position.y >= 595:
+			if result or b.global_position.y >= ground_y - 5:
 				_explode_bomb(b.global_position)
 				b.queue_free()
 
@@ -242,7 +266,7 @@ func _create_crater(pos: Vector2) -> void:
 		pts.append(Vector2(cos(a) * r, sin(a) * r * 0.4))
 	crater.polygon = PackedVector2Array(pts)
 	crater.color = Color(0.1, 0.05, 0.0, 0.8) # Burnt soil
-	crater.position = Vector2(pos.x, 600) # Stick to floor
+	crater.position = Vector2(pos.x, _get_ground_y(pos.x)) # Stick to floor
 	_world.add_child(crater)
 	
 	# Add some smoke particles (simple version)
@@ -339,7 +363,6 @@ func _load_stage_data(num: int) -> void:
 func _setup_jungle() -> void:
 	# Stage 1: Ancient Jungle - Lush & Magnificent
 	_setup_background_sky(Color(0.5, 0.8, 0.9)) # Bright, hazy tropical sky
-	_create_floor_detailed(0, STAGE_LENGTH, 600, Color(0.1, 0.25, 0.05))
 	
 	# Distant Karst Mountains (Ha Long Bay style lime-stone peaks)
 	for i in 10:
@@ -367,22 +390,8 @@ func _setup_jungle() -> void:
 		var tx = i * 800 + randf_range(-100, 100)
 		_create_giant_ancient_tree(Vector2(tx, 600))
 
-	# Decoration: Ferns, Bushes, and Undergrowth (Dense Layer)
-	for i in 120:
-		var fx = randf_range(0, STAGE_LENGTH)
-		if randf() < 0.6:
-			_create_jungle_fern(Vector2(fx, 600))
-		else:
-			_create_dense_shrub(Vector2(fx, 600))
-			
-	# Add smaller plants on platforms too
-	for i in 40:
-		var px = randf_range(0, STAGE_LENGTH)
-		var py = randf_range(300, 500)
-		_create_jungle_fern(Vector2(px, py))
+	_generate_hilly_terrain(Color(0.15, 0.1, 0.05), Color(0.08, 0.22, 0.05), false)
 
-	_create_platform_complex(12)
-	
 	# Hanging Vines with leaves
 	for i in 30:
 		var vx = randf_range(0, STAGE_LENGTH)
@@ -491,64 +500,8 @@ func _setup_tunnels() -> void:
 	soil.z_index = -20 # Needs to be above sky (-110)
 	_world.add_child(soil)
 
-	# 2. Surface Path (Segmented One-Way Platforms)
-	# NOTE: We MUST remove _create_floor_detailed because it creates an infinite wall
-	
-	var cur_x = 0
-	while cur_x < STAGE_LENGTH:
-		var seg_len = randf_range(800, 1500)
-		var surf_y = 600.0 + randf_range(-30, 30) # Add varied levels (steps)
-		
-		var surf = StaticBody2D.new()
-		var scol = CollisionShape2D.new(); var sshape = RectangleShape2D.new(); sshape.size = Vector2(seg_len, 20)
-		scol.shape = sshape; scol.one_way_collision = true
-		surf.add_child(scol)
-		# Offset position so the TOP of the collision is exactly at surf_y
-		surf.position = Vector2(cur_x + seg_len/2, surf_y + 10) 
-		_world.add_child(surf)
-		
-		# Chunky Ground Visuals (Grass top + Soil base)
-		var ground_base = ColorRect.new()
-		ground_base.size = Vector2(seg_len, 40)
-		ground_base.position = Vector2(-seg_len/2, -10)
-		ground_base.color = Color(0.18, 0.1, 0.05) # Dirty soil
-		surf.add_child(ground_base)
-		
-		var grass_top = ColorRect.new()
-		grass_top.size = Vector2(seg_len, 8)
-		grass_top.position = Vector2(-seg_len/2, -10)
-		grass_top.color = Color(0.12, 0.4, 0.08) # Rich grass
-		surf.add_child(grass_top)
-		
-		# Dense Vegetation & Surface Details
-		for j in 18: # Increased density
-			var vx = cur_x + randf()*seg_len
-			if randf() < 0.6: _create_jungle_fern(Vector2(vx, surf_y))
-			else: _create_dense_shrub(Vector2(vx, surf_y))
-			
-			if randf() < 0.15: _create_palm_tree(Vector2(vx, surf_y))
-			
-			# Add rocks/debris on surface
-			if randf() < 0.2:
-				var rock = ColorRect.new()
-				rock.size = Vector2(randf_range(10, 25), randf_range(5, 12))
-				rock.position = Vector2(vx, surf_y - rock.size.y)
-				rock.color = Color(0.4, 0.3, 0.2); _world.add_child(rock)
-		
-		# Clusters of Bamboo
-		if randf() < 0.4:
-			var bx = cur_x + randf()*seg_len
-			for b in 5:
-				var bamboo = ColorRect.new()
-				bamboo.size = Vector2(4, randf_range(100, 200))
-				bamboo.position = Vector2(bx + b*6, surf_y - bamboo.size.y)
-				bamboo.color = Color(0.1, 0.35, 0.05); _world.add_child(bamboo)
-		
-		# Ancient trees occasionally on surface
-		if randf() < 0.25:
-			_create_giant_ancient_tree(Vector2(cur_x + seg_len/2, surf_y))
-		
-		cur_x += seg_len + randf_range(80, 140) # Varied gap sizes
+	# 2. Surface Path (Segmented Hilly Terrain)
+	_generate_hilly_terrain(Color(0.18, 0.1, 0.05), Color(0.12, 0.4, 0.08), true)
 
 	# 3. Tunnel Corridor (Adjusted for raised floor)
 	var corr_h = tunnel_y - 605
@@ -585,7 +538,7 @@ func _setup_tunnels() -> void:
 			glow.color = Color(1, 0.8, 0.2, 0.15); glow.position = Vector2(tx + 124, 625); _world.add_child(glow)
 
 	_spawn_background_soldiers(6)
-	_spawn_enemy_wave(20, 0.3) 
+	_spawn_enemy_wave(8, 0.3) 
 	_spawn_enemy(400, 550) # Early enemy for visibility
 	_bomber_timer = 4.0
 
@@ -632,39 +585,146 @@ func _setup_highlands() -> void:
 		mtw.tween_property(mist, "position:x", mist.position.x + 800, 25.0)
 		mtw.tween_property(mist, "position:x", mist.position.x, 25.0)
 
-	# 1. Base floor with rugged grass
-	_create_floor_detailed(0, STAGE_LENGTH, 600, Color(0.12, 0.2, 0.08))
+	# 1. Lower Tunnel Floor for Map 3 Parkour / path switching
+	var floor_node = StaticBody2D.new()
+	var col = CollisionShape2D.new(); var shape = WorldBoundaryShape2D.new(); shape.normal = Vector2.UP; col.shape = shape
+	floor_node.add_child(col); floor_node.position.y = 750; _world.add_child(floor_node)
+	
+	var dirt = ColorRect.new(); dirt.color = Color(0.1, 0.08, 0.05); dirt.size = Vector2(STAGE_LENGTH+1000, 400); dirt.position = Vector2(-200, 740)
+	dirt.z_index = -20; _world.add_child(dirt)
+	
+	# Tunnel wall background
+	var bg_dirt = ColorRect.new(); bg_dirt.color = Color(0.12, 0.15, 0.1); bg_dirt.size = Vector2(STAGE_LENGTH+1000, 800); bg_dirt.position = Vector2(-200, 600); bg_dirt.z_index = -25; _world.add_child(bg_dirt)
 
-	# 2. Multi-tier Parkour Platforms (Lower, Mid, Upper tiers)
-	for i in range(STAGE_LENGTH / 120):
-		var x = 800 + i * 160 + randf_range(-40, 40)
-		
-		# Tầng cao (High Tier - 180-260)
-		if i % 5 == 0:
-			_create_platform_detailed(Vector2(x, randf_range(180, 260)), randf_range(120, 200))
-			
-		# Tầng giữa (Mid Tier - 320-400)
-		if i % 3 == 0:
-			var mid_w = randf_range(180, 350)
-			_create_platform_detailed(Vector2(x + 40, randf_range(320, 400)), mid_w)
-			
-		# Tầng thấp (Low Tier - 460-530)
-		if i % 2 == 0:
-			_create_platform_detailed(Vector2(x - 20, randf_range(460, 530)), randf_range(200, 400))
-		
-		# Truck/Convoy debris occasionally on mid tier
-		if i % 10 == 0 and randf() < 0.5:
-			var wreck = ColorRect.new(); wreck.size = Vector2(60, 30); wreck.color = Color(0.2, 0.1, 0.05)
-			wreck.position = Vector2(x + 20, 380); _world.add_child(wreck)
+	# Floating Stepped Terrain (now straight steps and gaps to access tunnel for parkour)
+	_generate_hilly_terrain(Color(0.18, 0.1, 0.05), Color(0.12, 0.28, 0.08), true)
 
-	_spawn_decoration_density(0.8, 0.4) # Dense forest
-	_spawn_background_soldiers(10)
-	_spawn_enemy_wave(45, 0.3) 
+func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bool = false) -> void:
+	_stage_terrain.clear()
+	var cur_x = -200.0
+	var cur_y = 550.0
+	var total_len = STAGE_LENGTH + 400.0
+	
+	while cur_x < total_len:
+		var chunk_len = min(2000.0, total_len - cur_x)
+		if has_gaps:
+			chunk_len = randf_range(800, 1500)
+			
+		var end_x = cur_x + chunk_len
+		if end_x > total_len: end_x = total_len
+		
+		var surface_pts = PackedVector2Array()
+		var cx = cur_x
+		surface_pts.append(Vector2(cx, cur_y))
+		while cx < end_x:
+			var step_x = randf_range(200, 500)
+			if cx + step_x >= end_x: step_x = end_x - cx
+			
+			cx += step_x
+			surface_pts.append(Vector2(cx, cur_y))
+			
+			if cx < end_x:
+				# Decide new height for next step
+				var dy = randf_range(60, 150) * (1 if randf() < 0.5 else -1)
+				if current_stage == 2:
+					dy = 0 # Map 2 strictly flat and straight as requested
+				cur_y = clamp(cur_y + dy, 300.0, 650.0)
+				if has_gaps:
+					cur_y = clamp(cur_y, 450.0, 580.0)
+				
+				# Small slope transition
+				var slope_w = 20.0
+				if cx + slope_w < end_x and current_stage != 2:
+					cx += slope_w
+					surface_pts.append(Vector2(cx, cur_y))
+				
+		var poly_pts = PackedVector2Array()
+		for p in surface_pts: poly_pts.append(p)
+		
+		if has_gaps:
+			for i in range(surface_pts.size()-1, -1, -1):
+				poly_pts.append(Vector2(surface_pts[i].x, surface_pts[i].y + randf_range(100, 150)))
+		else:
+			poly_pts.append(Vector2(end_x, 1200)) # Bottom right
+			poly_pts.append(Vector2(cur_x, 1200)) # Bottom left
+			
+		var ground = StaticBody2D.new()
+		var coll = CollisionPolygon2D.new()
+		coll.polygon = poly_pts
+		if has_gaps: coll.one_way_collision = true
+		ground.add_child(coll)
+		_world.add_child(ground)
+		
+		var soil = Polygon2D.new()
+		soil.polygon = poly_pts
+		soil.color = soil_color
+		ground.add_child(soil)
+		
+		var grass_pts = PackedVector2Array()
+		var th = 18.0
+		for i in range(surface_pts.size()):
+			grass_pts.append(surface_pts[i])
+		for i in range(surface_pts.size()-1, -1, -1):
+			grass_pts.append(surface_pts[i] + Vector2(0, th))
+			
+		var grass = Polygon2D.new()
+		grass.polygon = grass_pts
+		grass.color = grass_color
+		ground.add_child(grass)
+		
+		for p in surface_pts:
+			if p.x <= total_len: _stage_terrain.append(p)
+			
+		# Decoration
+		for i in range(surface_pts.size()-1):
+			var p1 = surface_pts[i]
+			var p2 = surface_pts[i+1]
+			var count = int((p2.x - p1.x) / 50.0)
+			for j in count:
+				var t = randf()
+				var vx = lerp(p1.x, p2.x, t)
+				var vy = lerp(p1.y, p2.y, t)
+				
+				if randf() < 0.4: _create_jungle_fern(Vector2(vx, vy))
+				elif randf() < 0.4: _create_dense_shrub(Vector2(vx, vy))
+				
+				if randf() < 0.2: _create_palm_tree(Vector2(vx, vy))
+				if randf() < 0.15: _create_giant_ancient_tree(Vector2(vx, vy))
+				if randf() < 0.25: _create_rock(Vector2(vx, vy))
+				
+				if randf() < 0.15:
+					for b in 3:
+						var bamboo = ColorRect.new()
+						bamboo.size = Vector2(4, randf_range(100, 200))
+						bamboo.position = Vector2(vx + b*8, vy - bamboo.size.y)
+						bamboo.color = Color(0.1, 0.35, 0.05); _world.add_child(bamboo)
+				
+				if randf() < 0.05:
+					var wreck = ColorRect.new()
+					wreck.size = Vector2(80, 40)
+					wreck.color = Color(0.2, 0.1, 0.05) if current_stage == 3 else Color(0.2, 0.25, 0.1)
+					wreck.position = Vector2(vx, vy - 40)
+					wreck.rotation = atan2(p2.y - p1.y, p2.x - p1.x)
+					_world.add_child(wreck)
+		
+		# Gaps logic
+		if has_gaps:
+			var prev_y = cur_y
+			cur_x = end_x + randf_range(80, 200)
+			if cur_x <= total_len:
+				_stage_terrain.append(Vector2(end_x + 1, 740.0))
+				_stage_terrain.append(Vector2(cur_x - 1, 740.0))
+		else:
+			cur_x = end_x
+
+	_spawn_background_soldiers(12)
+	_spawn_enemy_wave(50, 0.3) 
 	
 	# Spawn Tanks in Stage 3
-	for i in 8:
-		var tx = 2000 + i * 1500 + randf_range(-200, 200)
-		_spawn_heavy_enemy(tx, 600, "tank")
+	for i in 10:
+		var tx = 1500 + i * 1100 + randf_range(-200, 200)
+		var ty = _get_ground_y(tx)
+		_spawn_heavy_enemy(tx, ty, "tank")
 
 	_bomber_timer = 2.0
 	
@@ -753,6 +813,7 @@ func _spawn_boss(x, y) -> void:
 	# Signal end trigger is destruction of cores
 	var win_check = Timer.new()
 	win_check.wait_time = 1.0; win_check.autostart = true; win_check.name = "BossCheck"
+	win_check.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(win_check)
 	win_check.timeout.connect(func():
 		if get_tree().get_nodes_in_group("boss_core").is_empty():
@@ -767,18 +828,19 @@ func _spawn_enemy_wave(count: int, officer_p: float) -> void:
 		if x > STAGE_LENGTH - 400: continue
 		
 		var is_off = randf() < officer_p
-		var ey = 500
+		var ey = _get_ground_y(x) - 100
 		if current_stage == 2:
 			ey = 550 # Only spawn on surface ground
 		
 		_spawn_enemy(x, ey, is_off)
 		
 		# Occasional extra sniper on high platforms
-		if randf() < 0.15: _spawn_enemy(x + 100, 250, false)
+		if randf() < 0.15: _spawn_enemy(x + 100, ey - 200, false)
 		
 		# Tank spawning from Stage 3 onwards (rarer standalone)
 		if current_stage >= 3 and randf() < 0.1:
-			_spawn_heavy_enemy(x + 300, 600, "tank")
+			var tx = x + 300
+			_spawn_heavy_enemy(tx, _get_ground_y(tx) - 10, "tank")
 	
 	# Initial delay for first bomber: scales with stage
 	var base_delay = lerp(8.0, 3.0, float(current_stage - 1) / 4.0)
@@ -787,9 +849,10 @@ func _spawn_enemy_wave(count: int, officer_p: float) -> void:
 func _spawn_decoration_density(tree_p: float, rock_p: float) -> void:
 	for i in range(100):
 		var x = randf_range(0, STAGE_LENGTH)
-		if randf() < tree_p: _create_palm_tree(Vector2(x, 600))
-		if randf() < rock_p: _create_rock(Vector2(x, 600))
-		if randf() < 0.3: _create_flower(Vector2(x, 600))
+		var y = _get_ground_y(x)
+		if randf() < tree_p: _create_palm_tree(Vector2(x, y))
+		if randf() < rock_p: _create_rock(Vector2(x, y))
+		if randf() < 0.3: _create_flower(Vector2(x, y))
 
 func _setup_clouds(count: int) -> void:
 	for i in range(count):
@@ -908,6 +971,7 @@ func _create_platform_detailed(pos: Vector2, width: float) -> void:
 	
 	var plat = StaticBody2D.new()
 	var col = CollisionShape2D.new()
+	col.one_way_collision = true
 	var shape = RectangleShape2D.new()
 	shape.size = Vector2(width, 16)
 	col.shape = shape
@@ -943,7 +1007,7 @@ func _spawn_enemy(x, y, is_off: bool = false) -> void:
 func _spawn_background_soldiers(count: int) -> void:
 	for i in range(count):
 		var x = 400 + i * (STAGE_LENGTH / count) + randf_range(-400, 400)
-		var y = 600 # Stage 1/3 floor
+		var y = _get_ground_y(x)
 		if current_stage == 2:
 			y = 740 if i % 2 == 0 else 600 # Surface or Tunnel
 		_add_individual_background_soldier(x, y)
@@ -1018,14 +1082,18 @@ func _process_background_army(delta: float) -> void:
 		# If they fall too far behind, teleport ahead
 		var cam_x = camera.position.x - 600
 		if soldier.position.x < cam_x - 300:
-			soldier.position.x = camera.position.x + 600 + randf_range(200, 1000)
+			var nx = camera.position.x + 600 + randf_range(200, 1000)
+			soldier.position.x = nx
+			soldier.position.y = _get_ground_y(nx)
 			# Re-assign layer in Stage 2 to keep mixing
 			if current_stage == 2:
 				soldier.position.y = 740 if randf() < 0.5 else 600
 		
 		# If they get too far ahead (very fast ones), teleport behind
 		if soldier.position.x > camera.position.x + 1500:
-			soldier.position.x = cam_x - 200
+			var nx = cam_x - 200
+			soldier.position.x = nx
+			soldier.position.y = _get_ground_y(nx)
 
 func _spawn_heavy_enemy(x, y, type: String) -> void:
 	var e = null
@@ -1153,18 +1221,82 @@ func _setup_cheat_menu() -> void:
 		btn_v.add_child(b)
 	
 	# CRITICAL: Allow cheat menu to process even when the game is paused
-	process_mode = PROCESS_MODE_ALWAYS
+	_cheat_menu.process_mode = Node.PROCESS_MODE_ALWAYS
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
+func _setup_pause_menu() -> void:
+	_pause_menu = Control.new()
+	_pause_menu.name = "PauseMenu"
+	_pause_menu.visible = false
+	_pause_menu.z_index = 2000 # On top of cheat menu
+	_pause_menu.process_mode = PROCESS_MODE_ALWAYS
+	$UI.add_child(_pause_menu)
+	
+	var dim_bg = ColorRect.new()
+	dim_bg.size = Vector2(1152, 720) # Full screen
+	dim_bg.color = Color(0, 0, 0, 0.7)
+	_pause_menu.add_child(dim_bg)
+	
+	var panel = ColorRect.new()
+	panel.size = Vector2(300, 200)
+	panel.position = Vector2(426, 260)
+	panel.color = Color(0.1, 0.1, 0.1, 0.9)
+	_pause_menu.add_child(panel)
+	
+	var title = Label.new()
+	title.text = "TẠM DỪNG"
+	title.position = Vector2(426, 280)
+	title.size = Vector2(300, 30)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color.WHITE)
+	_pause_menu.add_child(title)
+	
+	var btn_v = VBoxContainer.new()
+	btn_v.size = Vector2(240, 100)
+	btn_v.position = Vector2(456, 330)
+	btn_v.add_theme_constant_override("separation", 20)
+	_pause_menu.add_child(btn_v)
+	
+	var btn_resume = Button.new()
+	btn_resume.text = "TIẾP TỤC"
+	btn_resume.custom_minimum_size = Vector2(0, 45)
+	btn_resume.pressed.connect(_toggle_pause_menu)
+	btn_v.add_child(btn_resume)
+	
+	var btn_exit = Button.new()
+	btn_exit.text = "THOÁT RA MENU"
+	btn_exit.custom_minimum_size = Vector2(0, 45)
+	btn_exit.pressed.connect(_exit_to_main_menu)
+	btn_v.add_child(btn_exit)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_F1:
-			_toggle_cheat_menu()
+			if not _is_paused: # Don't open cheat menu if game is paused by PauseMenu
+				_toggle_cheat_menu()
+		elif event.keycode == KEY_ESCAPE:
+			if not _is_cheat_visible: # Don't open pause menu if cheat menu is open
+				_toggle_pause_menu()
 
 func _toggle_cheat_menu() -> void:
 	_is_cheat_visible = !_is_cheat_visible
 	_cheat_menu.visible = _is_cheat_visible
-	# Pause game when cheat menu is open
-	get_tree().paused = _is_cheat_visible
+	_update_pause_state()
+
+func _toggle_pause_menu() -> void:
+	_is_paused = !_is_paused
+	_pause_menu.visible = _is_paused
+	_update_pause_state()
+
+func _update_pause_state() -> void:
+	get_tree().paused = _is_cheat_visible or _is_paused
+
+func _exit_to_main_menu() -> void:
+	get_tree().paused = false # Must resume before changing scene
+	var tree = get_tree()
+	if tree:
+		tree.change_scene_to_file("res://scenes/menu.tscn")
 
 func _cheat_god_mode() -> void:
 	if is_instance_valid(player):

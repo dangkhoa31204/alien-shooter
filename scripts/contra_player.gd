@@ -186,11 +186,15 @@ func _physics_process(delta: float) -> void:
 		_air_rotation = 0
 
 	# Jump and Double Jump
-	if Input.is_action_just_pressed("ui_up") and jump_count < MAX_JUMPS:
-		velocity.y = JUMP_VELOCITY
-		jump_count += 1
-		if jump_count == 2:
-			_air_rotation = 0 # Reset for flip
+	if Input.is_action_just_pressed("ui_up"):
+		# Dropping down through one-way platforms (Down + Jump)
+		if is_on_floor() and Input.is_action_pressed("ui_down"):
+			position.y += 1
+		elif jump_count < MAX_JUMPS:
+			velocity.y = JUMP_VELOCITY
+			jump_count += 1
+			if jump_count == 2:
+				_air_rotation = 0 # Reset for flip
 
 	if is_rolling:
 		_roll_timer -= delta
