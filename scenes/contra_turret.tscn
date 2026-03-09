@@ -1,0 +1,17 @@
+[gd_scene load_steps=3 format=3 uid="uid://c6l8v2x8y4p3w"]
+
+[ext_resource type="Script" path="res://scripts/contra_turret.gd" id="1_script"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_t1"]
+size = Vector2(40, 30)
+
+[node name="ContraTurret" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_script")
+
+[node name="Sprite" type="Node2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -15)
+shape = SubResource("RectangleShape2D_t1")

@@ -48,10 +48,10 @@ func _apply_color() -> void:
 	sprite.visible = false  # All visuals drawn in _draw() as laser beams
 
 	if is_enemy_bullet and not is_boss_bullet:
-		_lc = Color(1.0, 0.15, 0.05)
-		_gc = Color(1.0, 0.05, 0.0)
-		_beam_len = 12.0
-		_beam_w   = 2.0
+		_lc = Color(1.0, 0.3, 0.1) # Brighter orange-red
+		_gc = Color(1.0, 0.1, 0.0)
+		_beam_len = 18.0 # Longer
+		_beam_w   = 3.5 # Thicker
 		return
 
 	if is_boss_bullet:
@@ -108,18 +108,23 @@ func _physics_process(delta: float) -> void:
 			if is_max_power: _spawn_ricochet_clone()
 		if position.y > _vp.y + 60.0: queue_free()
 	else:
-		if position.y < -60.0 or position.y > _vp.y + 60.0: queue_free()
-		if position.x < -60.0 or position.x > _vp.x + 60.0: queue_free()
+		# Trong mode màn hình ngang (Contra), đạn có thể bay ra ngoài viewport mặc định của Main.
+		# Chúng ta chỉ queue_free nếu đạn thực sự bay quá xa khỏi tầm nhìn hoặc hết thời gian (5s timer có sẵn).
+		var is_scrolling = get_tree().current_scene.name == "ContraMain"
+		if not is_scrolling:
+			if position.y < -60.0 or position.y > _vp.y + 60.0: queue_free()
+			if position.x < -60.0 or position.x > _vp.x + 60.0: queue_free()
 
 func _draw() -> void:
 	# Star-Wars laser bolt: 3 draw_line + 1 draw_circle — very cheap
 	var tip  := Vector2.ZERO
 	var tail := -direction * _beam_len
 	if is_enemy_bullet and not is_boss_bullet:
-		# Enemy: short red blast
-		draw_line(tip, tail, Color(1.0, 0.05, 0.0, 0.28), _beam_w * 2.8)
-		draw_line(tip, tail, Color(1.0, 0.18, 0.0, 0.92), _beam_w)
-		draw_circle(tip, _beam_w * 0.9, Color(1.0, 0.85, 0.3, 1.0))
+		# Enemy: Premium bright pulsing orange blast
+		var p := 0.8 + 0.2 * sin(_fx_timer * 15.0)
+		draw_line(tip, tail, Color(1.0, 0.1, 0.0, 0.4 * p), _beam_w * 4.0) # Wide glow
+		draw_line(tip, tail, Color(1.0, 0.4, 0.1, 0.9 * p), _beam_w)       # Core
+		draw_circle(tip, _beam_w * 1.2, Color(1.0, 0.9, 0.4, 1.0))        # Bright tip
 		return
 	if is_boss_bullet:
 		# Boss: wide pulsing bolt

@@ -52,6 +52,18 @@ const SESSION_GOAL: int = 9
 static var session_level_list: Array = []       # danh sách màn cố định trong phiên
 static var session_completed_indices: Array = [] # index các màn đã hoàn thành
 
+# Contra Campaign Progress
+static var contra_unlocked_stage: int = 1
+static var current_selected_stage: int = 1
+
+static func get_unlocked_stage() -> int:
+	return contra_unlocked_stage
+
+static func unlock_next_stage() -> void:
+	if current_selected_stage == contra_unlocked_stage and contra_unlocked_stage < 5:
+		contra_unlocked_stage += 1
+		save_data()
+
 static func add_coins(amount: int) -> void:
 	coins += amount
 	save_data()
@@ -126,6 +138,7 @@ static func save_data() -> void:
 		"volume":           volume,
 		"active_theme":     active_theme,
 		"owned_themes":     owned_themes,
+		"contra_unlocked":  contra_unlocked_stage,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -149,6 +162,7 @@ static func load_data() -> void:
 	volume           = float(parsed.get("volume",          0.8))
 	active_theme     = int(parsed.get("active_theme",      0))
 	owned_themes     = (parsed.get("owned_themes",  [0]) as Array).map(func(x): return int(x))
+	contra_unlocked_stage = int(parsed.get("contra_unlocked", 1))
 	apply_volume()
 
 static func apply_volume() -> void:
