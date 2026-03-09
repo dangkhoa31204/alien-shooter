@@ -60,7 +60,7 @@ func _ready() -> void:
 		special_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.7))
 		special_label.add_theme_constant_override("shadow_offset_x", 1)
 		special_label.add_theme_constant_override("shadow_offset_y", 1)
-		special_label.position = Vector2(8, 72)
+		special_label.position = Vector2(8, 108)
 		$UI.add_child(special_label)
 	special_label.visible = false
 	# Tạo skill label
@@ -72,13 +72,13 @@ func _ready() -> void:
 		skill_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.85))
 		skill_label.add_theme_constant_override("shadow_offset_x", 1)
 		skill_label.add_theme_constant_override("shadow_offset_y", 1)
-		skill_label.position = Vector2(8, 90)
+		skill_label.position = Vector2(8, 130)
 		$UI.add_child(skill_label)
 	# HUD background panel mờ phía sau các nhãn
 	var hud_bg := Panel.new()
 	hud_bg.name = "HUDBackground"
 	hud_bg.position = Vector2(6, 8)
-	hud_bg.size = Vector2(340, 114)
+	hud_bg.size = Vector2(340, 158)
 	hud_bg.z_index = -1
 	var hud_sty := StyleBoxFlat.new()
 	hud_sty.bg_color = Color(0.0, 0.02, 0.08, 0.55)
@@ -247,6 +247,15 @@ func _on_level_completed() -> void:
 	PlayerData.last_wave         = current_wave
 	PlayerData.last_hp           = player.hp if is_instance_valid(player) else 0
 	PlayerData.last_max_hp       = player._max_hp if is_instance_valid(player) else 1
+	# Cập nhật tiến trình phiên chơi
+	if PlayerData.current_level.get("is_special", false):
+		# Hoàn thành màn đặc biệt → reset phiên
+		PlayerData.session_levels_completed = 0
+	else:
+		PlayerData.session_levels_completed += 1
+		var _lidx: int = PlayerData.current_level.get("level_idx", -1)
+		if _lidx >= 0 and not PlayerData.session_completed_indices.has(_lidx):
+			PlayerData.session_completed_indices.append(_lidx)
 	show_alert("★ LEVEL COMPLETE! ★")
 	await get_tree().create_timer(1.5).timeout
 	get_tree().change_scene_to_file("res://scenes/level_complete.tscn")

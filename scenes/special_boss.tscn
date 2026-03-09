@@ -1,0 +1,28 @@
+[gd_scene load_steps=5 format=3 uid="uid://special_boss001"]
+
+[ext_resource type="Script" path="res://scripts/special_boss.gd" id="1_sboss"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(390, 180)
+
+[node name="SpecialBoss" type="CharacterBody2D"]
+script = ExtResource("1_sboss")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="Sprite" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(0, -40, 20, -20, 60, -10, 60, 20, 30, 36, -30, 36, -60, 20, -60, -10, -20, -20)
+color = Color(0.5, 0.15, 0.1, 1)
+
+[node name="ShootTimer" type="Timer" parent="."]
+wait_time = 1.4
+autostart = true
+
+[node name="SpawnTimer" type="Timer" parent="."]
+wait_time = 8.0
+autostart = true
+
+[node name="AsteroidTimer" type="Timer" parent="."]
+wait_time = 14.0
+autostart = true

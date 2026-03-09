@@ -671,10 +671,31 @@ func _draw() -> void:
 
 # ── AIM / ROTATE TOWARD TARGET ────────────────────────────────────────────────
 func _update_aim(delta: float) -> void:
-	# Ưu tiên boss, nếu không có thì lấy enemy gần nhất
-	_aim_target = _nearest_in_group("boss")
-	if _aim_target == null:
-		_aim_target = _nearest_in_group("enemy")
+	# ── Ưu tiên xoay thủ công khi nhấn 2 phím hướng đồng thời ──
+	var dx := 0.0
+	var dy := 0.0
+	if Input.is_action_pressed("ui_right"): dx += 1.0
+	if Input.is_action_pressed("ui_left"):  dx -= 1.0
+	if Input.is_action_pressed("ui_up"):    dy -= 1.0
+	if Input.is_action_pressed("ui_down"):  dy += 1.0
+	var keys_held: int = (int(dx > 0) + int(dx < 0) + int(dy > 0) + int(dy < 0))
+	if keys_held >= 2:
+		# 2 phím cùng lúc → xoay về hướng kết hợp (override auto-aim)
+		var manual_dir := Vector2(dx, dy).normalized()
+		var manual_angle := manual_dir.angle() + PI / 2.0
+		sprite.rotation = lerp_angle(sprite.rotation, manual_angle, 14.0 * delta)
+		return
+
+	# ── Auto-aim: asteroid đe dọa gần (≤320px) > boss > enemy > asteroid xa ──
+	var near_ast := _nearest_in_group_within("asteroid", 320.0)
+	if near_ast != null:
+		_aim_target = near_ast
+	else:
+		_aim_target = _nearest_in_group("boss")
+		if _aim_target == null:
+			_aim_target = _nearest_in_group("enemy")
+		if _aim_target == null:
+			_aim_target = _nearest_in_group("asteroid")
 
 	if _aim_target != null and is_instance_valid(_aim_target):
 		var to_target := _aim_target.global_position - global_position
@@ -689,6 +710,18 @@ func _nearest_in_group(group: String) -> Node2D:
 	var nodes := get_tree().get_nodes_in_group(group)
 	var best: Node2D = null
 	var best_dist := INF
+	for n in nodes:
+		if not is_instance_valid(n): continue
+		var d := global_position.distance_squared_to((n as Node2D).global_position)
+		if d < best_dist:
+			best_dist = d
+			best = n as Node2D
+	return best
+
+func _nearest_in_group_within(group: String, max_dist: float) -> Node2D:
+	var nodes := get_tree().get_nodes_in_group(group)
+	var best: Node2D = null
+	var best_dist := max_dist * max_dist
 	for n in nodes:
 		if not is_instance_valid(n): continue
 		var d := global_position.distance_squared_to((n as Node2D).global_position)

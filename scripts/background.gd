@@ -27,6 +27,8 @@ var _nebula_cols: Array = []
 var _star_cols:   Array = []
 var _shooter_cols:Array = []
 var _planet_cfgs: Array = []
+var _frozen:      bool  = false   # đóng băng scroll khi boss challenge
+var _hq_ground:   bool  = false   # vẽ dải đất bên dưới HQ (aerial boss challenge)
 # ── Vietnam Battlefield vars ────────────────────────────────────────────
 var _vietnam_mode: bool  = false
 const BF_SCROLL:   float = 50.0
@@ -58,9 +60,17 @@ func _load_theme() -> void:
 	_shooter_cols = p.get("shooters", [])
 	_planet_cfgs  = p.get("planets",  [])
 	_vietnam_mode = p.get("shape_mode", "") == "aerial_warfare"
+	# Đóng băng scroll trong các màn boss challenge
+	var lv: Dictionary = PlayerData.current_level
+	if lv.get("is_boss_challenge", false):
+		_frozen    = true
+		_hq_ground = lv.get("challenge_aerial", false)
 
 func _process(delta: float) -> void:
 	_t += delta
+	if _frozen:
+		queue_redraw()   # chỉ redraw để cập nhật hiệu ứng nhấp nháy, không cuộn
+		return
 	if _vietnam_mode:
 		_scroll_bf_items(delta)
 		_shoot_cd -= delta
@@ -111,6 +121,8 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if _vietnam_mode:
 		_draw_battlefield()
+		if _hq_ground:
+			_draw_hq_ground()
 		return
 	var gp := PackedVector2Array([
 		Vector2(0.0, 0.0), Vector2(_vp.x, 0.0),
@@ -412,3 +424,53 @@ func _draw_battlefield() -> void:
 		draw_circle(Vector2(sx,sy), 2.5, Color(1.0, 0.99, 0.65, minf(1.0, alpha*1.5)))
 	# 8. Sương khói chiến trường
 	draw_rect(Rect2(0.0, 0.0, _vp.x, _vp.y), Color(0.04, 0.08, 0.02, 0.09))
+
+# ── Mặt đất dưới HQ (chỉ vẽ khi _hq_ground = true) ───────────────────────────
+func _draw_hq_ground() -> void:
+	# Đường chân trời — ngay dưới đáy HQ (khoảng 37% chiều cao màn hình)
+	var gy: float = _vp.y * 0.38
+
+	# Lớp đất dưới
+	var pts := PackedVector2Array([
+		Vector2(0.0, gy), Vector2(_vp.x, gy),
+		Vector2(_vp.x, _vp.y), Vector2(0.0, _vp.y)
+	])
+	var cols := PackedColorArray([
+		Color(0.12, 0.16, 0.06), Color(0.12, 0.16, 0.06),
+		Color(0.05, 0.07, 0.02), Color(0.05, 0.07, 0.02)
+	])
+	draw_polygon(pts, cols)
+
+	# Lớp cỏ sáng ngay trên mặt đất
+	draw_line(Vector2(0.0, gy), Vector2(_vp.x, gy),
+		Color(0.28, 0.48, 0.10, 0.85), 3.0)
+	draw_line(Vector2(0.0, gy + 2.0), Vector2(_vp.x, gy + 2.0),
+		Color(0.18, 0.28, 0.06, 0.55), 2.0)
+
+	# Vẽ bãi cỏ lô nhô
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7654
+	for i in range(60):
+		var gx := rng.randf_range(0.0, _vp.x)
+		var h  := rng.randf_range(4.0, 14.0)
+		var lean := rng.randf_range(-2.0, 2.0)
+		draw_line(Vector2(gx, gy), Vector2(gx + lean, gy - h),
+			Color(0.30 + rng.randf()*0.12, 0.52 + rng.randf()*0.18, 0.08, 0.75), 1.5)
+
+	# Sương mù nhẹ giữa mặt đất và HQ
+	draw_rect(Rect2(0.0, gy - 55.0, _vp.x, 55.0),
+		Color(0.10, 0.18, 0.04, 0.18))
+
+	# Bóng đổ của HQ xuống mặt đất
+	var shadow_w := _vp.x * 0.62
+	var sx0 := (_vp.x - shadow_w) * 0.5
+	var shadow_pts := PackedVector2Array([
+		Vector2(sx0, gy), Vector2(sx0 + shadow_w, gy),
+		Vector2(sx0 + shadow_w * 0.72, gy + 18.0),
+		Vector2(sx0 + shadow_w * 0.28, gy + 18.0)
+	])
+	var shadow_cols := PackedColorArray([
+		Color(0.02, 0.04, 0.01, 0.45), Color(0.02, 0.04, 0.01, 0.45),
+		Color(0.02, 0.04, 0.01, 0.0),  Color(0.02, 0.04, 0.01, 0.0)
+	])
+	draw_polygon(shadow_pts, shadow_cols)

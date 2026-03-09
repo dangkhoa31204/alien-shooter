@@ -11,6 +11,7 @@ const ENEMY_SCENE          = preload("res://scenes/enemy.tscn")
 const BOSS_SCENE           = preload("res://scenes/boss.tscn")
 const ASTEROID_SCENE       = preload("res://scenes/asteroid.tscn")
 const SPECIAL_PICKUP_SCENE = preload("res://scenes/special_pickup.tscn")
+const SPECIAL_BOSS_SCENE   = preload("res://scenes/special_boss.tscn")
 
 const SPEED_SCALE: float = 0.07   # tốc độ tăng mỗi wave (giảm từ 0.12)
 
@@ -26,6 +27,9 @@ var _boss_hp_mult:   float = 1.0
 var _asteroid_rate:  float = 0.25   # xác suất wave asteroid (0–1)
 var _boss_rush:      bool  = false  # Boss Rush: mọi wave đều là boss
 var _boss_waves:     Array = []     # Danh sách wave xuất hiện boss (tính sẵn)
+var _is_special_level: bool = false # Màn đặc biệt: 30 wave, 6 boss, special boss cuối
+var _is_boss_challenge: bool = false # Boss challenge: 1 wave, đấu ngay special boss
+var _challenge_aerial:  bool = false # challenge là aerial hay fortress
 
 # Cache node con cùng cấp
 var _spawner: Node2D              = null
@@ -45,6 +49,9 @@ func _ready() -> void:
 	_boss_hp_mult  = lv.get("boss_hp_mult",   1.0)
 	_asteroid_rate = lv.get("asteroid_rate",  0.25)
 	_boss_rush     = (lv.get("theme", -1) == 2)  # theme index 2 = Boss Rush
+	_is_special_level = lv.get("is_special", false)
+	_is_boss_challenge = lv.get("is_boss_challenge", false)
+	_challenge_aerial  = lv.get("challenge_aerial", false)
 	_boss_waves    = _calc_boss_waves()
 
 # Chia đều boss vào các wave theo số wave thực tế của màn
@@ -53,6 +60,7 @@ func _ready() -> void:
 #   ≥ 18 wave  → 4 boss   (vd: 18→[5,9,14,18]  30→[8,15,23,30])
 func _calc_boss_waves() -> Array:
 	if _boss_rush: return []   # Boss Rush tự xử lý
+	if _is_special_level: return [5, 10, 15, 20, 25, 30]  # 6 boss cố định
 	var boss_count: int
 	if _max_waves <= 7:
 		boss_count = 2
@@ -73,6 +81,11 @@ func start_wave(wave_number: int) -> void:
 	wave_in_progress = true
 	await get_tree().create_timer(0.5).timeout
 
+	# Boss challenge: đấu ngay special boss
+	if _is_boss_challenge:
+		_spawn_special_boss()
+		return
+
 	# Boss Rush: gần như mọi wave đều là boss
 	if _boss_rush:
 		_spawn_boss()
@@ -80,7 +93,11 @@ func start_wave(wave_number: int) -> void:
 
 	# Boss xuất hiện theo danh sách đã chia đều
 	if current_wave in _boss_waves:
-		_spawn_boss()
+		# Màn đặc biệt: wave 30 → special boss
+		if _is_special_level and current_wave == 30:
+			_spawn_special_boss()
+		else:
+			_spawn_boss()
 	# Asteroid: tỉ lệ theo config level (wave thứ 3 mặc định + random thêm)
 	elif (current_wave % 3 == 0) or (randf() < _asteroid_rate * 0.5):
 		_spawn_asteroid_wave()
@@ -133,6 +150,34 @@ func _make_boss(btype: int, bhp: int, bspd: float, x_pos: float) -> void:
 	boss.died.connect(_on_enemy_died)
 	_spawner.add_child(boss)
 	boss.global_position = Vector2(x_pos, 100.0)
+
+# ── MÀNG ĐẶC BIỆT: Boss cuối cùng ───────────────────────────────────────────
+func _spawn_special_boss() -> void:
+	_drop_special_pickups()
+	_drop_special_pickups()   # thêm 2 pickup nữa cho boss khó
+	var vp := get_viewport().get_visible_rect().size
+	var sboss = SPECIAL_BOSS_SCENE.instantiate()
+	var base_hp: int   = 3500
+	var scaled_hp: int = int(float(base_hp) * _boss_hp_mult)
+	sboss.max_hp = scaled_hp
+	sboss.hp     = scaled_hp
+	# Ghi đè chế độ nếu đây là boss challenge
+	if _is_boss_challenge:
+		sboss.force_aerial = _challenge_aerial
+		sboss.use_force_aerial = true
+	enemies_alive = 1
+	sboss.died.connect(_on_enemy_died)
+	_spawner.add_child(sboss)
+	sboss.global_position = Vector2(vp.x * 0.5, 120.0)
+	var main = get_parent()
+	if main and main.has_method("show_boss_hp"):
+		main.show_boss_hp(scaled_hp, scaled_hp)
+	if main and main.has_method("show_alert"):
+		var is_aerial_mode: bool = _challenge_aerial if _is_boss_challenge else (ThemePack.get_pack().get("shape_mode", "") == "aerial_warfare")
+		if is_aerial_mode:
+			main.show_alert("★★ AIR FORCE COMMAND HQ ★★")
+		else:
+			main.show_alert("★★ DREADFORT — FINAL BOSS ★★")
 
 # Rơi 2 vũ khí đặc biệt ngẫu nhiên trước mỗi boss wave
 func _drop_special_pickups() -> void:

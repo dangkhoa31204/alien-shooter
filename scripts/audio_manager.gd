@@ -19,7 +19,7 @@ var _chord_idx:     int   = 0
 var _arp_idx:       int   = 0
 
 const MUSIC_RATE := 22050.0
-const MUSIC_VOL_DB := -10.0
+const MUSIC_VOL_DB := 0.0
 
 # Hợp âm không gian: Am → F → C → G, 2s/hợp âm
 const _CHORDS: Array = [
@@ -108,7 +108,7 @@ func _build_sfx_library() -> void:
 	# [name, freq_start, freq_end, duration, wave, volume]
 	# freq_end != 0 → sweep từ freq_start → freq_end
 	var defs: Array = [
-		["shoot",          1300.0,  900.0,  0.07,  "sine",  0.28],
+		["shoot",          1300.0,  900.0,  0.07,  "sine",  0.07],
 		["enemy_shoot",    550.0,   350.0,  0.06,  "sine",  0.18],
 		["hit",            350.0,   180.0,  0.09,  "noise", 0.45],
 		["explosion",      80.0,    30.0,   0.55,  "noise", 0.85],

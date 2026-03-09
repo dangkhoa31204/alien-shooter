@@ -46,6 +46,12 @@ static var last_wave:         int = 0
 static var last_hp:           int = 0
 static var last_max_hp:       int = 1
 
+# Tiến trình phiên chơi (9 màn → mở màn đặc biệt)
+static var session_levels_completed: int = 0
+const SESSION_GOAL: int = 9
+static var session_level_list: Array = []       # danh sách màn cố định trong phiên
+static var session_completed_indices: Array = [] # index các màn đã hoàn thành
+
 static func add_coins(amount: int) -> void:
 	coins += amount
 	save_data()

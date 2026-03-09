@@ -119,10 +119,11 @@ func _ready() -> void:
 		_base_color = ThemePack.enemy_color(enemy_type)
 		sprite.color = _base_color
 		_add_type_details()
-		# Aerial Warfare: phóng to ngang bằng player để dễ nhìn
+		# Aerial Warfare: phóng to ngang bằng player để dễ nhìn + quay mũi về phía player
 		if ThemePack.get_pack().get("shape_mode", "") == "aerial_warfare":
 			_natural_scale = 1.8
 			sprite.scale = Vector2(_natural_scale, _natural_scale)
+			sprite.rotation = PI   # lật 180° — mũi phi thuyền hướng xuống (về player)
 	if has_node("EnemyAI"):
 		$EnemyAI.setup(self)
 
@@ -320,21 +321,22 @@ func _draw() -> void:
 	if ThemePack.get_pack().get("shape_mode", "") == "aerial_warfare":
 		# Viền sáng nổi bật quanh máy bay (outline glow)
 		match enemy_type:
-			0: # F-4 — viền + jet blast kép
+			# Sprite đã lật 180°: mũi → y+, động cơ → y- → jet blast phải ở y âm
+			0: # F-4 — viền + jet blast kép (đuôi ở y-)
 				draw_circle(Vector2.ZERO, 38.0, Color(0.65, 0.85, 0.30, 0.10 * pulse))
 				draw_circle(Vector2.ZERO, 28.0, Color(0.75, 0.95, 0.40, 0.08 * pulse))
-				draw_circle(Vector2(0.0, 24.0), 18.0, Color(0.55, 0.55, 0.60, 0.22 * pulse))
-				draw_circle(Vector2(0.0, 24.0), 9.0,  Color(1.0,  0.72, 0.20, 0.40 * pulse))
-			1: # F-105 — viền + jet blast đơn
+				draw_circle(Vector2(0.0, -24.0), 18.0, Color(0.55, 0.55, 0.60, 0.22 * pulse))
+				draw_circle(Vector2(0.0, -24.0), 9.0,  Color(1.0,  0.72, 0.20, 0.40 * pulse))
+			1: # F-105 — viền + jet blast đơn (đuôi ở y-)
 				draw_circle(Vector2.ZERO, 34.0, Color(0.80, 0.78, 0.35, 0.10 * pulse))
 				draw_circle(Vector2.ZERO, 24.0, Color(0.90, 0.88, 0.45, 0.08 * pulse))
-				draw_circle(Vector2(0.0, 26.0), 14.0, Color(0.42, 0.40, 0.18, 0.20 * pulse))
-				draw_circle(Vector2(0.0, 26.0), 7.0,  Color(1.0,  0.80, 0.25, 0.42 * pulse))
-			2: # B-52 — viền lớn + khói rộng 8 ống
+				draw_circle(Vector2(0.0, -26.0), 14.0, Color(0.42, 0.40, 0.18, 0.20 * pulse))
+				draw_circle(Vector2(0.0, -26.0), 7.0,  Color(1.0,  0.80, 0.25, 0.42 * pulse))
+			2: # B-52 — viền lớn + khói rộng 8 ống (đuôi ở y-)
 				draw_circle(Vector2.ZERO, 62.0, Color(0.55, 0.65, 0.30, 0.09 * pulse))
 				draw_circle(Vector2.ZERO, 46.0, Color(0.60, 0.70, 0.35, 0.07 * pulse))
-				draw_circle(Vector2(0.0, 18.0), 50.0, Color(0.28, 0.28, 0.30, 0.18 * pulse))
-				draw_circle(Vector2(0.0, 18.0), 28.0, Color(0.55, 0.52, 0.38, 0.25 * pulse))
+				draw_circle(Vector2(0.0, -18.0), 50.0, Color(0.28, 0.28, 0.30, 0.18 * pulse))
+				draw_circle(Vector2(0.0, -18.0), 28.0, Color(0.55, 0.52, 0.38, 0.25 * pulse))
 		return
 	match enemy_type:
 		0: # Scout — orange-red
