@@ -349,7 +349,7 @@ func _make_card(idx: int, pos: Vector2, sz: Vector2, unlocked: int) -> void:
 # ── Controls reference panel (bottom-left) ───────────────────────────────────
 func _make_controls_panel(vp: Vector2) -> void:
 	const PW  := 240.0
-	const PH  := 178.0
+	const PH  := 198.0
 	var   px  := 14.0
 	var   py  := vp.y - PH - 10.0
 
@@ -382,6 +382,7 @@ func _make_controls_panel(vp: Vector2) -> void:
 		["↑  (khi chạy)",  "Bắn chéo 45°"],
 		["↓ + SHIFT",       "Lộn vòng lướt"],
 		["A  (B40)",        "Bắn hỏa tiễn"],
+		["F",               "Đánh cận chiến"],
 		["F1",              "Cheat Menu"],
 	]
 	for k in range(rows.size()):

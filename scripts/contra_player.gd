@@ -17,7 +17,7 @@ var ammo: int = 30
 var is_reloading: bool = false
 var reload_timer: float = 0.0
 const MAX_AMMO: int = 30
-const RELOAD_TIME: float = 5.0
+const RELOAD_TIME: float = 2.5
 
 var is_god_mode: bool = false
 var is_infinite_ammo: bool = false
@@ -33,6 +33,16 @@ const MAX_JUMPS: int = 2
 # Anti-tank Weapon (RPG/B40)
 var rpg_cooldown: float = 0.0
 const RPG_MAX_COOLDOWN: float = 10.0
+
+# Melee attack
+var melee_cooldown: float = 0.0
+const MELEE_COOLDOWN_MAX: float = 0.6
+const MELEE_DAMAGE: int = 2
+const MELEE_RANGE: float = 60.0
+var is_meleeing: bool = false
+var _melee_anim_timer: float = 0.0
+const MELEE_ANIM_DUR: float = 0.4
+var _melee_flash: ColorRect
 var _is_firing_rpg: bool = false
 var _rpg_timer: float = 0.0
 var _heavy_weapon_node: Node2D
@@ -64,6 +74,12 @@ func _ready() -> void:
 	add_to_group("player")
 	_setup_complex_visuals()
 	_sync_hp()
+	# Register melee input action for key F
+	if not InputMap.has_action("melee"):
+		var ev := InputEventKey.new()
+		ev.keycode = KEY_F
+		InputMap.add_action("melee")
+		InputMap.action_add_event("melee", ev)
 
 func _sync_hp() -> void:
 	var main = _get_main_scene()
@@ -93,7 +109,15 @@ func _setup_complex_visuals() -> void:
 	sprite.add_child(_leg_r)
 	_body_node.add_child(_arm_front)
 	_heavy_weapon_node.visible = false
-	
+
+	# MeleeFlash — orange rectangle that flashes at the fist on punch impact
+	_melee_flash = ColorRect.new()
+	_melee_flash.size     = Vector2(50, 28)
+	_melee_flash.position = Vector2(14, -24)  # offset from body; mirrored by sprite.scale.x
+	_melee_flash.color    = Color(1.0, 0.6, 0.1, 0.0)
+	_melee_flash.z_index  = 2
+	_body_node.add_child(_melee_flash)
+
 	_setup_rpg_visuals()
 
 	# --- Legs (Powerful Stance) ---
@@ -234,6 +258,21 @@ func _physics_process(delta: float) -> void:
 	if rpg_cooldown > 0:
 		rpg_cooldown -= delta
 		_sync_hp()
+
+	if melee_cooldown > 0:
+		melee_cooldown -= delta
+
+	if is_meleeing:
+		_melee_anim_timer += delta
+		if _melee_anim_timer >= MELEE_ANIM_DUR:
+			is_meleeing = false
+			_melee_anim_timer = 0.0
+			# Reset nodes modified during melee animation
+			_body_node.position.x  = 0.0
+			_arm_front.position.x  = 0.0
+			_arm_front.rotation    = 0.5
+			sprite.scale.x         = sprite.scale.x  # preserve facing
+			_melee_flash.color.a   = 0.0
 	
 	if is_reloading:
 		reload_timer -= delta
@@ -253,7 +292,10 @@ func _physics_process(delta: float) -> void:
 	
 	if Input.is_key_pressed(KEY_A) and rpg_cooldown <= 0 and not is_rolling and not _is_firing_rpg:
 		_fire_rpg()
-	
+
+	if Input.is_action_just_pressed("melee") and melee_cooldown <= 0 and not is_dead:
+		_melee_attack()
+
 	if is_on_floor() and abs(velocity.x) > 10 and int(_walk_time * 2.0) % 5 == 0:
 		_spawn_dust()
 
@@ -361,6 +403,58 @@ func _update_aiming() -> void:
 	gun_point.global_position = _muzzle_flash.global_position + aim_direction * 5
 
 func _animate(delta: float) -> void:
+	# ── Melee punch animation (keyframe-driven, overrides normal anim) ────────
+	if is_meleeing:
+		var t := _melee_anim_timer
+		var facing := sprite.scale.x
+		# Keyframe lerp helpers
+		# Phase 0–0.08: wind-up
+		# Phase 0.08–0.18: lunge forward
+		# Phase 0.18–0.28: impact hold + flash
+		# Phase 0.28–0.40: return
+		var body_x   := 0.0
+		var arm_rot  := 0.5      # default grip rotation
+		var flash_a  := 0.0
+		var squash_y := 1.0
+
+		if t < 0.08:       # wind-up
+			var p := t / 0.08
+			body_x  = lerp(0.0,  -facing * 5.0, p)
+			arm_rot = lerp(0.5,  deg_to_rad(30.0), p)
+			squash_y = lerp(1.0, 1.15, p)
+		elif t < 0.18:     # lunge
+			var p := (t - 0.08) / 0.10
+			body_x  = lerp(-facing * 5.0, facing * 14.0, p)
+			arm_rot = lerp(deg_to_rad(30.0), deg_to_rad(-85.0), p)
+			squash_y = lerp(1.15, 0.88, p)
+			if p > 0.6: flash_a = (p - 0.6) / 0.4 * 0.75
+		elif t < 0.28:     # impact hold
+			var p := (t - 0.18) / 0.10
+			body_x  = lerp(facing * 14.0, facing * 6.0, p)
+			arm_rot = lerp(deg_to_rad(-85.0), deg_to_rad(-50.0), p)
+			squash_y = lerp(0.88, 1.05, p)
+			flash_a  = lerp(0.75, 0.0, p)
+		else:              # return
+			var p := (t - 0.28) / 0.12
+			body_x  = lerp(facing * 6.0, 0.0, p)
+			arm_rot = lerp(deg_to_rad(-50.0), 0.5, p)
+			squash_y = lerp(1.05, 1.0, p)
+
+		_body_node.position.x = body_x
+		_arm_front.rotation   = arm_rot
+		_arm_back.rotation    = -arm_rot * 0.4
+		_melee_flash.position = Vector2(facing * 14.0 + facing * 22.0, -20.0)
+		_melee_flash.color.a  = flash_a
+		# Squash-stretch on body
+		_body_node.scale.y    = squash_y
+		_body_node.scale.x    = 2.0 - squash_y  # compensate width
+		_leg_l.rotation = 0.1; _leg_r.rotation = -0.1
+		sprite.rotation = 0.0
+		return  # Skip normal animation while meleeing
+	# Reset melee-only scale overrides when not meleeing
+	_body_node.scale = Vector2.ONE
+	_melee_flash.color.a = 0.0
+
 	if is_rolling:
 		sprite.rotation += delta * 25.0 * sprite.scale.x
 		_body_node.position.y = 12
@@ -451,6 +545,16 @@ func _shoot() -> void:
 	b.add_to_group("player_bullet")
 	_muzzle_flash.color.a = 1.0; _muzzle_flash_timer = 0.05; _recoil_offset = 6.0
 
+	# Point-blank fix: nếu enemy nằm trong vùng spawn đạn (~50px),
+	# Godot sẽ không fire body_entered → gây sát thương trực tiếp.
+	var facing := sprite.scale.x
+	for enemy in get_tree().get_nodes_in_group("enemy"):
+		if not is_instance_valid(enemy): continue
+		var diff: Vector2 = (enemy as Node2D).global_position - gun_point.global_position
+		if diff.length() <= 50.0 and sign(diff.x) == facing:
+			if enemy.has_method("take_damage"):
+				enemy.take_damage(1)
+
 func _spawn_dust() -> void:
 	var main = _get_main_scene()
 	if not main: return
@@ -487,6 +591,48 @@ func _get_main_scene() -> Node:
 		if curr.name == "ContraMain": return curr
 		curr = curr.get_parent()
 	return null
+
+func _melee_attack() -> void:
+	melee_cooldown = MELEE_COOLDOWN_MAX
+	is_meleeing       = true
+	_melee_anim_timer = 0.0
+	var facing := sprite.scale.x
+
+	# Damage is applied at the impact frame (t ≈ 0.18)
+	# Schedule it via a short timer so it aligns with the animation
+	var hit_timer := get_tree().create_timer(0.18)
+	hit_timer.timeout.connect(func():
+		if not is_instance_valid(self): return
+		var hit_any := false
+		for enemy in get_tree().get_nodes_in_group("enemy"):
+			if not is_instance_valid(enemy): continue
+			var diff: Vector2 = enemy.global_position - global_position
+			if diff.length() <= MELEE_RANGE and sign(diff.x) == facing:
+				if enemy.has_method("take_damage"):
+					# Xe tăng (tank group) chỉ nhận MELEE_DAMAGE bình thường
+					# Tất cả enemy khác: 1 đấm chết
+					var dmg := MELEE_DAMAGE if enemy.is_in_group("tank") else 999
+					enemy.take_damage(dmg)
+					hit_any = true
+		if hit_any:
+			# Spawn spark
+			var spark := ColorRect.new()
+			spark.size = Vector2(10, 10)
+			spark.color = Color(1.0, 0.85, 0.2)
+			spark.global_position = global_position + Vector2(facing * 44.0, -22.0)
+			var main2 := _get_main_scene()
+			if main2 and main2.has_node("World"):
+				main2.get_node("World").add_child(spark)
+			else:
+				get_parent().add_child(spark)
+			var sp_tw := spark.create_tween()
+			sp_tw.tween_property(spark, "modulate:a", 0.0, 0.28)
+			sp_tw.finished.connect(spark.queue_free)
+			# Screen shake via main scene
+			var main3 := _get_main_scene()
+			if main3 and main3.has_method("screen_shake"):
+				main3.screen_shake(3.5, 0.14)
+	)
 
 func take_damage(amount: int) -> void:
 	if is_god_mode: return
