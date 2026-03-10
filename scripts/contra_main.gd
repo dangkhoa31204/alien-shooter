@@ -366,22 +366,234 @@ func spawn_shell(pos: Vector2, dir: float) -> void:
 	tw.finished.connect(shell.queue_free)
 
 func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
-	var sky = ColorRect.new(); sky.name = "BackgroundSky"; sky.size = Vector2(40000, 1000); sky.position = Vector2(-10000, -200); sky.z_index = -120
-	sky.color = sky_color 
-	_world.add_child(sky)
-	
-	var glow = Polygon2D.new(); _world.add_child(glow); glow.z_index = -95
-	var g_pts = []
-	for i in 16:
-		var a = i * TAU / 16.0
-		g_pts.append(Vector2(cos(a) * 400 + 4000, sin(a) * 150 + 100))
-	glow.polygon = PackedVector2Array(g_pts); glow.color = Color(1.0, 0.8, 0.4, 0.15)
-	
-	for i in range(12):
-		var mt = Polygon2D.new(); _parallax_bg.add_child(mt); mt.z_index = -110
-		var mx = i * 800 - 2000; var h = randf_range(200, 450)
-		mt.polygon = PackedVector2Array([Vector2(0, 720), Vector2(400, 720 - h), Vector2(800, 720)])
-		mt.color = Color(0.12, 0.22, 0.4, 0.5)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 42
+
+	# ── Multi-stop sky gradient (zenith → horizon) ─────────────────────────────
+	# Each strip is a thin ColorRect; together they form a smooth gradient banding.
+	var zenith  := sky_color.darkened(0.35)
+	var midsky  := sky_color
+	var haze    := Color(sky_color.r * 1.35 + 0.08, sky_color.g * 1.15 + 0.05, sky_color.b * 0.78 + 0.04)
+	var horizon := Color(haze.r + 0.18, haze.g + 0.12, haze.b * 0.55)  # warm orange band
+	var ground_haze := Color(horizon.r * 0.8, horizon.g * 0.75, horizon.b * 0.45, 0.60)
+
+	var grad_stops: Array = [zenith, zenith, midsky, midsky, haze, horizon, ground_haze]
+	var strip_h := 100.0
+	for gi in grad_stops.size():
+		var band := ColorRect.new()
+		band.name    = "BackgroundSky" if gi == 0 else ""
+		band.size    = Vector2(40000, strip_h + 4)   # +4 to avoid 1px gaps
+		band.position = Vector2(-10000, -200.0 + gi * strip_h)
+		band.z_index  = -120
+		band.color    = grad_stops[gi]
+		_world.add_child(band)
+
+	# ── Sun disk + 3 concentric glow rings ────────────────────────────────────
+	var sun_x := 3800.0
+	var sun_y := 80.0
+	var sun_data: Array = [
+		[110.0, Color(1.00, 0.96, 0.72, 0.08)],
+		[70.0,  Color(1.00, 0.95, 0.60, 0.16)],
+		[40.0,  Color(1.00, 0.97, 0.80, 0.50)],
+		[24.0,  Color(1.00, 1.00, 0.92, 0.95)],
+	]
+	for sd: Array in sun_data:
+		var sr: float = sd[0]
+		var sc: Color = sd[1]
+		var sun_poly := Polygon2D.new()
+		var sun_pts: Array = []
+		for si in 24:
+			var sa := si * TAU / 24.0
+			sun_pts.append(Vector2(sun_x + cos(sa) * sr * 1.25, sun_y + sin(sa) * sr * 0.7))
+		sun_poly.polygon = PackedVector2Array(sun_pts)
+		sun_poly.color   = sc
+		sun_poly.z_index = -117
+		_world.add_child(sun_poly)
+
+	# ── God rays / light shafts from sun ──────────────────────────────────────
+	for ri in 7:
+		var ray_a := -PI * 0.5 + (ri - 3) * 0.18
+		var ray_len := rng.randf_range(380.0, 600.0)
+		var ray_w   := rng.randf_range(25.0, 55.0)
+		var ray := Polygon2D.new()
+		var rbase_l := Vector2(sun_x - ray_w * 0.3, sun_y)
+		var rbase_r := Vector2(sun_x + ray_w * 0.3, sun_y)
+		var rtip    := Vector2(sun_x + cos(ray_a) * ray_len, sun_y + sin(ray_a) * ray_len)
+		ray.polygon  = PackedVector2Array([rbase_l, rbase_r, rtip])
+		ray.color    = Color(1.0, 0.92, 0.60, 0.035)
+		ray.z_index  = -116
+		_world.add_child(ray)
+
+	# ── Clouds — each cloud is 4–6 overlapping ellipse polygons ──────────────
+	var cloud_data: Array = []
+	for ci in 18:
+		var cx: float = rng.randf_range(-800.0, 13000.0)
+		var cy: float = rng.randf_range(40.0, 320.0)
+		var cs: float = rng.randf_range(0.7, 1.5)
+		cloud_data.append([cx, cy, cs])
+
+	for cd: Array in cloud_data:
+		var cx: float = cd[0]
+		var cy: float = cd[1]
+		var cs: float = cd[2]
+		var cloud_root := Node2D.new()
+		cloud_root.position = Vector2(cx, cy)
+		cloud_root.z_index  = -112
+		_parallax_bg.add_child(cloud_root)
+
+		# Each cloud: shadow mass first, then lit blobs
+		var blob_offsets: Array = [
+			[0.0,  0.0,  cs * 55.0, cs * 30.0],
+			[-cs*50, cs*10, cs*42.0, cs*24.0],
+			[cs*48,  cs*8,  cs*44.0, cs*26.0],
+			[-cs*22, -cs*18, cs*36.0, cs*22.0],
+			[cs*22,  -cs*14, cs*38.0, cs*20.0],
+		]
+		# Shadow blob
+		for bo: Array in blob_offsets:
+			var bx: float = bo[0]
+			var by: float = bo[1]
+			var brx: float = bo[2]
+			var bry: float = bo[3]
+			var shadow_b := Polygon2D.new()
+			var s_pts: Array = []
+			for bi2 in 16:
+				var ba := bi2 * TAU / 16.0
+				s_pts.append(Vector2(bx + cos(ba) * brx + 6, by + sin(ba) * bry * 0.6 + 8))
+			shadow_b.polygon = PackedVector2Array(s_pts)
+			shadow_b.color   = Color(0.55, 0.62, 0.70, 0.18)
+			cloud_root.add_child(shadow_b)
+		# Lit blobs
+		for bo: Array in blob_offsets:
+			var bx: float = bo[0]
+			var by: float = bo[1]
+			var brx: float = bo[2]
+			var bry: float = bo[3]
+			var blob := Polygon2D.new()
+			var b_pts: Array = []
+			for bi2 in 20:
+				var ba := bi2 * TAU / 20.0
+				b_pts.append(Vector2(bx + cos(ba) * brx, by + sin(ba) * bry * 0.62))
+			blob.polygon = PackedVector2Array(b_pts)
+			blob.color   = Color(0.96, 0.97, 0.99, 0.82)
+			cloud_root.add_child(blob)
+		# Top highlight
+		var highlight := Polygon2D.new()
+		var h_pts: Array = []
+		for hi3 in 14:
+			var ha := hi3 * TAU / 14.0
+			h_pts.append(Vector2(cos(ha) * cs * 45.0, sin(ha) * cs * 14.0 - cs * 14.0))
+		highlight.polygon = PackedVector2Array(h_pts)
+		highlight.color   = Color(1.0, 1.0, 1.0, 0.55)
+		cloud_root.add_child(highlight)
+
+	# ── 4-layer mountain ranges ────────────────────────────────────────────────
+	# Colors: very far = blue-grey haze → near = rich dark green treeline
+	var mt_layers: Array = [
+		[Color(0.46, 0.56, 0.58, 0.45), 660.0, 0.50, -115, 8],   # ultra distant, blue haze
+		[Color(0.18, 0.30, 0.22, 0.70), 675.0, 0.68, -113, 10],  # mid-far, grey-green
+		[Color(0.10, 0.22, 0.10, 0.88), 688.0, 0.84, -111, 12],  # mid-near, dark green
+		[Color(0.07, 0.16, 0.06, 1.00), 702.0, 1.00, -109, 14],  # nearest, deep forest
+	]
+
+	for layer_idx in mt_layers.size():
+		var ld: Array = mt_layers[layer_idx]
+		var base_col: Color = ld[0]
+		var y_base: float   = ld[1]
+		var scale_h: float  = ld[2]
+		var zidx: int       = ld[3]
+		var count: int      = ld[4]
+
+		for i in count:
+			# Use a ridgeline polygon (multiple points) instead of a plain triangle
+			var mx := float(i) * rng.randf_range(880.0, 1260.0) - 1400.0
+			var mw := rng.randf_range(360.0, 620.0) * (0.75 + layer_idx * 0.18)
+			var mh := rng.randf_range(190.0, 440.0) * scale_h
+
+			# Build a jagged ridgeline with 5-7 control points
+			var n_pts := rng.randi_range(4, 7)
+			var ridge: Array = []
+			ridge.append(Vector2(-mw * 0.52, 0.0))
+			for rpi in n_pts:
+				var rx := -mw * 0.42 + float(rpi + 1) * mw * 0.84 / float(n_pts + 1)
+				var ry := -mh * rng.randf_range(0.55, 1.0)
+				ridge.append(Vector2(rx, ry))
+			ridge.append(Vector2(mw * 0.52, 0.0))
+
+			var mt_root := Node2D.new()
+			mt_root.position = Vector2(mx, y_base)
+			mt_root.z_index  = zidx
+			_parallax_bg.add_child(mt_root)
+
+			# Main mountain fill
+			var fill_pts: Array = ridge.duplicate()
+			fill_pts.append(Vector2(mw * 0.52, 60.0))
+			fill_pts.append(Vector2(-mw * 0.52, 60.0))
+			var mt_fill := Polygon2D.new()
+			mt_fill.polygon = PackedVector2Array(fill_pts)
+			mt_fill.color   = base_col
+			mt_root.add_child(mt_fill)
+
+			# Left-lit face overlay (lighter left/top slope)
+			if ridge.size() >= 3:
+				var peak_v: Vector2 = ridge[int(ridge.size() / 2)]
+				var light_pts := PackedVector2Array([ridge[0], peak_v, Vector2(peak_v.x * 0.3, 0.0)])
+				var lit := Polygon2D.new()
+				lit.polygon = light_pts
+				lit.color   = Color(1.0, 1.0, 1.0, 0.06 + 0.04 * scale_h)
+				mt_root.add_child(lit)
+
+				# Right shadow face
+				var dark_pts := PackedVector2Array([Vector2(peak_v.x * 0.3, 0.0), peak_v, ridge[ridge.size() - 1]])
+				var dark := Polygon2D.new()
+				dark.polygon = dark_pts
+				dark.color   = Color(0.0, 0.0, 0.0, 0.18 + 0.10 * scale_h)
+				mt_root.add_child(dark)
+
+			# Atmospheric haze overlay for far layers
+			if layer_idx <= 1:
+				var haze_ov := Polygon2D.new()
+				haze_ov.polygon = PackedVector2Array(fill_pts)
+				haze_ov.color   = Color(sky_color.r * 0.5 + 0.3, sky_color.g * 0.4 + 0.25, sky_color.b * 0.5 + 0.25, 0.22)
+				mt_root.add_child(haze_ov)
+
+			# Dark-green treeline silhouette on top of each mountain ridge
+			for ti in range(0, ridge.size() - 1):
+				var tp1: Vector2 = ridge[ti]
+				var tp2: Vector2 = ridge[ti + 1]
+				var t_count := int((tp2.x - tp1.x) / rng.randf_range(28, 50))
+				for tj in t_count:
+					var tt := float(tj) / float(max(t_count, 1))
+					var tx: float = lerp(tp1.x, tp2.x, tt)
+					var ty_base: float = lerp(tp1.y, tp2.y, tt)
+					var th_tree := rng.randf_range(12.0, 32.0) * scale_h
+					var tw_tree := rng.randf_range(8.0,  20.0) * scale_h
+					var tree_sil := Polygon2D.new()
+					var t_pts: Array = []
+					for ti2 in 8:
+						var ta := ti2 * TAU / 8.0
+						t_pts.append(Vector2(tx + cos(ta) * tw_tree, ty_base + sin(ta) * th_tree - th_tree))
+					tree_sil.polygon = PackedVector2Array(t_pts)
+					tree_sil.color   = Color(base_col.r * 0.55, base_col.g * 0.80, base_col.b * 0.50, 0.90)
+					mt_root.add_child(tree_sil)
+
+	# ── Ground-level mist / valley fog strips ─────────────────────────────────
+	for i in 8:
+		var mist := ColorRect.new()
+		mist.size     = Vector2(rng.randf_range(2400.0, 4000.0), rng.randf_range(28.0, 60.0))
+		mist.position = Vector2(rng.randf_range(-600.0, 10000.0), 500.0 + i * 14.0)
+		mist.color    = Color(0.85, 0.90, 0.88, 0.09 - i * 0.007)
+		mist.z_index  = -50
+		_parallax_bg.add_child(mist)
+
+	# ── Ambient ground shadow (darkens the very bottom of the sky near terrain) ─
+	for di in 3:
+		var amb := ColorRect.new()
+		amb.size     = Vector2(40000, 55)
+		amb.position = Vector2(-10000, 590.0 + di * 38.0)
+		amb.z_index  = -10
+		amb.color    = Color(0.0, 0.0, 0.0, 0.10 + di * 0.04)
+		_world.add_child(amb)
 
 func _start_stage(stage_num: int, is_respawn: bool = false) -> void:
 	current_stage = stage_num
@@ -462,53 +674,282 @@ func _load_stage_data(num: int) -> void:
 # Stage setups moved to separate scripts in res://scripts/stages/
 
 func _create_giant_ancient_tree(pos: Vector2) -> void:
-	var tree = Node2D.new(); tree.position = pos; _world.add_child(tree)
-	tree.z_index = -50 # Keep giant trunks in background
-	# Thick, curved trunk with roots
-	var trunk = Polygon2D.new()
-	var tw = randf_range(60, 90)
-	trunk.polygon = PackedVector2Array([
-		Vector2(-tw*1.2, 0), Vector2(-tw, -80), Vector2(-tw*0.6, -300), 
-		Vector2(tw*0.4, -300), Vector2(tw*0.8, -80), Vector2(tw*1.2, 0)
-	])
-	trunk.color = Color(0.22, 0.15, 0.08); tree.add_child(trunk)
-	
-	# Wrapping Vines on trunk
-	for v in 4:
-		var vine = Polygon2D.new()
-		var vy = -v * 70
-		vine.polygon = PackedVector2Array([Vector2(-tw*0.8, vy), Vector2(tw*0.8, vy-20), Vector2(tw*0.8, vy-10), Vector2(-tw*0.8, vy+10)])
-		vine.color = Color(0.1, 0.3, 0.05); tree.add_child(vine)
+	var rng_t := RandomNumberGenerator.new()
+	rng_t.seed = int(pos.x * 7.0 + pos.y * 13.0)
 
-	# Massive Canopy Layers
-	for layer in 3:
-		var layer_y = -300 - layer * 80
-		for leaf in 12:
-			var l = Polygon2D.new(); var a = leaf * PI / 6.0
-			var size = randf_range(80, 150)
-			l.polygon = PackedVector2Array([Vector2(0,0), Vector2(size, -40), Vector2(size*0.8, 40)])
-			l.color = Color(0.05, 0.2 + layer*0.1, 0.02).lightened(randf()*0.2)
-			l.rotation = a; l.position = Vector2(0, layer_y)
-			tree.add_child(l)
+	var tree_scale := rng_t.randf_range(0.82, 1.22)
+	var tilt       := rng_t.randf_range(-0.07, 0.07)
+
+	var tree := Node2D.new()
+	tree.position = pos
+	tree.scale    = Vector2(tree_scale, tree_scale)
+	tree.rotation = tilt
+	tree.z_index  = -50
+	_world.add_child(tree)
+
+	var tw := rng_t.randf_range(48.0, 76.0)
+	var trunk_h := 300.0
+
+	# ── Ground AO / contact shadow ────────────────────────────────────────────
+	var ao := Polygon2D.new()
+	var ao_pts: Array = []
+	for ai in 12:
+		var aa := ai * TAU / 12.0
+		ao_pts.append(Vector2(cos(aa) * tw * 1.8, sin(aa) * tw * 0.5 + 6))
+	ao.polygon = PackedVector2Array(ao_pts)
+	ao.color   = Color(0.0, 0.0, 0.0, 0.30)
+	tree.add_child(ao)
+
+	# ── Buttress roots (3-5 angled fins radiating from base) ─────────────────
+	var n_roots := rng_t.randi_range(3, 5)
+	for ri in n_roots:
+		var ra := (float(ri) / float(n_roots)) * PI + rng_t.randf_range(-0.18, 0.18)
+		var rlen := rng_t.randf_range(tw * 0.9, tw * 1.6)
+		var root_poly := Polygon2D.new()
+		root_poly.polygon = PackedVector2Array([
+			Vector2(0.0, -30.0),
+			Vector2(cos(ra) * rlen, sin(ra) * rlen * 0.45),
+			Vector2(cos(ra) * rlen * 0.85 + cos(ra + 0.4) * 10, sin(ra) * rlen * 0.45 + 8),
+		])
+		root_poly.color = Color(0.17, 0.10, 0.05)
+		tree.add_child(root_poly)
+
+	# ── Trunk ─────────────────────────────────────────────────────────────────
+	var trunk := Polygon2D.new()
+	trunk.polygon = PackedVector2Array([
+		Vector2(-tw * 1.22,  0),
+		Vector2(-tw * 0.90, -trunk_h * 0.28),
+		Vector2(-tw * 0.52, -trunk_h * 0.68),
+		Vector2(-tw * 0.40, -trunk_h),
+		Vector2( tw * 0.38, -trunk_h),
+		Vector2( tw * 0.50, -trunk_h * 0.68),
+		Vector2( tw * 0.88, -trunk_h * 0.28),
+		Vector2( tw * 1.22,  0),
+	])
+	trunk.color = Color(0.22, 0.14, 0.07)
+	tree.add_child(trunk)
+
+	# Bark highlight (left edge catches light)
+	var bark_hi := Polygon2D.new()
+	bark_hi.polygon = PackedVector2Array([
+		Vector2(-tw * 1.18, 0),
+		Vector2(-tw * 0.86, -trunk_h * 0.28),
+		Vector2(-tw * 0.50, -trunk_h * 0.62),
+		Vector2(-tw * 0.28, -trunk_h * 0.62),
+		Vector2(-tw * 0.44, -trunk_h * 0.28),
+		Vector2(-tw * 0.80, 0),
+	])
+	bark_hi.color = Color(0.38, 0.25, 0.12, 0.42)
+	tree.add_child(bark_hi)
+
+	# Bark shadow stripe (right side)
+	var bark_sh := Polygon2D.new()
+	bark_sh.polygon = PackedVector2Array([
+		Vector2(tw * 0.50, -trunk_h * 0.68),
+		Vector2(tw * 0.88, -trunk_h * 0.28),
+		Vector2(tw * 1.22,  0),
+		Vector2(tw * 0.85,  0),
+	])
+	bark_sh.color = Color(0.0, 0.0, 0.0, 0.28)
+	tree.add_child(bark_sh)
+
+	# Bark vertical fissure lines
+	for fi in 3:
+		var fx := rng_t.randf_range(-tw * 0.6, tw * 0.6)
+		var fissure := ColorRect.new()
+		fissure.size     = Vector2(3, rng_t.randf_range(80.0, 180.0))
+		fissure.position = Vector2(fx, -trunk_h * 0.8)
+		fissure.color    = Color(0.10, 0.06, 0.02, 0.55)
+		fissure.rotation = rng_t.randf_range(-0.06, 0.06)
+		tree.add_child(fissure)
+
+	# ── Wrapping vines ─────────────────────────────────────────────────────────
+	for v in 5:
+		var vy   := float(v) * -58.0
+		var voff := sin(v * 1.3) * tw * 0.2
+		var vine := Polygon2D.new()
+		vine.polygon = PackedVector2Array([
+			Vector2(-tw * 0.80 + voff,  vy),
+			Vector2( tw * 0.76 + voff,  vy - 16.0),
+			Vector2( tw * 0.76 + voff,  vy -  7.0),
+			Vector2(-tw * 0.80 + voff,  vy +  9.0),
+		])
+		vine.color = Color(0.07, 0.24, 0.03, 0.80)
+		tree.add_child(vine)
+
+	# ── Canopy — 4 height levels, each with 3–5 overlapping rounded blobs ────
+	# Each blob is a ~16-point polygon approximating an ellipse.
+	var canopy_colors: Array = [
+		Color(0.06, 0.22, 0.04),   # deep layer — very dark
+		Color(0.08, 0.30, 0.05),
+		Color(0.10, 0.38, 0.06),
+		Color(0.14, 0.45, 0.07),   # top layer — brightest
+	]
+	for layer in 4:
+		var layer_y := -trunk_h - float(layer) * 82.0
+		var spread  := tw * (2.2 - layer * 0.22)
+		var n_blobs := rng_t.randi_range(3, 5)
+
+		# Large ambient shadow under this canopy level
+		var can_shadow := Polygon2D.new()
+		var csh_pts: Array = []
+		for csi in 18:
+			var csa := csi * TAU / 18.0
+			csh_pts.append(Vector2(cos(csa) * spread * 0.90 + 10, sin(csa) * spread * 0.38 + 22))
+		can_shadow.polygon = PackedVector2Array(csh_pts)
+		can_shadow.color   = Color(0.0, 0.0, 0.0, 0.22)
+		tree.add_child(can_shadow)
+
+		for bi2 in n_blobs:
+			var bx := rng_t.randf_range(-spread * 0.55, spread * 0.55)
+			var by := rng_t.randf_range(-20.0, 20.0)
+			var brx := rng_t.randf_range(spread * 0.42, spread * 0.68)
+			var bry := rng_t.randf_range(brx * 0.42, brx * 0.62)
+
+			var blob := Polygon2D.new()
+			var b_pts: Array = []
+			for bpi in 18:
+				var ba := bpi * TAU / 18.0
+				# Slightly jitter radius for natural edge
+				var jitter := rng_t.randf_range(0.88, 1.12)
+				b_pts.append(Vector2(bx + cos(ba) * brx * jitter, layer_y + by + sin(ba) * bry * jitter))
+			blob.polygon = PackedVector2Array(b_pts)
+			blob.color   = canopy_colors[layer].lightened(rng_t.randf() * 0.18)
+			tree.add_child(blob)
+
+		# Dappled highlight cluster at top of canvas (simulates sun catching leaves)
+		if layer == 3:
+			for hi4 in rng_t.randi_range(4, 7):
+				var hx := rng_t.randf_range(-spread * 0.4, spread * 0.4)
+				var hl := Polygon2D.new()
+				var h_pts: Array = []
+				var hr := rng_t.randf_range(12.0, 28.0)
+				for hpi in 10:
+					var ha := hpi * TAU / 10.0
+					h_pts.append(Vector2(hx + cos(ha) * hr, layer_y - 15.0 + sin(ha) * hr * 0.5))
+				hl.polygon = PackedVector2Array(h_pts)
+				hl.color   = Color(0.55, 0.85, 0.22, 0.28)
+				tree.add_child(hl)
+
+	# ── Hanging lianas / moss strands ─────────────────────────────────────────
+	for li in rng_t.randi_range(3, 6):
+		var lx   := rng_t.randf_range(-tw * 1.2, tw * 1.2)
+		var llen := rng_t.randf_range(60.0, 160.0)
+		var lsway := sin(lx * 0.1) * 14.0
+		var liana := Polygon2D.new()
+		liana.polygon = PackedVector2Array([
+			Vector2(lx - 2.5, -trunk_h * 0.85),
+			Vector2(lx + lsway - 2.5, -trunk_h * 0.85 + llen),
+			Vector2(lx + lsway + 2.5, -trunk_h * 0.85 + llen),
+			Vector2(lx + 2.5, -trunk_h * 0.85),
+		])
+		liana.color = Color(0.10, 0.28, 0.05, 0.75)
+		tree.add_child(liana)
 
 func _create_jungle_fern(pos: Vector2) -> void:
-	var fern = Node2D.new(); fern.position = pos; _world.add_child(fern); fern.z_index = -5 # Move BEHIND characters
-	for i in 8:
-		var leaf = Polygon2D.new(); var a = -PI/1.2 - i * PI/6.0
-		var lsize = randf_range(20, 45)
-		leaf.polygon = PackedVector2Array([Vector2(0,0), Vector2(lsize, -lsize/3.0), Vector2(lsize*0.8, lsize/3.0)])
-		leaf.color = Color(0.1, 0.4 + randf()*0.2, 0.05); leaf.rotation = a
-		fern.add_child(leaf)
+	var fern  := Node2D.new()
+	fern.position = pos
+	_world.add_child(fern)
+	fern.z_index = -5
+
+	# Base ambient shadow
+	var fs := Polygon2D.new()
+	var fs_pts: Array = []
+	for fsi in 10:
+		var fsa := fsi * TAU / 10.0
+		fs_pts.append(Vector2(cos(fsa) * 22.0, sin(fsa) * 7.0 + 4))
+	fs.polygon = PackedVector2Array(fs_pts)
+	fs.color   = Color(0.0, 0.0, 0.0, 0.22)
+	fern.add_child(fs)
+
+	# Pinnate fronds — each frond has a midrib + paired leaflets
+	for i in 7:
+		var frond_a := -PI * 0.9 - float(i) * PI / 5.5 + randf_range(-0.12, 0.12)
+		var flen    := randf_range(28.0, 52.0)
+		var frond_col := Color(0.06, 0.32 + randf() * 0.14, 0.04)
+		# Midrib
+		var midrib := Polygon2D.new()
+		var tip    := Vector2(cos(frond_a) * flen, sin(frond_a) * flen)
+		midrib.polygon = PackedVector2Array([
+			Vector2(-1.5, 0.0), tip + Vector2(-1.0, 0.0),
+			tip + Vector2(1.0, 0.0), Vector2(1.5, 0.0)
+		])
+		midrib.color = frond_col.darkened(0.20)
+		fern.add_child(midrib)
+		# Leaflets along midrib
+		var n_leaflet := int(flen / 8.0)
+		for leti in n_leaflet:
+			var lt := float(leti + 1) / float(n_leaflet + 1)
+			var lbase := Vector2(cos(frond_a) * flen * lt, sin(frond_a) * flen * lt)
+			for side in [-1, 1]:
+				var leaflet := Polygon2D.new()
+				var ls := randf_range(5.0, 12.0) * (1.0 - lt * 0.5)
+				var la: float = frond_a + float(side) * PI * 0.45
+				leaflet.polygon = PackedVector2Array([
+					lbase,
+					lbase + Vector2(cos(la) * ls, sin(la) * ls),
+					lbase + Vector2(cos(la + 0.5) * ls * 0.6, sin(la + 0.5) * ls * 0.6),
+				])
+				leaflet.color = frond_col.lightened(randf() * 0.20)
+				fern.add_child(leaflet)
 
 func _create_dense_shrub(pos: Vector2) -> void:
-	var shrub = Node2D.new(); shrub.position = pos; _world.add_child(shrub); shrub.z_index = -5 # Move BEHIND characters
-	for i in 10:
-		var leaf = Polygon2D.new()
-		var s = randf_range(15, 30)
-		leaf.polygon = PackedVector2Array([Vector2(-s, 0), Vector2(0, -s*1.5), Vector2(s, 0)])
-		leaf.color = Color(0.05, 0.3, 0.02).lightened(randf()*0.3)
-		leaf.position = Vector2(randf_range(-20, 20), 0)
-		shrub.add_child(leaf)
+	var shrub := Node2D.new()
+	shrub.position = pos
+	_world.add_child(shrub)
+	shrub.z_index = -5
+
+	# Ground shadow
+	var ss := Polygon2D.new()
+	var ss_pts: Array = []
+	for ssi in 10:
+		var ssa := ssi * TAU / 10.0
+		ss_pts.append(Vector2(cos(ssa) * 28.0, sin(ssa) * 9.0 + 6))
+	ss.polygon = PackedVector2Array(ss_pts)
+	ss.color   = Color(0.0, 0.0, 0.0, 0.20)
+	shrub.add_child(ss)
+
+	# Multi-blob shrub crown: 3 rounded polygon blobs
+	var blob_data: Array = [
+		[Vector2(-14.0,  -8.0), 20.0, 12.0, Color(0.05, 0.25, 0.03)],
+		[Vector2( 12.0, -10.0), 22.0, 14.0, Color(0.06, 0.28, 0.04)],
+		[Vector2(  2.0, -22.0), 24.0, 15.0, Color(0.07, 0.32, 0.04)],
+	]
+	for bd: Array in blob_data:
+		var bcenter: Vector2 = bd[0]
+		var brx: float       = bd[1]
+		var bry: float       = bd[2]
+		var bcol: Color      = bd[3]
+
+		# Shadow behind
+		var bshadow := Polygon2D.new()
+		var bsh_pts: Array = []
+		for bsi in 14:
+			var bsa := bsi * TAU / 14.0
+			bsh_pts.append(Vector2(bcenter.x + cos(bsa) * brx + 5, bcenter.y + sin(bsa) * bry + 5))
+		bshadow.polygon = PackedVector2Array(bsh_pts)
+		bshadow.color   = Color(0.0, 0.0, 0.0, 0.20)
+		shrub.add_child(bshadow)
+
+		var blob := Polygon2D.new()
+		var b_pts: Array = []
+		for bpi3 in 14:
+			var ba3 := bpi3 * TAU / 14.0
+			var jitter := randf_range(0.87, 1.13)
+			b_pts.append(Vector2(bcenter.x + cos(ba3) * brx * jitter, bcenter.y + sin(ba3) * bry * jitter))
+		blob.polygon = PackedVector2Array(b_pts)
+		blob.color   = bcol.lightened(randf() * 0.22)
+		shrub.add_child(blob)
+
+	# Top specular dapple
+	var dapple := Polygon2D.new()
+	var d_pts: Array = []
+	for di2 in 10:
+		var da := di2 * TAU / 10.0
+		d_pts.append(Vector2(cos(da) * 10.0, sin(da) * 6.0 - 22.0))
+	dapple.polygon = PackedVector2Array(d_pts)
+	dapple.color   = Color(0.45, 0.80, 0.18, 0.25)
+	shrub.add_child(dapple)
 
 func _create_hanging_vine_detailed(x: float) -> void:
 	var v_len = randf_range(300, 500)
@@ -525,24 +966,149 @@ func _create_hanging_vine_detailed(x: float) -> void:
 		_world.add_child(leaf); leaf.z_index = -5 # Less intrusive vines
 
 
-func _create_ground_segment(x1, x2, y) -> void:
+func _create_ground_segment(x1: float, x2: float, y: float) -> void:
 	if x2 <= x1: return
-	var w = x2 - x1
-	var body = StaticBody2D.new()
-	var col = CollisionShape2D.new(); var shape = RectangleShape2D.new(); shape.size = Vector2(w, 400); col.shape = shape
-	body.add_child(col); body.position = Vector2(x1 + w/2, y + 200); _world.add_child(body)
-	
-	var dirt = ColorRect.new(); dirt.size = Vector2(w, 400); dirt.position = Vector2(-w/2, -200); dirt.color = Color(0.25, 0.12, 0.05)
-	body.add_child(dirt)
-	var grass = ColorRect.new(); grass.size = Vector2(w, 10); grass.position = Vector2(-w/2, -200); grass.color = Color(0.3, 0.15, 0.05)
-	body.add_child(grass)
+	var w: float = x2 - x1
+
+	# Physics body
+	var body := StaticBody2D.new()
+	var col  := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(w, 400)
+	col.shape  = shape
+	body.add_child(col)
+	body.position = Vector2(x1 + w / 2.0, y + 200)
+	_world.add_child(body)
+
+	# ── 1. Deep bedrock fill ──────────────────────────────────────────────────
+	var bedrock := ColorRect.new()
+	bedrock.size     = Vector2(w, 400)
+	bedrock.position = Vector2(-w / 2.0, -200)
+	bedrock.color    = Color(0.14, 0.07, 0.03)   # near-black clay
+	body.add_child(bedrock)
+
+	# ── 2. Vietnam laterite mid-layer (reddish-orange leached soil) ───────────
+	var laterite := ColorRect.new()
+	laterite.size     = Vector2(w, 90)
+	laterite.position = Vector2(-w / 2.0, -200)
+	laterite.color    = Color(0.42, 0.22, 0.09)   # classic laterite red-orange
+	body.add_child(laterite)
+
+	# Subtle streak noise in laterite
+	var rng_g := RandomNumberGenerator.new()
+	rng_g.seed = int(x1 * 3 + y * 7)
+	for si in int(w / 60.0):
+		var streak := ColorRect.new()
+		streak.size     = Vector2(rng_g.randf_range(30.0, 80.0), rng_g.randf_range(4.0, 12.0))
+		streak.position = Vector2(-w / 2.0 + float(si) * 60.0 + rng_g.randf_range(0, 40), -200 + rng_g.randf_range(10.0, 70.0))
+		streak.color    = Color(0.50, 0.28, 0.11, 0.35)
+		body.add_child(streak)
+
+	# ── 3. Dark humus top-soil ────────────────────────────────────────────────
+	var humus := ColorRect.new()
+	humus.size     = Vector2(w, 22)
+	humus.position = Vector2(-w / 2.0, -200)
+	humus.color    = Color(0.20, 0.12, 0.05)   # dark moist organic layer
+	body.add_child(humus)
+
+	# Exposed roots/debris in humus
+	for ri2 in int(w / 120.0):
+		var rot_dec := Polygon2D.new()
+		var rx2: float = -w / 2.0 + float(ri2) * 120.0 + rng_g.randf_range(10, 90)
+		rot_dec.polygon = PackedVector2Array([
+			Vector2(rx2,      -200),
+			Vector2(rx2 + rng_g.randf_range(18, 45), -200 - rng_g.randf_range(4, 10)),
+			Vector2(rx2 + rng_g.randf_range(14, 40), -200),
+		])
+		rot_dec.color = Color(0.28, 0.14, 0.06, 0.60)
+		body.add_child(rot_dec)
+
+	# ── 4. Contact shadow below grass line ────────────────────────────────────
+	var con_shadow := ColorRect.new()
+	con_shadow.size     = Vector2(w, 6)
+	con_shadow.position = Vector2(-w / 2.0, -222)
+	con_shadow.color    = Color(0.0, 0.0, 0.0, 0.32)
+	body.add_child(con_shadow)
+
+	# ── 5. Grass base band (dark rich green) ──────────────────────────────────
+	var grass_base := ColorRect.new()
+	grass_base.size     = Vector2(w, 16)
+	grass_base.position = Vector2(-w / 2.0, -216)
+	grass_base.color    = Color(0.18, 0.40, 0.07)
+	body.add_child(grass_base)
+
+	# ── 6. Mid-grass brightness band ──────────────────────────────────────────
+	var grass_mid := ColorRect.new()
+	grass_mid.size     = Vector2(w, 8)
+	grass_mid.position = Vector2(-w / 2.0, -224)
+	grass_mid.color    = Color(0.25, 0.52, 0.09)
+	body.add_child(grass_mid)
+
+	# ── 7. Grass blades row ────────────────────────────────────────────────────
+	var blades_nd := Node2D.new()
+	blades_nd.position = Vector2(-w / 2.0, -224)
+	body.add_child(blades_nd)
+	var n_bl := int(w / 9.0)
+	for bii in n_bl:
+		var bx2 := float(bii) * 9.0 + rng_g.randf_range(-3.0, 3.0)
+		var bh2 := rng_g.randf_range(8.0, 22.0)
+		var lean := rng_g.randf_range(-0.18, 0.18)  # natural sway
+		var blade := Polygon2D.new()
+		blade.polygon = PackedVector2Array([
+			Vector2(bx2 - 2.5,          0.0),
+			Vector2(bx2 + lean * bh2,  -bh2),
+			Vector2(bx2 + 2.5,          0.0),
+		])
+		# Slight yellowing on some blades for realism
+		var yellow := rng_g.randf_range(0.0, 0.12)
+		blade.color = Color(0.22 + yellow, 0.52, 0.08).lightened(rng_g.randf() * 0.15)
+		blades_nd.add_child(blade)
+
+	# ── 8. Sunlit edge highlight at very top ──────────────────────────────────
+	var edge_hl := ColorRect.new()
+	edge_hl.size     = Vector2(w, 2)
+	edge_hl.position = Vector2(-w / 2.0, -232)
+	edge_hl.color    = Color(0.60, 0.88, 0.25, 0.45)
+	body.add_child(edge_hl)
+
+	# ── 9. Pebble/rock scatter ────────────────────────────────────────────────
+	var n_pebbles := int(w / 75.0)
+	for pb in n_pebbles:
+		var peb := Polygon2D.new()
+		var px: float = -w / 2.0 + float(pb) * 75.0 + rng_g.randf_range(0, 55)
+		var pr  := rng_g.randf_range(3.0, 7.0)
+		var ppts: Array = []
+		for pk in 8:
+			var pa := pk * TAU / 8.0
+			var pr_jit := pr * rng_g.randf_range(0.75, 1.25)
+			ppts.append(Vector2(px + cos(pa) * pr_jit, -200 + sin(pa) * pr_jit * 0.55))
+		peb.polygon = PackedVector2Array(ppts)
+		peb.color   = Color(0.48, 0.30, 0.18, 0.75)
+		body.add_child(peb)
+
+	# ── 10. Moss patches on some rocks ───────────────────────────────────────
+	if n_pebbles > 2:
+		for mi2 in int(n_pebbles / 3):
+			var moss := Polygon2D.new()
+			var mpx: float = -w / 2.0 + float(mi2) * 220.0 + rng_g.randf_range(0, 140)
+			var mr           := rng_g.randf_range(5.0, 9.0)
+			var m_pts: Array = []
+			for mpi in 8:
+				var ma := mpi * TAU / 8.0
+				m_pts.append(Vector2(mpx + cos(ma) * mr * 1.6, -200 + sin(ma) * mr * 0.6))
+			moss.polygon = PackedVector2Array(m_pts)
+			moss.color   = Color(0.18, 0.38, 0.08, 0.55)
+			body.add_child(moss)
 
 	# Foreground Pillars
 	for i in 12:
-		var px = i * 650; var p = ColorRect.new()
-		p.size = Vector2(40, 800); p.position = Vector2(px, -100); p.color = Color(0.05, 0.02, 0.01, 0.85); p.z_index = 10
+		var px: float = i * 650
+		var p  := ColorRect.new()
+		p.size     = Vector2(40, 800)
+		p.position = Vector2(px, -100)
+		p.color    = Color(0.05, 0.02, 0.01, 0.85)
+		p.z_index  = 10
 		_world.add_child(p)
-	# Decorations are handled by stage scripts now
 
 
 func _create_burning_wreckage(pos: Vector2) -> void:
@@ -668,22 +1234,149 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 		ground.add_child(coll)
 		_world.add_child(ground)
 		
-		var soil = Polygon2D.new()
+		# ── Base soil fill (full polygon shape) ───────────────────────────────
+		var soil := Polygon2D.new()
 		soil.polygon = poly_pts
-		soil.color = soil_color
+		soil.color   = soil_color
 		ground.add_child(soil)
-		
-		var grass_pts = PackedVector2Array()
-		var th = 18.0
-		for i in range(surface_pts.size()):
-			grass_pts.append(surface_pts[i])
-		for i in range(surface_pts.size()-1, -1, -1):
+
+		# ── Mid soil brightening layer ─────────────────────────────────────────
+		var top_pts := PackedVector2Array()
+		var deep_off := 60.0
+		for p in surface_pts: top_pts.append(p)
+		for i in range(surface_pts.size() - 1, -1, -1):
+			top_pts.append(surface_pts[i] + Vector2(0, deep_off))
+		var mid_soil := Polygon2D.new()
+		mid_soil.polygon = top_pts
+		# Laterite reddish-orange brightening on the surface
+		mid_soil.color   = Color(soil_color.r * 1.35 + 0.06, soil_color.g * 1.20, soil_color.b * 1.10)
+		ground.add_child(mid_soil)
+
+		# Humus darkening right below surface (organic top layer)
+		var humus_pts := PackedVector2Array()
+		for p in surface_pts: humus_pts.append(p)
+		for i in range(surface_pts.size() - 1, -1, -1):
+			humus_pts.append(surface_pts[i] + Vector2(0, 14.0))
+		var humus_lay := Polygon2D.new()
+		humus_lay.polygon = humus_pts
+		humus_lay.color   = Color(soil_color.r * 0.85, soil_color.g * 0.80, soil_color.b * 0.75)
+		ground.add_child(humus_lay)
+
+		# ── Shadow strip directly under the surface ────────────────────────────
+		var shadow_strip_pts := PackedVector2Array()
+		var sth := 5.0
+		for p in surface_pts: shadow_strip_pts.append(p)
+		for i in range(surface_pts.size() - 1, -1, -1):
+			shadow_strip_pts.append(surface_pts[i] + Vector2(0, sth))
+		var shadow_strip := Polygon2D.new()
+		shadow_strip.polygon = shadow_strip_pts
+		shadow_strip.color   = Color(0.0, 0.0, 0.0, 0.32)
+		ground.add_child(shadow_strip)
+
+		# ── Grass band ─────────────────────────────────────────────────────────
+		var grass_pts := PackedVector2Array()
+		var th := 15.0
+		for p in surface_pts: grass_pts.append(p)
+		for i in range(surface_pts.size() - 1, -1, -1):
 			grass_pts.append(surface_pts[i] + Vector2(0, th))
-			
-		var grass = Polygon2D.new()
+		var grass := Polygon2D.new()
 		grass.polygon = grass_pts
-		grass.color = grass_color
+		grass.color   = grass_color
 		ground.add_child(grass)
+
+		# Upper highlight edge
+		var hi_pts := PackedVector2Array()
+		for p in surface_pts: hi_pts.append(p)
+		for i in range(surface_pts.size() - 1, -1, -1):
+			hi_pts.append(surface_pts[i] + Vector2(0, 3.0))
+		var grass_hi := Polygon2D.new()
+		grass_hi.polygon = hi_pts
+		grass_hi.color   = Color(
+			min(grass_color.r * 1.50, 1.0),
+			min(grass_color.g * 1.32, 1.0),
+			min(grass_color.b * 1.10, 1.0),
+			0.65
+		)
+		ground.add_child(grass_hi)
+
+		# ── Grass blades along surface ─────────────────────────────────────────
+		var blades_node := Node2D.new()
+		blades_node.z_index = -24
+		_world.add_child(blades_node)
+		var seg_count := surface_pts.size()
+		for bi in range(seg_count - 1):
+			var bp1: Vector2 = surface_pts[bi]
+			var bp2: Vector2 = surface_pts[bi + 1]
+			var seg_len: float = bp2.x - bp1.x
+			var n_blades := int(seg_len / 10.0)
+			for bj in n_blades:
+				var t   := float(bj) / float(max(n_blades, 1))
+				var bx  := bp1.x + t * seg_len + randf_range(-3.0, 3.0)
+				var by: float = lerp(bp1.y, bp2.y, t) - 1.0
+				var bh  := randf_range(10.0, 26.0)
+				var lean := randf_range(-0.22, 0.22)   # natural blade lean
+				var blade := Polygon2D.new()
+				blade.polygon = PackedVector2Array([
+					Vector2(bx - 2.5,              by),
+					Vector2(bx + lean * bh,         by - bh),
+					Vector2(bx + 2.5,              by),
+				])
+				# Mix in yellowed blades, dark green bases, bright tips
+				var yellow_mix := randf_range(0.0, 0.10)
+				blade.color = Color(
+					grass_color.r * 0.85 + yellow_mix * 1.6,
+					grass_color.g * 0.95 + 0.06,
+					grass_color.b * 0.80
+				).lightened(randf_range(-0.05, 0.22))
+				blades_node.add_child(blade)
+
+			# Small wildflowers every ~200px
+			if randf() < 0.04:
+				var t   := randf()
+				var fbx := bp1.x + t * seg_len
+				var fby: float = lerp(bp1.y, bp2.y, t) - 18.0
+				var flower := Polygon2D.new()
+				var f_pts2: Array = []
+				for fpi2 in 6:
+					var fa2 := fpi2 * TAU / 6.0
+					f_pts2.append(Vector2(fbx + cos(fa2) * 5.0, fby + sin(fa2) * 5.0))
+				flower.polygon = PackedVector2Array(f_pts2)
+				flower.color   = [Color(0.9, 0.9, 0.3, 0.85), Color(1.0, 0.5, 0.2, 0.85), Color(0.9, 0.9, 0.95, 0.85)][randi() % 3]
+				flower.z_index = -23
+				_world.add_child(flower)
+
+		# ── Pebble scatter along surface ───────────────────────────────────────
+		for pi in range(surface_pts.size() - 1):
+			var pp1: Vector2 = surface_pts[pi]
+			var pp2: Vector2 = surface_pts[pi + 1]
+			var peb_count := int((pp2.x - pp1.x) / 80.0)
+			for pj in peb_count:
+				if randf() > 0.40: continue
+				var t   := randf()
+				var px: float = lerp(pp1.x, pp2.x, t)
+				var py: float = lerp(pp1.y, pp2.y, t) + randf_range(3.0, 12.0)
+				var pr  := randf_range(2.5, 6.5)
+				var peb := Polygon2D.new()
+				var ppts: Array = []
+				for pk in 8:
+					var pa := pk * TAU / 8.0
+					var pjit := randf_range(0.78, 1.22)
+					ppts.append(Vector2(px + cos(pa) * pr * pjit, py + sin(pa) * pr * 0.50 * pjit))
+				peb.polygon = PackedVector2Array(ppts)
+				peb.color   = Color(soil_color.r * 1.6 + 0.05, soil_color.g * 1.3, soil_color.b * 1.1, 0.68)
+				peb.z_index = -24
+				_world.add_child(peb)
+				# Moss cap on some pebbles
+				if randf() < 0.35:
+					var moss2 := Polygon2D.new()
+					var m_pts2: Array = []
+					for mpi2 in 8:
+						var ma2 := mpi2 * TAU / 8.0
+						m_pts2.append(Vector2(px + cos(ma2) * pr * 1.3, py - pr * 0.3 + sin(ma2) * pr * 0.4))
+					moss2.polygon = PackedVector2Array(m_pts2)
+					moss2.color   = Color(0.16, 0.36, 0.07, 0.50)
+					moss2.z_index = -23
+					_world.add_child(moss2)
 		
 		for p in surface_pts:
 			if p.x <= total_len: _stage_terrain.append(p)
@@ -698,19 +1391,61 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 				var vx = lerp(p1.x, p2.x, t)
 				var vy = lerp(p1.y, p2.y, t)
 				
-				if randf() < 0.4: _create_jungle_fern(Vector2(vx, vy))
-				elif randf() < 0.4: _create_dense_shrub(Vector2(vx, vy))
-				
-				if randf() < 0.2: _create_palm_tree(Vector2(vx, vy))
-				if randf() < 0.15: _create_giant_ancient_tree(Vector2(vx, vy))
-				if randf() < 0.25: _create_rock(Vector2(vx, vy))
-				
+				if randf() < 0.38:
+					_create_jungle_fern(Vector2(vx, vy))
+				elif randf() < 0.32:
+					_create_dense_shrub(Vector2(vx, vy))
+
+				if randf() < 0.18: _create_palm_tree(Vector2(vx, vy))
+				if randf() < 0.12: _create_giant_ancient_tree(Vector2(vx, vy))
+				if randf() < 0.18: _create_rock(Vector2(vx, vy))
+				if randf() < 0.10: _create_rocky_outcrop(Vector2(vx, vy))
+
 				if randf() < 0.15:
-					for b in 3:
-						var bamboo = ColorRect.new()
-						bamboo.size = Vector2(4, randf_range(100, 200))
-						bamboo.position = Vector2(vx + b*8, vy - bamboo.size.y)
-						bamboo.color = Color(0.1, 0.35, 0.05); _world.add_child(bamboo)
+					# Realistic segmented bamboo cluster
+					var rng_bam := RandomNumberGenerator.new()
+					rng_bam.seed = int(vx * 7.0 + vy * 13.0)
+					var n_stalks := rng_bam.randi_range(2, 4)
+					var bam_root := Node2D.new()
+					bam_root.position = Vector2(vx, vy)
+					bam_root.z_index  = -19
+					_world.add_child(bam_root)
+					for bsi in n_stalks:
+						var bx := rng_bam.randf_range(-12.0, 12.0)
+						var btotal := rng_bam.randf_range(90.0, 200.0)
+						var n_seg := int(btotal / 22.0) + 1
+						var bw := rng_bam.randf_range(3.5, 6.0)
+						var blean := rng_bam.randf_range(-0.12, 0.12)
+						for bseg in n_seg:
+							var seg_y0: float = float(bseg) * 22.0
+							var seg_y1: float = min(seg_y0 + 22.0, btotal)
+							var seg_col: Color = Color(0.10, 0.38, 0.05) if bseg % 2 == 0 else Color(0.14, 0.42, 0.06)
+							var bpts := Polygon2D.new()
+							var sx := blean * seg_y0
+							bpts.polygon = PackedVector2Array([
+								Vector2(bx + sx - bw * 0.5, -(btotal - seg_y0)),
+								Vector2(bx + sx + bw * 0.5, -(btotal - seg_y0)),
+								Vector2(bx + blean * seg_y1 + bw * 0.45, -(btotal - seg_y1)),
+								Vector2(bx + blean * seg_y1 - bw * 0.45, -(btotal - seg_y1)),
+							])
+							bpts.color = seg_col
+							bam_root.add_child(bpts)
+							# Node ring
+							var bnode := ColorRect.new()
+							bnode.size     = Vector2(bw * 1.4, 2.5)
+							bnode.position = Vector2(bx + sx - bw * 0.7, -(btotal - seg_y0) - 1.0)
+							bnode.color    = Color(0.06, 0.28, 0.03)
+							bam_root.add_child(bnode)
+						# Top leaf frond
+						var lf_pts := Polygon2D.new()
+						var ltx := bx + blean * btotal
+						lf_pts.polygon = PackedVector2Array([
+							Vector2(ltx, -btotal),
+							Vector2(ltx + rng_bam.randf_range(-18.0, -8.0), -btotal - rng_bam.randf_range(12.0, 22.0)),
+							Vector2(ltx + rng_bam.randf_range( 8.0, 18.0), -btotal - rng_bam.randf_range(12.0, 22.0)),
+						])
+						lf_pts.color = Color(0.12, 0.44, 0.04)
+						bam_root.add_child(lf_pts)
 				
 				if randf() < 0.05:
 					var wreck = ColorRect.new()
@@ -877,33 +1612,157 @@ func _create_floor_detailed(start_x, end_x, y, grass_color = Color(0.08, 0.22, 0
 	
 	for i in range(600):
 		var leaf = Polygon2D.new()
-		var lx = randf_range(start_x, end_x)
+		var lx: float = randf_range(float(start_x), float(end_x))
 		leaf.polygon = PackedVector2Array([Vector2(-3, 0), Vector2(0, -12), Vector2(3, 0)])
 		leaf.color = grass_color.lightened(0.2)
 		leaf.position = Vector2(lx, 0)
 		floor_node.add_child(leaf)
 
 func _create_palm_tree(pos: Vector2) -> void:
-	var tree = Node2D.new(); tree.position = pos; _world.add_child(tree)
-	tree.z_index = -20 # Keep behind all characters and allied units
-	# Thicker, textured trunk
-	var trunk = Polygon2D.new()
-	trunk.polygon = PackedVector2Array([Vector2(-5,0), Vector2(5,0), Vector2(3, -120), Vector2(-3, -120)])
-	trunk.color = Color(0.28, 0.18, 0.08)
+	var rng_p := RandomNumberGenerator.new()
+	rng_p.seed = int(pos.x * 11.0 + pos.y * 5.0)
+
+	var tree := Node2D.new()
+	tree.position = pos
+	tree.z_index  = -20
+	tree.scale    = Vector2.ONE * rng_p.randf_range(0.80, 1.25)
+	tree.rotation = rng_p.randf_range(-0.06, 0.06)
+	_world.add_child(tree)
+
+	var trunk_h := rng_p.randf_range(100.0, 145.0)
+	var lean_x  := rng_p.randf_range(-18.0, 18.0)
+
+	# Ground shadow
+	var ao := Polygon2D.new()
+	var ao_pts: Array = []
+	for ai in 10:
+		var aa: float = float(ai) * TAU / 10.0
+		ao_pts.append(Vector2(cos(aa) * 14.0, sin(aa) * 5.0 + 3))
+	ao.polygon = PackedVector2Array(ao_pts)
+	ao.color   = Color(0.0, 0.0, 0.0, 0.28)
+	tree.add_child(ao)
+
+	# Trunk: tapered curved polygon using 6 spine points
+	var spine: Array = []
+	for si in 6:
+		var st := float(si) / 5.0
+		spine.append(Vector2(lean_x * st * st, -trunk_h * st))
+
+	var tw_base := 7.0
+	var tw_top  := 3.5
+	var left_pts:  Array = []
+	var right_pts: Array = []
+	for si2 in spine.size():
+		var sp: Vector2 = spine[si2]
+		var tw2: float = lerp(tw_base, tw_top, float(si2) / float(spine.size() - 1))
+		left_pts.append(sp + Vector2(-tw2, 0.0))
+		right_pts.append(sp + Vector2(tw2, 0.0))
+	right_pts.reverse()
+	var trunk_arr: Array = left_pts + right_pts
+	var trunk := Polygon2D.new()
+	trunk.polygon = PackedVector2Array(trunk_arr)
+	trunk.color   = Color(0.30, 0.19, 0.09)
 	tree.add_child(trunk)
-	
-	# Foreground Leaves (Multiple layers)
-	for i in 12:
-		var frond = Polygon2D.new(); var a = i * PI / 6.0
-		var flen = randf_range(40, 70)
-		frond.polygon = PackedVector2Array([Vector2(0,0), Vector2(flen, -15), Vector2(flen-10, 15)])
-		frond.color = Color(0.08, 0.35, 0.05, 0.9)
-		frond.rotation = a; frond.position = Vector2(0, -120)
-		tree.add_child(frond)
-	
-	# Small details/Shadows on trunk
-	var shad = ColorRect.new(); shad.size = Vector2(2, 100); shad.position = Vector2(1, -100); shad.color = Color(0,0,0,0.2)
-	tree.add_child(shad)
+
+	# Trunk highlight left
+	var thl := Polygon2D.new()
+	var thl_l: Array = []
+	var thl_r: Array = []
+	for si3 in spine.size():
+		var sp3: Vector2 = spine[si3]
+		var tw3: float = lerp(tw_base, tw_top, float(si3) / float(spine.size() - 1))
+		thl_l.append(sp3 + Vector2(-tw3, 0.0))
+		thl_r.append(sp3 + Vector2(-tw3 * 0.3, 0.0))
+	thl_r.reverse()
+	thl.polygon = PackedVector2Array(thl_l + thl_r)
+	thl.color   = Color(0.52, 0.33, 0.15, 0.38)
+	tree.add_child(thl)
+
+	# Trunk shadow right
+	var tsh := Polygon2D.new()
+	var tsh_l: Array = []
+	var tsh_r: Array = []
+	for si4 in spine.size():
+		var sp4: Vector2 = spine[si4]
+		var tw4: float = lerp(tw_base, tw_top, float(si4) / float(spine.size() - 1))
+		tsh_l.append(sp4 + Vector2(tw4 * 0.3, 0.0))
+		tsh_r.append(sp4 + Vector2(tw4, 0.0))
+	tsh_r.reverse()
+	tsh.polygon = PackedVector2Array(tsh_l + tsh_r)
+	tsh.color   = Color(0.0, 0.0, 0.0, 0.25)
+	tree.add_child(tsh)
+
+	# Ring scars on trunk (characteristic of real palms)
+	var n_rings := int(trunk_h / 22.0)
+	for ri in n_rings:
+		var rt := float(ri) / float(n_rings)
+		var sp_r: Vector2 = spine[int(rt * (spine.size() - 1))]
+		var ring := ColorRect.new()
+		ring.size     = Vector2(tw_base * 2.2, 2)
+		ring.position = Vector2(sp_r.x - tw_base * 1.1, sp_r.y - 1)
+		ring.color    = Color(0.15, 0.09, 0.04, 0.45)
+		tree.add_child(ring)
+
+	# Crown position
+	var crown_pos: Vector2 = spine[spine.size() - 1]
+
+	# Crown shadow blob
+	var crown_sh := Polygon2D.new()
+	var csh: Array = []
+	for ci in 14:
+		var ca: float = float(ci) * TAU / 14.0
+		csh.append(crown_pos + Vector2(cos(ca) * 32.0 + 8, sin(ca) * 14.0 + 10))
+	crown_sh.polygon = PackedVector2Array(csh)
+	crown_sh.color   = Color(0.0, 0.0, 0.0, 0.20)
+	tree.add_child(crown_sh)
+
+	# Fronds: curved rachis + paired pinnae leaflets
+	var n_fronds := rng_p.randi_range(8, 11)
+	for fi in n_fronds:
+		var fa := float(fi) / float(n_fronds) * TAU + rng_p.randf_range(-0.15, 0.15)
+		var flen2 := rng_p.randf_range(52.0, 78.0)
+		var droop := rng_p.randf_range(0.25, 0.55)
+		var f_tip := Vector2(cos(fa) * flen2 * 0.9, sin(fa) * flen2 * 0.9 + flen2 * droop)
+		var f_mid := (crown_pos * 2.0 + f_tip) / 3.0 + Vector2(0, flen2 * droop * 0.4)
+		# Rachis midrib
+		var rachis := Polygon2D.new()
+		rachis.position = crown_pos
+		rachis.polygon  = PackedVector2Array([
+			Vector2(-1.5, 0), f_mid - crown_pos + Vector2(-1, 0),
+			f_tip - crown_pos + Vector2(1, 0), f_tip - crown_pos + Vector2(-1, 0),
+			f_mid - crown_pos + Vector2(1, 0), Vector2(1.5, 0),
+		])
+		rachis.color = Color(0.10, 0.30, 0.05)
+		tree.add_child(rachis)
+		# Pinnae
+		var n_pinnae := int(flen2 / 9.0)
+		for pi2 in n_pinnae:
+			var pt := float(pi2 + 1) / float(n_pinnae + 1)
+			var pb: Vector2 = crown_pos.lerp(f_tip, pt) + Vector2(0, flen2 * droop * pt * pt)
+			var plen := flen2 * 0.22 * (1.0 - pt * 0.5)
+			for pside in [-1, 1]:
+				var pina := Polygon2D.new()
+				var pa2: float = fa + float(pside) * PI * 0.46
+				pina.polygon = PackedVector2Array([
+					pb,
+					pb + Vector2(cos(pa2) * plen, sin(pa2) * plen),
+					pb + Vector2(cos(pa2 + 0.4) * plen * 0.55, sin(pa2 + 0.4) * plen * 0.55),
+				])
+				pina.color = Color(0.07, 0.30 + rng_p.randf() * 0.12, 0.04).lightened(rng_p.randf() * 0.18)
+				tree.add_child(pina)
+
+	# Coconut cluster
+	var n_nuts := rng_p.randi_range(2, 4)
+	for ni in n_nuts:
+		var na := float(ni) / float(n_nuts) * TAU
+		var nut := Polygon2D.new()
+		var nut_pts: Array = []
+		for npi in 10:
+			var npa: float = float(npi) * TAU / 10.0
+			nut_pts.append(crown_pos + Vector2(cos(na) * 8.0 + cos(npa) * 5.5, sin(na) * 5.0 + sin(npa) * 5.5))
+		nut.polygon = PackedVector2Array(nut_pts)
+		nut.color   = Color(0.28, 0.52, 0.08)
+		tree.add_child(nut)
 
 func _create_jungle_shrub(pos: Vector2) -> void:
 	var shrub = Polygon2D.new(); shrub.position = pos; _world.add_child(shrub)
@@ -927,15 +1786,191 @@ func _create_cloud_premium(pos: Vector2) -> void:
 		puffy.position = Vector2(i * 40 - 60, randf() * 10)
 		cloud.add_child(puffy)
 
+func _create_rocky_outcrop(pos: Vector2) -> void:
+	# A cluster of 2–4 rocks forming a small boulder step / ledge
+	var rng_ro := RandomNumberGenerator.new()
+	rng_ro.seed = int(pos.x * 17.0 + pos.y * 3.0)
+
+	var rock_root := Node2D.new()
+	rock_root.position = pos
+	rock_root.z_index  = -18
+	_world.add_child(rock_root)
+
+	# Wide ground AO shadow for the whole cluster
+	var cs := Polygon2D.new()
+	var cs_pts: Array = []
+	for csi in 12:
+		var csa := csi * TAU / 12.0
+		cs_pts.append(Vector2(cos(csa) * rng_ro.randf_range(30.0, 48.0), sin(csa) * rng_ro.randf_range(10.0, 15.0) + 9))
+	cs.polygon = PackedVector2Array(cs_pts)
+	cs.color   = Color(0.0, 0.0, 0.0, 0.30)
+	rock_root.add_child(cs)
+
+	var n_rocks := rng_ro.randi_range(2, 4)
+	var base_gray := rng_ro.randf_range(0.28, 0.40)
+	var offsets: Array = [
+		Vector2(0.0, 0.0),
+		Vector2(-rng_ro.randf_range(20.0, 35.0),  rng_ro.randf_range(6.0, 12.0)),
+		Vector2( rng_ro.randf_range(18.0, 32.0),  rng_ro.randf_range(5.0, 11.0)),
+		Vector2( rng_ro.randf_range(-8.0,  8.0),  rng_ro.randf_range(10.0, 18.0)),
+	]
+	var ro_scales: Array = [1.0, 0.72, 0.68, 0.55]
+
+	for ri3 in n_rocks:
+		var off: Vector2   = offsets[ri3]
+		var sc3: float     = ro_scales[ri3]
+		var rw3 := rng_ro.randf_range(14.0, 26.0) * sc3
+		var rh3 := rng_ro.randf_range(10.0, 18.0) * sc3
+		var rot3 := rng_ro.randf_range(-0.25, 0.25)
+		var n_rpts := rng_ro.randi_range(7, 10)
+
+		# Main rock fill
+		var rpts: Array = []
+		for rpi2 in n_rpts:
+			var rpa := rpi2 * TAU / float(n_rpts)
+			var rjit := rng_ro.randf_range(0.78, 1.22)
+			rpts.append(off + Vector2(cos(rpa) * rw3 * rjit, sin(rpa) * rh3 * rjit).rotated(rot3))
+		var rm := Polygon2D.new()
+		rm.polygon = PackedVector2Array(rpts)
+		rm.color   = Color(base_gray, base_gray * 0.94, base_gray * 1.06)
+		rock_root.add_child(rm)
+
+		# Light face (upper-left arc)
+		var hl3: Array = []
+		for rpi3 in n_rpts:
+			var rpa3 := rpi3 * TAU / float(n_rpts)
+			if rpa3 > PI * 1.05 or rpa3 < PI * 0.08:
+				hl3.append(off + Vector2(cos(rpa3) * rw3 * 0.92, sin(rpa3) * rh3 * 0.92).rotated(rot3))
+		if hl3.size() >= 3:
+			var rhl := Polygon2D.new()
+			rhl.polygon = PackedVector2Array(hl3)
+			rhl.color   = Color(1.0, 1.0, 1.0, 0.18)
+			rock_root.add_child(rhl)
+
+		# Shadow face (lower-right arc)
+		var sh3: Array = []
+		for rpi4 in n_rpts:
+			var rpa4 := rpi4 * TAU / float(n_rpts)
+			if rpa4 > 0.1 and rpa4 < PI * 1.1:
+				sh3.append(off + Vector2(cos(rpa4) * rw3 * 0.92, sin(rpa4) * rh3 * 0.92).rotated(rot3))
+				sh3.append(off + Vector2(cos(rpa4) * rw3,        sin(rpa4) * rh3       ).rotated(rot3))
+		if sh3.size() >= 3:
+			var rsh := Polygon2D.new()
+			rsh.polygon = PackedVector2Array(sh3)
+			rsh.color   = Color(0.0, 0.0, 0.0, 0.28)
+			rock_root.add_child(rsh)
+
+		# Crack
+		var crack3 := ColorRect.new()
+		crack3.size     = Vector2(2.0, rh3 * rng_ro.randf_range(0.5, 0.8))
+		crack3.position = off + Vector2(rng_ro.randf_range(-rw3 * 0.3, rw3 * 0.3), -rh3 * 0.75)
+		crack3.color    = Color(0.0, 0.0, 0.0, 0.28)
+		crack3.rotation = rng_ro.randf_range(-0.3, 0.3)
+		rock_root.add_child(crack3)
+
+		# Moss cap
+		if rng_ro.randf() < 0.60:
+			var m3pts: Array = []
+			for mpi3 in 8:
+				var mpa3 := mpi3 * TAU / 8.0
+				m3pts.append(off + Vector2(cos(mpa3) * rw3 * 0.58, sin(mpa3) * rh3 * 0.32 - rh3 * 0.62).rotated(rot3))
+			var rmoss3 := Polygon2D.new()
+			rmoss3.polygon = PackedVector2Array(m3pts)
+			rmoss3.color   = Color(0.14, 0.34, 0.07, 0.55)
+			rock_root.add_child(rmoss3)
+
+	# Grass tufts between rocks
+	for gi2 in rng_ro.randi_range(3, 6):
+		var gx2 := rng_ro.randf_range(-28.0, 28.0)
+		var gh2 := rng_ro.randf_range(6.0, 14.0)
+		var bl2 := Polygon2D.new()
+		bl2.polygon = PackedVector2Array([
+			Vector2(gx2 - 2, 0),
+			Vector2(gx2 + rng_ro.randf_range(-0.2, 0.2) * gh2, -gh2),
+			Vector2(gx2 + 2, 0),
+		])
+		bl2.color = Color(0.22, 0.45, 0.08, 0.90)
+		rock_root.add_child(bl2)
+
 func _create_rock(pos: Vector2) -> void:
-	var r = Polygon2D.new()
-	r.position = pos
-	_world.add_child(r)
-	r.polygon = PackedVector2Array([
-		Vector2(-10, 0), Vector2(-8, -8), Vector2(0, -12), 
-		Vector2(8, -6), Vector2(10, 0)
-	])
-	r.color = Color(0.4, 0.4, 0.45)
+	var rng_r := RandomNumberGenerator.new()
+	rng_r.seed = int(pos.x * 9.0 + pos.y * 19.0)
+
+	var r_root := Node2D.new()
+	r_root.position = pos
+	r_root.z_index  = -18
+	_world.add_child(r_root)
+
+	var rw := rng_r.randf_range(9.0, 18.0)
+	var rh := rng_r.randf_range(7.0, 13.0)
+	var rot_r := rng_r.randf_range(-0.35, 0.35)
+	var gray := rng_r.randf_range(0.30, 0.44)
+
+	# AO shadow
+	var rao := Polygon2D.new()
+	var rao_pts: Array = []
+	for rapi in 10:
+		var rapa := rapi * TAU / 10.0
+		rao_pts.append(Vector2(cos(rapa) * rw * 1.3, sin(rapa) * rh * 0.6 + 5))
+	rao.polygon = PackedVector2Array(rao_pts)
+	rao.color   = Color(0.0, 0.0, 0.0, 0.25)
+	r_root.add_child(rao)
+
+	# Main body
+	var n_rp := rng_r.randi_range(7, 9)
+	var rp: Array = []
+	for rpi5 in n_rp:
+		var rpa5 := rpi5 * TAU / float(n_rp)
+		var rj := rng_r.randf_range(0.80, 1.20)
+		rp.append(Vector2(cos(rpa5) * rw * rj, sin(rpa5) * rh * rj).rotated(rot_r))
+	var r_body := Polygon2D.new()
+	r_body.polygon = PackedVector2Array(rp)
+	r_body.color   = Color(gray, gray * 0.94, gray * 1.06)
+	r_root.add_child(r_body)
+
+	# Highlight upper-left
+	var rhl_pts2: Array = []
+	for rpi6 in n_rp:
+		var rpa6 := rpi6 * TAU / float(n_rp)
+		if rpa6 > PI * 1.05 or rpa6 < PI * 0.08:
+			rhl_pts2.append(Vector2(cos(rpa6) * rw * 0.92, sin(rpa6) * rh * 0.92).rotated(rot_r))
+	if rhl_pts2.size() >= 3:
+		var rhl2 := Polygon2D.new()
+		rhl2.polygon = PackedVector2Array(rhl_pts2)
+		rhl2.color   = Color(1.0, 1.0, 1.0, 0.20)
+		r_root.add_child(rhl2)
+
+	# Shadow lower-right
+	var rsh_pts2: Array = []
+	for rpi7 in n_rp:
+		var rpa7 := rpi7 * TAU / float(n_rp)
+		if rpa7 > 0.1 and rpa7 < PI:
+			rsh_pts2.append(Vector2(cos(rpa7) * rw * 0.88, sin(rpa7) * rh * 0.88).rotated(rot_r))
+			rsh_pts2.append(Vector2(cos(rpa7) * rw,        sin(rpa7) * rh       ).rotated(rot_r))
+	if rsh_pts2.size() >= 3:
+		var rsh2 := Polygon2D.new()
+		rsh2.polygon = PackedVector2Array(rsh_pts2)
+		rsh2.color   = Color(0.0, 0.0, 0.0, 0.22)
+		r_root.add_child(rsh2)
+
+	# Moss cap
+	if rng_r.randf() < 0.55:
+		var rmpts: Array = []
+		for rmi in 8:
+			var rma := rmi * TAU / 8.0
+			rmpts.append(Vector2(cos(rma) * rw * 0.55, sin(rma) * rh * 0.30 - rh * 0.65).rotated(rot_r))
+		var rmoss := Polygon2D.new()
+		rmoss.polygon = PackedVector2Array(rmpts)
+		rmoss.color   = Color(0.14, 0.34, 0.07, 0.52)
+		r_root.add_child(rmoss)
+
+	# Crack
+	var rcrack := ColorRect.new()
+	rcrack.size     = Vector2(1.5, rh * rng_r.randf_range(0.45, 0.75))
+	rcrack.position = Vector2(rng_r.randf_range(-rw * 0.25, rw * 0.25), -rh * 0.75)
+	rcrack.color    = Color(0.0, 0.0, 0.0, 0.28)
+	rcrack.rotation = rng_r.randf_range(-0.4, 0.4)
+	r_root.add_child(rcrack)
 
 func _create_flower(pos: Vector2) -> void:
 	var fl = Polygon2D.new()
