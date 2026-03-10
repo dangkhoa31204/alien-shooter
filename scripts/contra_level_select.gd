@@ -76,7 +76,7 @@ func _build_ui() -> void:
 	_make_background(vp)
 	_make_title_area(vp)
 	_make_cards(vp)
-	_make_controls_panel(vp)
+	# _make_controls_panel(vp) # Moved to Main Menu
 	_make_back_button(vp)
 
 # ── Background ───────────────────────────────────────────────────────────────

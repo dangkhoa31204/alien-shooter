@@ -39,6 +39,28 @@ var _bf_fires:     Array = []
 var _bf_roads:     Array = []
 var _bf_bomb_cd:   float = 3.0
 
+var _custom_bg_tex: Texture2D = null
+
+func set_custom_background(tex_path: String) -> void:
+	var path = tex_path
+	if path.begins_with("res://"):
+		path = ProjectSettings.globalize_path(path)
+	
+	if FileAccess.file_exists(path):
+		var img := Image.load_from_file(path)
+		if img:
+			_custom_bg_tex = ImageTexture.create_from_image(img)
+	
+	if not _custom_bg_tex:
+		_custom_bg_tex = load(tex_path) as Texture2D
+		
+	queue_redraw()
+
+func force_vietnam_mode() -> void:
+	_vietnam_mode = true
+	_gen_battlefield()
+	queue_redraw()
+
 func _ready() -> void:
 	_vp = get_viewport_rect().size
 	_load_theme()
@@ -59,7 +81,11 @@ func _load_theme() -> void:
 	_star_cols    = p.get("stars",    [])
 	_shooter_cols = p.get("shooters", [])
 	_planet_cfgs  = p.get("planets",  [])
-	_vietnam_mode = p.get("shape_mode", "") == "aerial_warfare"
+	
+	# Only set _vietnam_mode if it wasn't already forced
+	if not _vietnam_mode:
+		_vietnam_mode = p.get("shape_mode", "") == "aerial_warfare"
+	
 	# Đóng băng scroll trong các màn boss challenge
 	var lv: Dictionary = PlayerData.current_level
 	if lv.get("is_boss_challenge", false):
@@ -119,6 +145,15 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	if _custom_bg_tex:
+		# Draw the static image
+		draw_texture_rect(_custom_bg_tex, Rect2(0, 0, _vp.x, _vp.y), false)
+		# Only draw the battlefield tracers (shooters) on top
+		if _vietnam_mode:
+			for sh in _shooters:
+				_draw_shooter(sh as Array)
+		return
+
 	if _vietnam_mode:
 		_draw_battlefield()
 		if _hq_ground:
@@ -363,14 +398,15 @@ func _spawn_vietnam_tracer() -> void:
 	_shooters.append([sx, sy, cos(ang)*spd, sin(ang)*spd, ml, ml, Color(1.0, 0.92, 0.28)])
 
 func _draw_battlefield() -> void:
-	# 1. Nền đất rừng đủ xanh
-	draw_rect(Rect2(0.0, 0.0, _vp.x, _vp.y), Color(0.07, 0.13, 0.04))
-	# 2. Texture đất (patch tối/sáng)
-	for yi in range(0, int(_vp.y) + 60, 64):
-		for xi in range(0, int(_vp.x) + 64, 64):
-			var s := sin(float(xi)*0.027 + float(yi)*0.019 + _t*0.05) * 0.5 + 0.5
-			draw_rect(Rect2(float(xi), float(yi), 64.0, 64.0),
-				Color(0.05+s*0.04, 0.10+s*0.06, 0.03+s*0.03, 0.40))
+	# 1. Nền đất rừng đủ xanh (chỉ vẽ nếu không có texture nền)
+	if not _custom_bg_tex:
+		draw_rect(Rect2(0.0, 0.0, _vp.x, _vp.y), Color(0.07, 0.13, 0.04))
+		# 2. Texture đất (patch tối/sáng)
+		for yi in range(0, int(_vp.y) + 60, 64):
+			for xi in range(0, int(_vp.x) + 64, 64):
+				var s := sin(float(xi)*0.027 + float(yi)*0.019 + _t*0.05) * 0.5 + 0.5
+				draw_rect(Rect2(float(xi), float(yi), 64.0, 64.0),
+					Color(0.05+s*0.04, 0.10+s*0.06, 0.03+s*0.03, 0.40))
 	# 3. Đường mòn đất
 	for rd in _bf_roads:
 		var y1 := float(rd[1]); var y2 := float(rd[3])
