@@ -10,8 +10,8 @@ var SPEED: float = 240.0
 const JUMP_VELOCITY: float = -500.0
 const GRAVITY: float = 1400.0
 
-var hp: int = 3
-var max_hp: int = 3
+var hp: int = 5
+var max_hp: int = 5
 var is_dead: bool = false
 var ammo: int = 30
 var is_reloading: bool = false
@@ -21,6 +21,7 @@ const RELOAD_TIME: float = 2.5
 
 var is_god_mode: bool = false
 var is_infinite_ammo: bool = false
+var _dmg_accum: float = 0.0  # accumulates 0.75× damage for true 25% reduction
 
 # Movement & Aiming state
 var is_crouching: bool = false
@@ -636,7 +637,12 @@ func _melee_attack() -> void:
 
 func take_damage(amount: int) -> void:
 	if is_god_mode: return
-	hp -= amount
+	# Giảm 25% sát thương nhận vào (tích lũy phần thập phân)
+	_dmg_accum += amount * 0.75
+	var actual := int(_dmg_accum)
+	_dmg_accum -= actual
+	if actual <= 0: return
+	hp -= actual
 	_sync_hp()
 	var t = create_tween()
 	t.tween_property(sprite, "modulate", Color.RED, 0.1)
