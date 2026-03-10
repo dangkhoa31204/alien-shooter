@@ -49,6 +49,7 @@ func _on_sound_toggled() -> void:
 	PlayerData.save_data()
 	_refresh_sound_btn()
 	Audio.refresh_music()
+	Audio.refresh_menu_music()
 
 func _on_reset_pressed() -> void:
 	confirm_box.visible = true

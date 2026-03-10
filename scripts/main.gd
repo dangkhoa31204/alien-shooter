@@ -32,6 +32,7 @@ func _ready() -> void:
 	get_tree().paused = false
 	# Root chạy ALWAYS — chỉ để bắt phím ESC và hiển pause overlay
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	Audio.stop_menu_music()
 	# ── Đặt tất cả node game-world thành PAUSABLE ──────────────────────
 	# (Buộc phải gản tường minh vì root là ALWAYS nên con INHERIT sẽ thừa hưởng ALWAYS)
 	for child_name in ["Player", "WaveManager", "BulletContainer",

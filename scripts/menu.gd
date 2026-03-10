@@ -20,7 +20,7 @@ func _ready() -> void:
 	
 	_add_campaign_button()
 	_refresh_coins()
-	Audio.refresh_music()
+	Audio.play_menu_music()
 
 func _add_campaign_button() -> void:
 	var btn := Button.new()

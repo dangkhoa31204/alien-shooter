@@ -78,6 +78,7 @@ func _get_ground_y(x: float) -> float:
 	return 600.0
 
 func _ready() -> void:
+	Audio.stop_menu_music()
 	_world = Node2D.new(); _world.name = "World"; add_child(_world)
 	move_child(_world, 0)
 	
@@ -222,7 +223,7 @@ func _process(delta: float) -> void:
 			var army_cap = 20 if current_stage == 5 else 14
 			var current_army_count = tree.get_nodes_in_group("ally_army").size()
 			if current_army_count < army_cap:
-				var spawn_count = randi_range(2, 4)
+				var spawn_count = 2
 				for _si in spawn_count:
 					# Spawn just past the left edge of screen so they walk in immediately
 					var sx = camera.position.x - 576 - randf_range(10, 80)
@@ -230,7 +231,7 @@ func _process(delta: float) -> void:
 					var sy = 650.0 if use_tunnel else _get_ground_y(sx)
 					_add_individual_background_soldier(sx, sy, use_tunnel)
 			# Always reset timer
-			_army_spawn_timer = 1.5 if tree.get_nodes_in_group("ally_army").size() < 5 else 3.0
+			_army_spawn_timer = 3.0
 		
 		# Dynamic Enemy Spawning (To keep the action going)
 		_enemy_spawn_timer -= delta
@@ -301,7 +302,7 @@ func _process_bombs(delta: float) -> void:
 
 func _explode_bomb(pos: Vector2) -> void:
 	screen_shake(3.5, 0.25) # Reduced from 8.0, 0.4 for better visibility
-	Audio.play("explosion")
+	Audio.play("b40", 12.0) # Play b40 sound effect, +12dB for clarity
 	
 	# Create a visual crater (a dark pit in the ground)
 	_create_crater(pos)
@@ -1127,21 +1128,14 @@ func _process_background_army(delta: float) -> void:
 		var leg_h = 0.0
 		
 		# --- Boundary checks FIRST (before any skip) ---
-		# Too far behind the left edge: recycle or delete
+		# Too far behind the left edge: remove
 		if dist_to_cam < -630:  # Just past left edge of screen (576px + buffer)
-			if army_nodes.size() > 14:
-				soldier.queue_free()
-			else:
-				# Recycle: place just off the left edge so they walk in again
-				var nx = cam_x - 576 - randf_range(10, 60)
-				soldier.position.x = nx
-				soldier.position.y = _get_ground_y(nx)
-				soldier.set_meta("on_tunnel", false)
+			soldier.queue_free()
 			continue
 		
-		# Too far ahead (past right edge): send back to left edge to loop
+		# Too far ahead (past right edge): remove
 		if dist_to_cam > 620:  # Just past right edge of screen
-			soldier.position.x = cam_x - 576 - randf_range(10, 60)
+			soldier.queue_free()
 			continue
 		
 		# Skip animation/movement for distant units (performance)
@@ -1516,7 +1510,9 @@ func _create_health_kit(pos: Vector2) -> void:
 		if body.is_in_group("player"):
 			if body.hp < body.max_hp:
 				body.hp = min(body.hp + 1, body.max_hp)
-				body._sync_hp(); kit.queue_free()
+				body._sync_hp()
+				Audio.play("collected_item")
+				kit.queue_free()
 	)
 	# Floating animation
 	var tw = create_tween().set_loops()

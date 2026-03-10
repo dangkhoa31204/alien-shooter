@@ -424,6 +424,7 @@ func _shoot() -> void:
 		is_reloading = true
 		reload_timer = RELOAD_TIME
 		_sync_hp()
+		Audio.play("reload_ak47", 6.0) # Play reload sound, +6dB for clarity
 		_spawn_falling_mag() # Visual effect
 		return
 
@@ -431,6 +432,7 @@ func _shoot() -> void:
 		ammo -= 1
 		_sync_hp()
 	
+	Audio.play("gun_fire")
 	var b = BULLET_SCENE.instantiate()
 	if "direction" in b: b.direction = aim_direction
 	b.is_enemy_bullet = false

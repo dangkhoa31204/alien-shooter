@@ -110,7 +110,8 @@ func _physics_process(delta: float) -> void:
 	var player = _find_player()
 	if player:
 		var dist = global_position.x - player.global_position.x
-		patrol_direction = -sign(dist) if dist != 0 else patrol_direction
+		if dist != 0:
+			patrol_direction = -sign(dist)
 		
 		if abs(dist) > 380:
 			velocity.x = patrol_direction * SPEED
