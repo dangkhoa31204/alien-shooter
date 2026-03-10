@@ -7,7 +7,7 @@ const BULLET_SCENE = preload("res://scenes/bullet.tscn")
 
 const SPEED: float = 120.0
 const GRAVITY: float = 1400.0
-const DETECTION_RANGE: float = 400.0
+const DETECTION_RANGE: float = 320.0
 
 var hp: int = 2
 var patrol_direction: int = -1 # Start walking left
@@ -23,7 +23,13 @@ var is_officer: bool = false # High rank enemy
 # Nodes for animation
 var _body_node: Node2D
 var _weapon_node: Node2D
+var _heavy_weapon_node: Node2D
 var _head_node: Node2D
+var _arm_back: Node2D
+var _arm_front: Node2D
+var _leg_l: Node2D
+var _leg_r: Node2D
+var _backpack: Node2D
 var _muzzle_flash: Polygon2D
 var _eye_l: ColorRect
 var _eye_r: ColorRect
@@ -37,73 +43,90 @@ func _setup_complex_visuals() -> void:
 	# Clean existing if any
 	for n in sprite.get_children(): n.queue_free()
 	
+	_arm_back = Node2D.new(); sprite.add_child(_arm_back)
+	_leg_l = Node2D.new(); sprite.add_child(_leg_l)
+	
 	_body_node = Node2D.new(); sprite.add_child(_body_node)
-	_head_node = Node2D.new(); _body_node.add_child(_head_node)
+	_backpack = Node2D.new(); _body_node.add_child(_backpack)
+	
 	_weapon_node = Node2D.new(); _body_node.add_child(_weapon_node)
-
-	# --- Legs (Layered) ---
-	var leg_poly = PackedVector2Array([Vector2(-4, 0), Vector2(4, 0), Vector2(5, 16), Vector2(-5, 16)])
-	var l1 = Polygon2D.new(); l1.polygon = leg_poly; l1.color = Color(0.35, 0.3, 0.2); sprite.add_child(l1); l1.position = Vector2(-3, 2); l1.name = "LegL"
-	var l2 = Polygon2D.new(); l2.polygon = leg_poly; l2.color = Color(0.45, 0.4, 0.3); sprite.add_child(l2); l2.position = Vector2(3, 2); l2.name = "LegR"
-	# Boots
-	for leg in [l1, l2]:
-		var boot = ColorRect.new(); boot.size = Vector2(10, 4); boot.position = Vector2(-5, 12); boot.color = Color(0.05, 0.05, 0.05); leg.add_child(boot)
-
-	# --- Body (US Uniform with detail) ---
-	var uniform_color = Color(0.48, 0.43, 0.33)
-	var body = Polygon2D.new()
-	body.polygon = PackedVector2Array([Vector2(-8, -14), Vector2(8, -14), Vector2(10, 2), Vector2(-10, 2)])
-	body.color = uniform_color
-	_body_node.add_child(body)
+	_head_node = Node2D.new(); _body_node.add_child(_head_node)
 	
-	# Shading
-	var b_shade = Polygon2D.new(); b_shade.polygon = PackedVector2Array([Vector2(3, -14), Vector2(8, -14), Vector2(10, 2), Vector2(5, 2)])
-	b_shade.color = uniform_color.darkened(0.15); _body_node.add_child(b_shade)
-	
-	# Straps/Webbing
-	var strap_l = ColorRect.new(); strap_l.size = Vector2(2, 14); strap_l.position = Vector2(-5, -14); strap_l.color = Color(0.2, 0.18, 0.12); _body_node.add_child(strap_l)
-	var strap_r = ColorRect.new(); strap_r.size = Vector2(2, 14); strap_r.position = Vector2(3, -14); strap_r.color = Color(0.2, 0.18, 0.12); _body_node.add_child(strap_r)
+	_leg_r = Node2D.new(); sprite.add_child(_leg_r)
+	_arm_front = Node2D.new(); _body_node.add_child(_arm_front)
 
-	# --- Head (Detailed Skin & M1 Helmet) ---
+	# --- Legs (Grasping ground) ---
+	var leg_poly = PackedVector2Array([Vector2(-4.5, 0), Vector2(4.5, 0), Vector2(6, 18), Vector2(-6, 18)])
+	var l_color_b = Color(0.3, 0.28, 0.22)
+	var l_color_f = Color(0.42, 0.38, 0.3)
+	
+	var lb = Polygon2D.new(); lb.polygon = leg_poly; lb.color = l_color_b; _leg_l.add_child(lb); _leg_l.position = Vector2(-4, 0)
+	var lf = Polygon2D.new(); lf.polygon = leg_poly; lf.color = l_color_f; _leg_r.add_child(lf); _leg_r.position = Vector2(4, 0)
+	
+	for leg in [_leg_l, _leg_r]:
+		var boot = ColorRect.new(); boot.size = Vector2(12, 5); boot.position = Vector2(-6, 14); boot.color = Color(0.08, 0.08, 0.1); leg.add_child(boot)
+
+	# --- Body (US Fatigue Uniform) ---
+	var base_khaki = Color(0.52, 0.48, 0.38)
+	var torso = Polygon2D.new()
+	torso.polygon = PackedVector2Array([Vector2(-9, -20), Vector2(9, -20), Vector2(11, 2), Vector2(-11, 2)])
+	torso.color = base_khaki; _body_node.add_child(torso)
+	
+	# Webbing Detail
+	var belt = ColorRect.new(); belt.size = Vector2(24, 4); belt.position = Vector2(-12, -2); belt.color = Color(0.25, 0.2, 0.15); _body_node.add_child(belt)
+	var pouch = ColorRect.new(); pouch.size = Vector2(6, 8); pouch.position = Vector2(2, -2); pouch.color = Color(0.3, 0.25, 0.18); _body_node.add_child(pouch)
+	
+	# --- Backpack / Radio ---
+	var pack = ColorRect.new()
+	if is_officer:
+		pack.size = Vector2(12, 18); pack.position = Vector2(-12, -18); pack.color = Color(0.2, 0.2, 0.25) # Radio grey
+		var ant = Line2D.new(); ant.points = [Vector2(-10, -18), Vector2(-14, -35)]; ant.width = 1.0; ant.default_color = Color.BLACK; _backpack.add_child(ant)
+		hp = 6
+	else:
+		pack.size = Vector2(10, 15); pack.position = Vector2(-10, -16); pack.color = Color(0.35, 0.3, 0.25)
+	_backpack.add_child(pack)
+
+	# --- Arms ---
+	var arm_p = PackedVector2Array([Vector2(-3.5, 0), Vector2(3.5, 0), Vector2(4, 15), Vector2(-4, 15)])
+	var ab = Polygon2D.new(); ab.polygon = arm_p; ab.color = base_khaki.darkened(0.2); _arm_back.add_child(ab); _arm_back.position = Vector2(-7, -16)
+	var af = Polygon2D.new(); af.polygon = arm_p; af.color = base_khaki; _arm_front.add_child(af); _arm_front.position = Vector2(7, -16)
+
+	# --- Head ---
 	var face = Polygon2D.new()
-	face.polygon = PackedVector2Array([Vector2(-4.5, -18), Vector2(4.5, -18), Vector2(5, -14), Vector2(-5, -14)])
-	face.color = Color(0.9, 0.75, 0.62)
-	_head_node.add_child(face)
+	face.polygon = PackedVector2Array([Vector2(-5, -24), Vector2(5, -24), Vector2(6, -18), Vector2(-6, -18)])
+	face.color = Color(0.88, 0.72, 0.58); _head_node.add_child(face)
 	
-	_eye_l = ColorRect.new(); _eye_l.size = Vector2(2, 2); _eye_l.position = Vector2(1, -17); _eye_l.color = Color.BLACK
-	_eye_r = ColorRect.new(); _eye_r.size = Vector2(2, 2); _eye_r.position = Vector2(4, -17); _eye_r.color = Color.BLACK
+	_eye_l = ColorRect.new(); _eye_l.size = Vector2(2, 2); _eye_l.position = Vector2(0, -22); _eye_l.color = Color.BLACK
+	_eye_r = ColorRect.new(); _eye_r.size = Vector2(2, 2); _eye_r.position = Vector2(3, -22); _eye_r.color = Color.BLACK
 	_head_node.add_child(_eye_l); _head_node.add_child(_eye_r)
 
 	var helmet = Polygon2D.new()
 	if is_officer:
-		# Officer Red Cap (Kê-pi style detailed)
-		helmet.polygon = PackedVector2Array([Vector2(-9, -23), Vector2(9, -23), Vector2(10, -17), Vector2(7, -15), Vector2(-7, -15), Vector2(-10, -17)])
-		helmet.color = Color(0.75, 0.1, 0.1)
-		var rim = ColorRect.new(); rim.size = Vector2(18, 3); rim.position = Vector2(-9, -17); rim.color = Color.BLACK; _head_node.add_child(rim)
-		var badge = ColorRect.new(); badge.size = Vector2(4, 4); badge.position = Vector2(-2, -21); badge.color = Color.GOLD; _head_node.add_child(badge)
-		hp = 5
+		# Distinct Officer Cap
+		helmet.polygon = PackedVector2Array([Vector2(-10, -30), Vector2(10, -30), Vector2(12, -24), Vector2(0, -22), Vector2(-12, -24)])
+		helmet.color = Color(0.8, 0.1, 0.1) # Bright Red
+		var visor = ColorRect.new(); visor.size = Vector2(20, 3); visor.position = Vector2(-10, -24); visor.color = Color.BLACK; _head_node.add_child(visor)
 	else:
-		# M1 Helmet with depth
-		helmet.polygon = PackedVector2Array([Vector2(-8, -24), Vector2(8, -24), Vector2(10, -18), Vector2(6, -16), Vector2(-6, -16), Vector2(-10, -18)])
-		helmet.color = Color(0.38, 0.36, 0.28)
-		# Strap
-		var c_strap = Line2D.new(); c_strap.points = [Vector2(-6, -16), Vector2(-4, -13), Vector2(4, -13), Vector2(6, -16)]; c_strap.width = 1.0; c_strap.default_color = Color(0.2, 0.15, 0.1); _head_node.add_child(c_strap)
+		# Realistic M1 Steel Helmet
+		var h_pts = []
+		for i in 9:
+			var a = i * PI / 8.0 + PI; h_pts.append(Vector2(cos(a)*10, sin(a)*7 - 24))
+		h_pts.append(Vector2(11, -22)); h_pts.append(Vector2(-11, -22))
+		helmet.polygon = PackedVector2Array(h_pts); helmet.color = Color(0.35, 0.38, 0.28)
 	_head_node.add_child(helmet)
 
-	# --- M16 Rifle Visuals ---
-	var gun_body = ColorRect.new(); gun_body.size = Vector2(18, 4); gun_body.position = Vector2(0, -2); gun_body.color = Color(0.12, 0.12, 0.12)
-	var gun_stock = Polygon2D.new(); gun_stock.polygon = [Vector2(-8,-2), Vector2(0,-2), Vector2(0,2), Vector2(-8,4)]; gun_stock.color = Color(0.1, 0.1, 0.1)
-	var gun_barrel = ColorRect.new(); gun_barrel.size = Vector2(14, 2); gun_barrel.position = Vector2(18, -1); gun_barrel.color = Color(0.1, 0.1, 0.1)
-	var carry_handle = ColorRect.new(); carry_handle.size = Vector2(8, 2); carry_handle.position = Vector2(2, -4); carry_handle.color = Color(0.1, 0.1, 0.1)
-	_weapon_node.add_child(gun_body); _weapon_node.add_child(gun_stock); _weapon_node.add_child(gun_barrel); _weapon_node.add_child(carry_handle)
-	_weapon_node.position = Vector2(7, -6)
+	# --- M16 Rifle (Tactical Detail) ---
+	var g_c = Color(0.1, 0.1, 0.1)
+	var stock = ColorRect.new(); stock.size = Vector2(10, 4); stock.position = Vector2(-8, -2); stock.color = g_c
+	var receiver = ColorRect.new(); receiver.size = Vector2(14, 6); receiver.position = Vector2(2, -3); receiver.color = g_c
+	var handguard = ColorRect.new(); handguard.size = Vector2(15, 4); handguard.position = Vector2(16, -2); handguard.color = Color(0.15, 0.15, 0.15)
+	var barrel = ColorRect.new(); barrel.size = Vector2(10, 2); barrel.position = Vector2(31, -1); barrel.color = g_c
+	var mag = ColorRect.new(); mag.size = Vector2(4, 9); mag.position = Vector2(8, 2); mag.color = g_c; mag.rotation = 0.1
+	_weapon_node.add_child(stock); _weapon_node.add_child(receiver); _weapon_node.add_child(handguard); _weapon_node.add_child(barrel); _weapon_node.add_child(mag)
+	_weapon_node.position = Vector2(8, -8)
 	
-	# --- Muzzle Flash ---
-	_muzzle_flash = Polygon2D.new()
-	_muzzle_flash.polygon = PackedVector2Array([Vector2(0, -4), Vector2(12, 0), Vector2(0, 4)])
-	_muzzle_flash.color = Color(1.0, 0.7, 0.2, 0.0)
-	_weapon_node.add_child(_muzzle_flash)
-	_muzzle_flash.position = Vector2(30, 0)
+	_muzzle_flash = Polygon2D.new(); _muzzle_flash.polygon = [Vector2(0, -6), Vector2(18, 0), Vector2(0, 6)]; _muzzle_flash.color = Color(1, 0.8, 0.2, 0)
+	_weapon_node.add_child(_muzzle_flash); _muzzle_flash.position = Vector2(40, 0)
 
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
@@ -111,14 +134,17 @@ func _physics_process(delta: float) -> void:
 
 	var player = _find_player()
 	if player:
-		var dist = global_position.distance_to(player.global_position)
-		if dist < DETECTION_RANGE:
-			_aim_and_fire(player, delta)
-			velocity.x = 0
-			_eye_l.color = Color.RED; _eye_r.color = Color.RED # Alert eyes
-		else:
+		var dist_x = global_position.x - player.global_position.x
+		patrol_direction = -sign(dist_x) if dist_x != 0 else patrol_direction
+		
+		# Engagment range reduced to 420 for easier dodging
+		if abs(dist_x) > 420:
 			_patrol(delta)
 			_eye_l.color = Color.BLACK; _eye_r.color = Color.BLACK
+		else:
+			velocity.x = 0
+			_aim_and_fire(player, delta)
+			_eye_l.color = Color.RED; _eye_r.color = Color.RED # Alert eyes
 	else:
 		_patrol(delta)
 		_eye_l.color = Color.BLACK; _eye_r.color = Color.BLACK
@@ -140,20 +166,22 @@ func _find_player() -> Node2D:
 	return players[0] if players.size() > 0 else null
 
 func _patrol(delta: float) -> void:
-	velocity.x = patrol_direction * (SPEED * (1.4 if is_officer else 1.0))
+	velocity.x = patrol_direction * (SPEED * (1.5 if is_officer else 1.0))
 	sprite.scale.x = patrol_direction
 	var old_walk = int(_walk_time)
 	_walk_time += delta * 12
 	var step = sin(_walk_time)
-	var l1 = sprite.get_node("LegL"); var l2 = sprite.get_node("LegR")
-	l1.position.x = -3 + step * 8
-	l2.position.x = 3 - step * 8
-	l1.rotation = step * 0.15
-	l2.rotation = -step * 0.15
-	_body_node.position.y = abs(step) * -3.5
-	_head_node.position.y = abs(step) * -1.5
 	
-	# Dust particles when running (Only once per cycle to prevent Tween memory leak / lag)
+	# Limb Movement
+	_leg_l.position.x = -4 + step * 9; _leg_r.position.x = 4 - step * 9
+	_leg_l.rotation = step * 0.2; _leg_r.rotation = -step * 0.2
+	_arm_back.rotation = -step * 0.5; _arm_front.rotation = step * 0.5
+	
+	_body_node.position.y = abs(step) * -4 + 2
+	_body_node.rotation = 0.05 # Sleight lean
+	_head_node.position.y = abs(step) * -2
+	_head_node.rotation = -0.05
+	
 	if int(_walk_time) % 4 == 0 and int(_walk_time) != old_walk: 
 		_spawn_dust()
 
@@ -161,24 +189,32 @@ func _aim_and_fire(player: Node2D, delta: float) -> void:
 	var dir = (player.global_position - global_position).normalized()
 	sprite.scale.x = sign(dir.x) if dir.x != 0 else sprite.scale.x
 	
+	# Alert Eyes
+	_eye_l.color = Color.RED; _eye_r.color = Color.RED
+	
 	# Rotate weapon
 	var target_rot = dir.angle()
 	if sprite.scale.x < 0: target_rot = (dir * Vector2(-1, 1)).angle()
 	_weapon_node.rotation = lerp_angle(_weapon_node.rotation, target_rot, 0.2)
 	
-	# Breathing/Anticipation while aiming
+	# Aiming Stance
+	_leg_l.rotation = 0.2; _leg_r.rotation = -0.1
+	_arm_back.rotation = -0.4; _arm_front.rotation = 0.4
+	
+	# Breathing pulse
 	_walk_time += delta * 4.0
 	var breathe = sin(_walk_time) * 1.5
-	_body_node.position.y = breathe
+	_body_node.position.y = breathe + 2
 	_head_node.rotation = lerp_angle(_head_node.rotation, target_rot * 0.1, 0.2)
 
 	if shoot_timer.is_stopped(): 
-		var wait = (0.5 if is_officer else 1.3) + randf() * 0.4
+		var wait = (0.4 if is_officer else 1.2) + randf() * 0.3
 		shoot_timer.start(wait)
 
 func _on_shoot_timer_timeout() -> void:
 	var p = _find_player()
-	if p and global_position.distance_to(p.global_position) < DETECTION_RANGE:
+	# FIX: was using DETECTION_RANGE (320) but engagement is 420 → enemy aimed but never shot
+	if p and global_position.distance_to(p.global_position) < 420:
 		_shoot(p)
 
 func _shoot(player: Node2D) -> void:

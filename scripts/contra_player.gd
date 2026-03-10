@@ -32,7 +32,7 @@ const MAX_JUMPS: int = 2
 
 # Anti-tank Weapon (RPG/B40)
 var rpg_cooldown: float = 0.0
-const RPG_MAX_COOLDOWN: float = 30.0
+const RPG_MAX_COOLDOWN: float = 10.0
 var _is_firing_rpg: bool = false
 var _rpg_timer: float = 0.0
 var _heavy_weapon_node: Node2D
@@ -72,6 +72,8 @@ func _sync_hp() -> void:
 			main.refresh_hp(hp, max_hp)
 		if main.has_method("refresh_ammo"):
 			main.refresh_ammo(ammo, MAX_AMMO, is_reloading)
+		if main.has_method("refresh_heavy_weapon"):
+			main.refresh_heavy_weapon(rpg_cooldown, RPG_MAX_COOLDOWN)
 
 func _setup_complex_visuals() -> void:
 	for n in sprite.get_children(): n.queue_free()
@@ -231,6 +233,7 @@ func _physics_process(delta: float) -> void:
 	# Handle Cooldowns
 	if rpg_cooldown > 0:
 		rpg_cooldown -= delta
+		_sync_hp()
 	
 	if is_reloading:
 		reload_timer -= delta
@@ -493,4 +496,10 @@ func take_damage(amount: int) -> void:
 	if hp <= 0: _die()
 
 func _die() -> void:
-	get_tree().call_deferred("reload_current_scene")
+	if is_dead: return
+	is_dead = true
+	var main = _get_main_scene()
+	if main and main.has_method("on_player_die"):
+		main.on_player_die()
+	else:
+		get_tree().call_deferred("reload_current_scene")

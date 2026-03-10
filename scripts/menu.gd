@@ -59,7 +59,7 @@ func _refresh_coins() -> void:
 
 func _on_play_pressed() -> void:
 	Audio.play("button_click")
-	get_tree().change_scene_to_file("res://scenes/level_select.tscn")
+	get_tree().change_scene_to_file("res://scenes/airplane_level_select.tscn")
 
 func _on_shop_pressed() -> void:
 	Audio.play("button_click")
