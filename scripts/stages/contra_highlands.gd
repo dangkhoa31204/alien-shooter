@@ -41,6 +41,28 @@ func setup():
 		var ty = main._get_ground_y(tx)
 		main._spawn_heavy_enemy(tx, ty, "tank")
 	main._bomber_timer = 4.0
+
+	# --- Layered highland fog banks ---
+	for i in 6:
+		var fog := ColorRect.new()
+		fog.size = Vector2(randf_range(1200.0, 2400.0), randf_range(60.0, 120.0))
+		fog.position = Vector2(i * 2000.0 + randf_range(-200.0, 200.0), 350.0 + randf_range(-40.0, 80.0))
+		fog.color = Color(0.65, 0.72, 0.7, 0.08)
+		fog.z_index = -45
+		_parallax_bg.add_child(fog)
+		# Drift slowly
+		var ftw: Tween = fog.create_tween().set_loops()
+		ftw.tween_property(fog, "position:x", fog.position.x + randf_range(80.0, 160.0), randf_range(8.0, 18.0)).set_trans(Tween.TRANS_SINE)
+		ftw.tween_property(fog, "position:x", fog.position.x - randf_range(40.0, 100.0), randf_range(8.0, 18.0)).set_trans(Tween.TRANS_SINE)
+
+	# --- Distant mountain silhouettes with haze tint ---
+	for i in 5:
+		var haze_band := ColorRect.new()
+		haze_band.size = Vector2(STAGE_LENGTH + 2000, 40)
+		haze_band.position = Vector2(-200.0, 200.0 + i * 35.0)
+		haze_band.color = Color(0.35, 0.42, 0.38, 0.06 - i * 0.008)
+		haze_band.z_index = -108 + i
+		_parallax_bg.add_child(haze_band)
 	
 	# Health and Checkpoints
 	for i in range(1, 3):

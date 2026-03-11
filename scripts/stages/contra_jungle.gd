@@ -17,6 +17,24 @@ func setup():
 		mt.z_index = -110
 		_get_parallax().add_child(mt)
 	
+	# --- God rays: shafts of sunlight filtering through canopy ---
+	for i in 8:
+		var rx := i * 1600.0 + randf_range(-300.0, 300.0)
+		var ray := Polygon2D.new()
+		var rw := randf_range(40.0, 100.0)
+		ray.polygon = PackedVector2Array([
+			Vector2(-rw * 0.3, 0.0), Vector2(rw * 0.3, 0.0),
+			Vector2(rw, 600.0), Vector2(-rw * 0.6, 600.0)
+		])
+		ray.color = Color(0.95, 0.98, 0.8, 0.055)
+		ray.position = Vector2(rx, -20.0)
+		ray.z_index = -48
+		_get_parallax().add_child(ray)
+		# Gentle sway
+		var rtw: Tween = ray.create_tween().set_loops()
+		rtw.tween_property(ray, "modulate:a", 0.8, randf_range(2.5, 5.0)).set_trans(Tween.TRANS_SINE)
+		rtw.tween_property(ray, "modulate:a", 0.3, randf_range(2.5, 5.0)).set_trans(Tween.TRANS_SINE)
+
 	# --- Jungle mist / atmosphere layers ---
 	for i in 5:
 		var mist = ColorRect.new()
@@ -25,7 +43,23 @@ func setup():
 		mist.color = Color(0.7, 0.85, 0.9, 0.12)
 		mist.z_index = -50
 		_get_parallax().add_child(mist)
-	
+
+	# --- Fireflies: small glowing dots with looping fade-in/out ---
+	for i in 30:
+		var fx := randf_range(200.0, main.STAGE_LENGTH - 200.0)
+		var fy := randf_range(420.0, 570.0)
+		var ff := ColorRect.new()
+		ff.size = Vector2(4, 4)
+		ff.color = Color(0.85, 1.0, 0.4, 0.9)
+		ff.position = Vector2(fx, fy)
+		ff.z_index = -5
+		main._add_to_level(ff)
+		var ftw: Tween = ff.create_tween().set_loops()
+		ftw.tween_property(ff, "modulate:a", 0.0, randf_range(0.4, 1.2)).set_trans(Tween.TRANS_SINE)
+		ftw.tween_property(ff, "modulate:a", 1.0, randf_range(0.4, 1.2)).set_trans(Tween.TRANS_SINE)
+		# Gentle float drift
+		ftw.parallel().tween_property(ff, "position:y", fy + randf_range(-25.0, 25.0), randf_range(1.5, 3.5)).set_trans(Tween.TRANS_SINE)
+
 	# --- Generate hilly terrain (map 1 uses gentle rolling hills) ---
 	main._generate_hilly_terrain(Color(0.15, 0.1, 0.05), Color(0.08, 0.22, 0.05), false)
 	

@@ -21,19 +21,38 @@ func setup():
 		var bx = i * 1000; var bw = randf_range(400, 800); var bh = randf_range(100, 300)
 		var b = ColorRect.new(); b.size = Vector2(bw, bh); b.position = Vector2(bx, 600 - bh); b.z_index = -105
 		b.color = Color(0.04, 0.04, 0.08); _parallax_bg.add_child(b)
-		# Add some red warning lights on tall silhouettes
+		# Blinking red warning lights on tall silhouettes
 		if bh > 200:
-			var light = ColorRect.new(); light.size = Vector2(4, 4); light.position = Vector2(bx + bw/2, 600 - bh - 5); light.color = Color.RED
+			var light := ColorRect.new()
+			light.size = Vector2(5, 5)
+			light.position = Vector2(bx + bw * 0.5, 600 - bh - 6)
+			light.color = Color.RED
 			_parallax_bg.add_child(light)
+			var ltw: Tween = light.create_tween().set_loops()
+			ltw.tween_property(light, "modulate:a", 0.0, 0.4)
+			ltw.tween_interval(randf_range(0.5, 1.5))
+			ltw.tween_property(light, "modulate:a", 1.0, 0.2)
 
-	# Rotating Spotlights
+	# Rotating Spotlights with floor glow
 	for i in 4:
-		var sl = Node2D.new(); sl.position = Vector2(i * 3000 + 400, 600); _parallax_bg.add_child(sl); sl.z_index = -100
-		var beam = Polygon2D.new(); beam.polygon = [Vector2(0,0), Vector2(-150, -1200), Vector2(150, -1200)]
+		var sl := Node2D.new()
+		sl.position = Vector2(i * 3000 + 400, 600)
+		_parallax_bg.add_child(sl); sl.z_index = -100
+		var beam := Polygon2D.new()
+		beam.polygon = [Vector2(0,0), Vector2(-150, -1200), Vector2(150, -1200)]
 		beam.color = Color(1, 1, 0.8, 0.08); sl.add_child(beam)
-		var tw = sl.create_tween().set_loops()
-		tw.tween_property(beam, "rotation", deg_to_rad(30), 4.0).set_trans(Tween.TRANS_SINE)
-		tw.tween_property(beam, "rotation", deg_to_rad(-30), 4.0).set_trans(Tween.TRANS_SINE)
+		# Floor glow pool under spotlight
+		var glow := Polygon2D.new()
+		var gpts: Array = []
+		for gi in 12:
+			var ga := gi * TAU / 12.0
+			gpts.append(Vector2(cos(ga) * 120.0, sin(ga) * 18.0))
+		glow.polygon = PackedVector2Array(gpts)
+		glow.color = Color(1.0, 1.0, 0.7, 0.1)
+		glow.position = Vector2(0, -2); sl.add_child(glow)
+		var stw: Tween = sl.create_tween().set_loops()
+		stw.tween_property(beam, "rotation", deg_to_rad(30), 4.0).set_trans(Tween.TRANS_SINE)
+		stw.tween_property(beam, "rotation", deg_to_rad(-30), 4.0).set_trans(Tween.TRANS_SINE)
 
 	# Base Floor
 	var floor_node = StaticBody2D.new()
@@ -45,12 +64,27 @@ func setup():
 	main._stage_terrain.clear()
 	main._stage_terrain.append(Vector2(-1000, 600)); main._stage_terrain.append(Vector2(STAGE_LENGTH + 1000, 600))
 
-	# Wire Fences (Mid-ground)
+	# Wire Fences (Mid-ground) — zigzag barbed wire on I-shaped posts
 	for i in range(int(STAGE_LENGTH / 400)):
-		var fx = i * 400
-		var post = ColorRect.new(); post.size = Vector2(4, 60); post.position = Vector2(fx, 540); post.color = Color(0.2, 0.2, 0.2); post.z_index = -10; main._add_to_level(post)
-		var wire1 = ColorRect.new(); wire1.size = Vector2(400, 1); wire1.position = Vector2(fx, 550); wire1.color = Color(0.4, 0.4, 0.4, 0.5); wire1.z_index = -11; main._add_to_level(wire1)
-		var wire2 = ColorRect.new(); wire2.size = Vector2(400, 1); wire2.position = Vector2(fx, 570); wire2.color = Color(0.4, 0.4, 0.4, 0.5); wire2.z_index = -11; main._add_to_level(wire2)
+		var fx := i * 400.0
+		# I-shaped post (top cap, stem, base)
+		var cap := ColorRect.new(); cap.size = Vector2(10, 3); cap.position = Vector2(fx - 1, 538); cap.color = Color(0.25, 0.25, 0.28); cap.z_index = -10; main._add_to_level(cap)
+		var post := ColorRect.new(); post.size = Vector2(4, 56); post.position = Vector2(fx, 540); post.color = Color(0.2, 0.2, 0.22); post.z_index = -10; main._add_to_level(post)
+		var base := ColorRect.new(); base.size = Vector2(10, 3); base.position = Vector2(fx - 1, 595); base.color = Color(0.25, 0.25, 0.28); base.z_index = -10; main._add_to_level(base)
+		# Zigzag Line2D wire between posts
+		if i < int(STAGE_LENGTH / 400) - 1:
+			for w in 2:
+				var wy := 550.0 + w * 20.0
+				var wire_line := Line2D.new()
+				wire_line.default_color = Color(0.45, 0.45, 0.48, 0.7)
+				wire_line.width = 1.2
+				wire_line.z_index = -11
+				var seg_count := 10
+				for si in seg_count + 1:
+					var sx := fx + si * (400.0 / seg_count)
+					var sy := wy + (4.0 if si % 2 == 0 else -4.0)
+					wire_line.add_point(Vector2(sx, sy))
+				main._add_to_level(wire_line)
 
 	# Military Infrastructure: Buildings, Bunkers, Watchtowers
 	for i in range(int(STAGE_LENGTH/800)):

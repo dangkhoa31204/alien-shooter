@@ -201,6 +201,8 @@ func _setup_rpg_visuals() -> void:
 	_heavy_weapon_node.add_child(tube); _heavy_weapon_node.add_child(heat_shield); _heavy_weapon_node.add_child(sight)
 	_heavy_weapon_node.position = Vector2(8, -8)
 
+var _was_on_floor: bool = false
+
 func _physics_process(delta: float) -> void:
 	var space_pressed = Input.is_key_pressed(KEY_SPACE)
 	var space_just_pressed = space_pressed and not _space_was_pressed
@@ -252,6 +254,15 @@ func _physics_process(delta: float) -> void:
 				velocity.x = move_toward(velocity.x, 0, SPEED)
 
 	move_and_slide()
+
+	# Landing dust: detect landing on floor this frame
+	var now_on_floor := is_on_floor()
+	if now_on_floor and not _was_on_floor and velocity.y > 80.0:
+		var main := _get_main_scene()
+		if main and main.has_method("spawn_landing_dust"):
+			main.spawn_landing_dust(global_position)
+	_was_on_floor = now_on_floor
+
 	_update_aiming()
 	_animate(delta)
 	
@@ -465,8 +476,12 @@ func _animate(delta: float) -> void:
 		_leg_l.rotation = 1.2; _leg_r.rotation = -0.8
 		_arm_back.rotation = 1.0; _arm_front.rotation = -1.0
 	elif is_on_floor() and abs(velocity.x) > 10:
+		var prev_step := sin(_walk_time)
 		_walk_time += delta * 13.0
-		var step = sin(_walk_time)
+		var step := sin(_walk_time)
+		# Emit footstep dust on each leg strike (sign change in step)
+		if prev_step * step < 0.0:
+			_spawn_footstep_dust()
 		_leg_l.position.x = -4 + step * 9; _leg_r.position.x = 4 - step * 9
 		_leg_l.rotation = step * 0.25; _leg_r.rotation = -step * 0.25
 		_body_node.position.y = abs(step) * -5 + 2 # Adds "lean" bounce
@@ -548,6 +563,7 @@ func _shoot() -> void:
 	b.global_position = gun_point.global_position
 	b.add_to_group("player_bullet")
 	_muzzle_flash.color.a = 1.0; _muzzle_flash_timer = 0.05; _recoil_offset = 6.0
+	_spawn_muzzle_smoke()
 
 	# Point-blank fix: nếu enemy nằm trong vùng spawn đạn (~50px),
 	# Godot sẽ không fire body_entered → gây sát thương trực tiếp.
@@ -595,6 +611,42 @@ func _get_main_scene() -> Node:
 		if curr.name == "ContraMain": return curr
 		curr = curr.get_parent()
 	return null
+
+func _spawn_muzzle_smoke() -> void:
+	var main := _get_main_scene()
+	if not main: return
+	var wisp := Polygon2D.new()
+	var pts: Array = []
+	var r := 5.0
+	for i in 6:
+		var a := i * TAU / 6.0
+		pts.append(Vector2(cos(a) * r, sin(a) * r))
+	wisp.polygon = PackedVector2Array(pts)
+	wisp.color = Color(0.9, 0.85, 0.75, 0.5)
+	wisp.global_position = _muzzle_flash.global_position
+	wisp.z_index = 4
+	main._world.add_child(wisp)
+	var tw: Tween = wisp.create_tween()
+	var drift_x := aim_direction.x * 22.0
+	tw.tween_property(wisp, "position", wisp.position + Vector2(drift_x, -28.0), 0.55)
+	tw.parallel().tween_property(wisp, "scale", Vector2(2.2, 2.2), 0.55)
+	tw.parallel().tween_property(wisp, "modulate:a", 0.0, 0.55)
+	tw.finished.connect(wisp.queue_free)
+
+func _spawn_footstep_dust() -> void:
+	var main := _get_main_scene()
+	if not main: return
+	for i in 2:
+		var d := ColorRect.new()
+		d.size = Vector2(3, 3)
+		d.color = Color(0.8, 0.72, 0.56, 0.6)
+		d.global_position = global_position + Vector2(randf_range(-8.0, 8.0), 0.0)
+		d.z_index = 3
+		main._world.add_child(d)
+		var tw: Tween = d.create_tween()
+		tw.tween_property(d, "position:y", d.position.y - randf_range(8.0, 18.0), 0.35)
+		tw.parallel().tween_property(d, "modulate:a", 0.0, 0.35)
+		tw.finished.connect(d.queue_free)
 
 func _melee_attack() -> void:
 	melee_cooldown = MELEE_COOLDOWN_MAX
@@ -647,7 +699,10 @@ func take_damage(amount: int) -> void:
 	if actual <= 0: return
 	hp -= actual
 	_sync_hp()
-	var t = create_tween()
+	var main: Node = _get_main_scene()
+	if main and main.has_method("flash_damage"):
+		main.flash_damage()
+	var t := create_tween()
 	t.tween_property(sprite, "modulate", Color.RED, 0.1)
 	t.tween_property(sprite, "modulate", Color.WHITE, 0.1)
 	if hp <= 0: _die()

@@ -22,6 +22,7 @@ const RPG_MAX_COOLDOWN: float = 10.0
 
 var current_stage: int = 1
 var score: int = 0
+var kill_count: int = 0
 var is_game_over: bool = false
 
 @onready var ui_label: Label = $UI/Label
@@ -54,12 +55,58 @@ var _perf_frame: int = 0
 var _flash_rect: ColorRect = null # Persistent flash for explosions
 var _level_node: Node2D = null # Container for all stage-specific objects (for fast cleanup)
 var _history_panel: Control = null # Historical info panel
+var _damage_vignette: ColorRect = null # Red flash on damage
+var _alert_panel: Panel = null          # Animated alert panel
 
 func _add_to_level(node: Node) -> void:
 	if is_instance_valid(_level_node):
 		_level_node.add_child(node)
 	else:
 		_world.add_child(node)
+
+# ── SCORE / KILL TRACKING ───────────────────────────────────────────────────
+func add_score(pts: int) -> void:
+	score += pts
+	var lbl = get_node_or_null("UI/HUDPanel/ScoreLabel")
+	if lbl: lbl.text = str(score)
+
+# ── kill-feed state ────────────────────────────────────────────────────────
+var _kill_feed_items: Array = []          # Array[Label]
+const KILL_FEED_MAX: int = 4
+
+func add_kill(pts: int = 100) -> void:
+	kill_count += 1
+	add_score(pts)
+	var kl = get_node_or_null("UI/HUDPanel/KillLabel")
+	if kl: kl.text = "⚔ %d tiêu diệt" % kill_count
+	_spawn_kill_feed_popup(pts)
+
+func _spawn_kill_feed_popup(pts: int) -> void:
+	var ui = get_node_or_null("UI")
+	if not ui: return
+	# Shift existing entries up
+	for lbl: Label in _kill_feed_items:
+		if is_instance_valid(lbl):
+			lbl.position.y -= 22
+	# Remove overflow
+	if _kill_feed_items.size() >= KILL_FEED_MAX:
+		var old: Label = _kill_feed_items.pop_front()
+		if is_instance_valid(old): old.queue_free()
+	var entry := Label.new()
+	entry.text = "💀 +%d" % pts
+	entry.add_theme_font_size_override("font_size", 13)
+	entry.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
+	entry.position = Vector2(900, 100)
+	entry.modulate.a = 1.0
+	ui.add_child(entry)
+	_kill_feed_items.append(entry)
+	var tw: Tween = entry.create_tween()
+	tw.tween_interval(1.2)
+	tw.tween_property(entry, "modulate:a", 0.0, 0.5)
+	tw.finished.connect(func():
+		_kill_feed_items.erase(entry)
+		if is_instance_valid(entry): entry.queue_free()
+	)
 
 func _get_ground_y(x_pos: float) -> float:
 	if current_stage >= 4: return 600.0 # Map 4 & 5 are flat
@@ -125,82 +172,241 @@ func _ready() -> void:
 	_flash_rect.size = Vector2(2500, 2000); _flash_rect.position = Vector2(-500, -500)
 	_flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	$UI.add_child(_flash_rect)
+	# Damage vignette (red edge flash)
+	_damage_vignette = ColorRect.new()
+	_damage_vignette.color = Color(0.8, 0.0, 0.0, 0.0)
+	_damage_vignette.size = Vector2(1152, 720)
+	_damage_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_damage_vignette.z_index = 90
+	$UI.add_child(_damage_vignette)
 
 func _setup_progress_ui() -> void:
-	# Add Progress Bar
+	# ── Màu chuẩn military ────────────────────────────────────────────────────
+	var C_OLIVE    := Color(0.08, 0.14, 0.06, 0.92)   # màu nền bảng HUD
+	var C_GOLD     := Color(0.82, 0.70, 0.18)          # viền vàng
+	var C_RED_DARK := Color(0.55, 0.06, 0.06)          # đỏ tối cho nền HP
+	var C_RED_LIT  := Color(0.92, 0.12, 0.12)          # đỏ tươi cho thanh HP
+	var C_TEXT     := Color(0.95, 0.92, 0.72)          # vàng kem chữ HUD
+
+	# ── Helper tạo StyleBoxFlat ─────────────────────────────────────────────
+	var _make_sbox := func(bg: Color, bdr: Color, bw: int = 1, cr: int = 4) -> StyleBoxFlat:
+		var s := StyleBoxFlat.new()
+		s.bg_color = bg; s.border_color = bdr
+		s.border_width_left = bw; s.border_width_right = bw
+		s.border_width_top = bw; s.border_width_bottom = bw
+		s.set_corner_radius_all(cr)
+		return s
+
+	# ══════════════════════════════════════════════════════════════════════════
+	# 1. THANH TIẾN TRÌNH ở giữa trên (rộng hơn, dày hơn, nhãn rõ hơn)
+	# ══════════════════════════════════════════════════════════════════════════
+	var prog_panel := Panel.new()
+	prog_panel.name = "ProgressPanel"
+	prog_panel.position = Vector2(326, 8)
+	prog_panel.size = Vector2(500, 34)
+	prog_panel.add_theme_stylebox_override("panel", _make_sbox.call(
+		Color(0.05, 0.08, 0.04, 0.88), C_GOLD, 1, 5))
+	$UI.add_child(prog_panel)
+
+	var prog_lbl := Label.new()
+	prog_lbl.name = "ProgLabel"
+	prog_lbl.text = "⚔  TIẾN TRÌNH CHIẾN DỊCH"
+	prog_lbl.add_theme_font_size_override("font_size", 11)
+	prog_lbl.add_theme_color_override("font_color", C_GOLD)
+	prog_lbl.position = Vector2(8, 2)
+	prog_panel.add_child(prog_lbl)
+
 	progress_bar = ProgressBar.new()
 	progress_bar.name = "ProgressBar"
-	progress_bar.size = Vector2(400, 10)
-	progress_bar.position = Vector2(376, 30) # Top middle
+	progress_bar.size = Vector2(480, 10)
+	progress_bar.position = Vector2(10, 20)
 	progress_bar.max_value = STAGE_LENGTH
 	progress_bar.show_percentage = false
-	
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0,0,0,0.5)
-	style.border_width_left = 1; style.border_width_right = 1; style.border_width_top = 1; style.border_width_bottom = 1
-	style.border_color = Color(1, 1, 0.4, 0.5)
-	progress_bar.add_theme_stylebox_override("background", style)
-	
-	var fg_style = StyleBoxFlat.new()
-	fg_style.bg_color = Color(1, 0.9, 0.2) # Gold
+	progress_bar.add_theme_stylebox_override("background", _make_sbox.call(Color(0,0,0,0.5), C_GOLD, 1, 2))
+	var fg_style := StyleBoxFlat.new(); fg_style.bg_color = Color(0.88, 0.76, 0.14); fg_style.set_corner_radius_all(2)
 	progress_bar.add_theme_stylebox_override("fill", fg_style)
-	
-	$UI.add_child(progress_bar)
-	
-	var prog_lbl = Label.new()
-	prog_lbl.text = "TIẾN TRÌNH CHIẾN DỊCH"
-	prog_lbl.add_theme_font_size_override("font_size", 12)
-	prog_lbl.position = Vector2(376, 10)
-	$UI.add_child(prog_lbl)
+	prog_panel.add_child(progress_bar)
 
-	# Add HP Bar
+	# ══════════════════════════════════════════════════════════════════════════
+	# 2. HUD PANEL trái — nền mờ chứa toàn bộ chỉ số chiến đấu
+	# ══════════════════════════════════════════════════════════════════════════
+	var hud_panel := Panel.new()
+	hud_panel.name = "HUDPanel"
+	hud_panel.position = Vector2(8, 8)
+	hud_panel.size = Vector2(310, 150)
+	hud_panel.add_theme_stylebox_override("panel", _make_sbox.call(C_OLIVE, C_GOLD, 2, 6))
+	$UI.add_child(hud_panel)
+
+	# Dải viền vàng nhỏ ở trên cùng bảng (tai trang trí)
+	var hud_header := ColorRect.new()
+	hud_header.size = Vector2(310, 4)
+	hud_header.color = C_GOLD
+	hud_panel.add_child(hud_header)
+
+	# ── 2a. SINH LỰC ──────────────────────────────────────────────────────────
+	var hp_lbl_icon := Label.new()
+	hp_lbl_icon.text = "❤  SINH LỰC"
+	hp_lbl_icon.add_theme_font_size_override("font_size", 13)
+	hp_lbl_icon.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
+	hp_lbl_icon.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
+	hp_lbl_icon.add_theme_constant_override("shadow_offset_x", 1)
+	hp_lbl_icon.add_theme_constant_override("shadow_offset_y", 1)
+	hp_lbl_icon.position = Vector2(10, 10)
+	hud_panel.add_child(hp_lbl_icon)
+
 	hp_bar = ProgressBar.new()
 	hp_bar.name = "HPBar"
-	hp_bar.size = Vector2(180, 16)
-	hp_bar.position = Vector2(20, 60)
+	hp_bar.size = Vector2(200, 14)
+	hp_bar.position = Vector2(10, 28)
 	hp_bar.max_value = 3
 	hp_bar.value = 3
 	hp_bar.show_percentage = false
-	
-	var hp_bg = StyleBoxFlat.new()
-	hp_bg.bg_color = Color(0.2, 0.05, 0.05, 0.7)
-	hp_bg.border_width_left = 1; hp_bg.border_width_right = 1; hp_bg.border_width_top = 1; hp_bg.border_width_bottom = 1
-	hp_bg.border_color = Color(0.8, 0.2, 0.2, 0.6)
-	hp_bar.add_theme_stylebox_override("background", hp_bg)
-	
-	var hp_fg = StyleBoxFlat.new()
-	hp_fg.bg_color = Color(0.9, 0.1, 0.1) # Bright Red
+	hp_bar.add_theme_stylebox_override("background", _make_sbox.call(C_RED_DARK, Color(0.8,0.2,0.2,0.6), 1, 3))
+	var hp_fg := StyleBoxFlat.new(); hp_fg.bg_color = C_RED_LIT; hp_fg.set_corner_radius_all(3)
 	hp_bar.add_theme_stylebox_override("fill", hp_fg)
-	
-	$UI.add_child(hp_bar)
-	
-	var hp_lbl = Label.new()
-	hp_lbl.text = "SINH LỰC"
-	hp_lbl.add_theme_font_size_override("font_size", 14)
-	hp_lbl.position = Vector2(20, 42)
-	$UI.add_child(hp_lbl)
+	hud_panel.add_child(hp_bar)
+
+	# Nhãn số HP bên phải thanh
+	var hp_num_lbl := Label.new()
+	hp_num_lbl.name = "HPNumLabel"
+	hp_num_lbl.text = "3 / 3"
+	hp_num_lbl.add_theme_font_size_override("font_size", 12)
+	hp_num_lbl.add_theme_color_override("font_color", C_TEXT)
+	hp_num_lbl.position = Vector2(218, 27)
+	hud_panel.add_child(hp_num_lbl)
+
+	# ── 2b. ĐẠN (luôn hiển thị từ đầu) ─────────────────────────────────────
+	var ammo_icon_lbl := Label.new()
+	ammo_icon_lbl.text = "⊕  ĐẠN"
+	ammo_icon_lbl.add_theme_font_size_override("font_size", 13)
+	ammo_icon_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	ammo_icon_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
+	ammo_icon_lbl.add_theme_constant_override("shadow_offset_x", 1)
+	ammo_icon_lbl.add_theme_constant_override("shadow_offset_y", 1)
+	ammo_icon_lbl.position = Vector2(10, 50)
+	hud_panel.add_child(ammo_icon_lbl)
+
+	var ammo_lbl := Label.new()
+	ammo_lbl.name = "AmmoLabel"
+	ammo_lbl.text = "30 / 30"
+	ammo_lbl.add_theme_font_size_override("font_size", 16)
+	ammo_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.35))
+	ammo_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.9))
+	ammo_lbl.add_theme_constant_override("shadow_offset_x", 1)
+	ammo_lbl.add_theme_constant_override("shadow_offset_y", 1)
+	ammo_lbl.position = Vector2(65, 47)
+	hud_panel.add_child(ammo_lbl)
+
+	# ── 2c. B40 / VŨ KHÍ HẠNG NẶNG ─────────────────────────────────────────
+	var b40_sep := ColorRect.new()
+	b40_sep.size = Vector2(290, 1); b40_sep.position = Vector2(10, 74)
+	b40_sep.color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.35)
+	hud_panel.add_child(b40_sep)
+
+	var b40_icon := Label.new()
+	b40_icon.text = "💥  B40"
+	b40_icon.add_theme_font_size_override("font_size", 13)
+	b40_icon.add_theme_color_override("font_color", Color(1.0, 0.5, 0.1))
+	b40_icon.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
+	b40_icon.add_theme_constant_override("shadow_offset_x", 1)
+	b40_icon.add_theme_constant_override("shadow_offset_y", 1)
+	b40_icon.position = Vector2(10, 80)
+	hud_panel.add_child(b40_icon)
+
+	var b40_cd_bar := ProgressBar.new()
+	b40_cd_bar.name = "B40CoolBar"
+	b40_cd_bar.size = Vector2(160, 10)
+	b40_cd_bar.position = Vector2(70, 83)
+	b40_cd_bar.max_value = RPG_MAX_COOLDOWN
+	b40_cd_bar.value = RPG_MAX_COOLDOWN
+	b40_cd_bar.show_percentage = false
+	b40_cd_bar.add_theme_stylebox_override("background", _make_sbox.call(Color(0.12,0.06,0.0,0.7), Color(0.6,0.3,0.0,0.5), 1, 2))
+	var b40_fg := StyleBoxFlat.new(); b40_fg.bg_color = Color(1.0, 0.45, 0.0); b40_fg.set_corner_radius_all(2)
+	b40_cd_bar.add_theme_stylebox_override("fill", b40_fg)
+	hud_panel.add_child(b40_cd_bar)
+
+	var b40_cd_lbl := Label.new()
+	b40_cd_lbl.name = "B40CDLabel"
+	b40_cd_lbl.text = "SẴN SÀNG"
+	b40_cd_lbl.add_theme_font_size_override("font_size", 11)
+	b40_cd_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+	b40_cd_lbl.position = Vector2(236, 79)
+	hud_panel.add_child(b40_cd_lbl)
+
+	# ── 2d. SỐ ĐIỂM ─────────────────────────────────────────────────────────
+	var score_sep := ColorRect.new()
+	score_sep.size = Vector2(290, 1); score_sep.position = Vector2(10, 100)
+	score_sep.color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.35)
+	hud_panel.add_child(score_sep)
+
+	var score_icon := Label.new()
+	score_icon.text = "★  ĐIỂM"
+	score_icon.add_theme_font_size_override("font_size", 13)
+	score_icon.add_theme_color_override("font_color", C_GOLD)
+	score_icon.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
+	score_icon.add_theme_constant_override("shadow_offset_x", 1)
+	score_icon.add_theme_constant_override("shadow_offset_y", 1)
+	score_icon.position = Vector2(10, 106)
+	hud_panel.add_child(score_icon)
+
+	var score_val_lbl := Label.new()
+	score_val_lbl.name = "ScoreLabel"
+	score_val_lbl.text = "0"
+	score_val_lbl.add_theme_font_size_override("font_size", 15)
+	score_val_lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.5))
+	score_val_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.9))
+	score_val_lbl.add_theme_constant_override("shadow_offset_x", 1)
+	score_val_lbl.add_theme_constant_override("shadow_offset_y", 1)
+	score_val_lbl.position = Vector2(65, 104)
+	hud_panel.add_child(score_val_lbl)
+
+	var kill_lbl := Label.new()
+	kill_lbl.name = "KillLabel"
+	kill_lbl.text = "⚔ 0 tiêu diệt"
+	kill_lbl.add_theme_font_size_override("font_size", 11)
+	kill_lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 0.55))
+	kill_lbl.position = Vector2(10, 128)
+	hud_panel.add_child(kill_lbl)
 
 func refresh_hp(val: int, max_val: int) -> void:
 	if hp_bar:
 		hp_bar.max_value = max_val
 		hp_bar.value = val
+	var num_lbl = get_node_or_null("UI/HUDPanel/HPNumLabel")
+	if num_lbl:
+		var hearts := ""
+		for i in max_val:
+			hearts += "♥" if i < val else "♡"
+		num_lbl.text = hearts
+	# Persistent low-HP vignette pulse when 1 HP left
+	if is_instance_valid(_damage_vignette):
+		if val == 1:
+			if not _damage_vignette.has_meta("low_hp_looping"):
+				_damage_vignette.set_meta("low_hp_looping", true)
+				var lhtw: Tween = _damage_vignette.create_tween().set_loops()
+				lhtw.tween_property(_damage_vignette, "modulate:a", 0.35, 0.6)
+				lhtw.tween_property(_damage_vignette, "modulate:a", 0.0, 0.6)
+		else:
+			if _damage_vignette.has_meta("low_hp_looping"):
+				_damage_vignette.remove_meta("low_hp_looping")
+				_damage_vignette.modulate.a = 0.0
 
 func refresh_ammo(val: int, max_val: int, is_rel: bool) -> void:
-	if not has_node("UI/AmmoLabel"):
-		var lbl = Label.new()
-		lbl.name = "AmmoLabel"
-		lbl.position = Vector2(20, 85)
-		lbl.add_theme_font_size_override("font_size", 18)
-		lbl.add_theme_color_override("font_color", Color.YELLOW)
-		$UI.add_child(lbl)
-	
-	var al = $UI/AmmoLabel
+	var al = get_node_or_null("UI/HUDPanel/AmmoLabel")
+	if not al:  # fallback lazy-create if HUD panel missing
+		if not has_node("UI/AmmoLabel"):
+			var lbl = Label.new(); lbl.name = "AmmoLabel"; lbl.position = Vector2(20, 85)
+			lbl.add_theme_font_size_override("font_size", 18)
+			lbl.add_theme_color_override("font_color", Color.YELLOW)
+			$UI.add_child(lbl)
+		al = $UI/AmmoLabel
 	if is_rel:
-		al.text = "ĐANG NẠP ĐẠN..."
-		al.add_theme_color_override("font_color", Color.RED)
+		al.text = "  NẠP ĐẠN..."
+		al.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
 	else:
-		al.text = "ĐẠN: %d / %d" % [val, max_val]
-		al.add_theme_color_override("font_color", Color.YELLOW)
+		var color := Color(0.3, 1.0, 0.3) if val > max_val / 4 else Color(1.0, 0.6, 0.1)
+		al.text = "%d / %d" % [val, max_val]
+		al.add_theme_color_override("font_color", color)
 
 func _process(delta: float) -> void:
 	if is_game_over: return
@@ -215,8 +421,9 @@ func _process(delta: float) -> void:
 		refresh_heavy_weapon(_rpg_cooldown_timer, RPG_MAX_COOLDOWN)
 	
 	if is_instance_valid(player):
-		var target_x = player.position.x
-		camera.position.x = lerp(camera.position.x, target_x, 8.0 * delta)
+		var look_ahead: float = clamp(player.velocity.x * 0.12, -120.0, 120.0)
+		var target_x: float = player.position.x + look_ahead
+		camera.position.x = lerp(camera.position.x, target_x, 6.0 * delta)
 		# FIX: always clamp min to 576 (half screen) so left edge never shows negative world x
 		camera.position.x = clamp(camera.position.x, 576.0, STAGE_LENGTH - 500)
 		
@@ -230,7 +437,16 @@ func _process(delta: float) -> void:
 			target_y = 550.0 # Shift down to see the tunnel path clearly
 		camera.position.y = lerp(camera.position.y, target_y, 4.0 * delta)
 		
-		_parallax_bg.position.x = camera.position.x * 0.4
+		# Per-depth parallax using z_index bands
+		for child in _parallax_bg.get_children():
+			var n: Node2D = child as Node2D
+			if not n: continue
+			var coeff: float
+			if n.z_index <= -110:    coeff = 0.15
+			elif n.z_index <= -90:   coeff = 0.25
+			elif n.z_index <= -50:   coeff = 0.38
+			else:                    coeff = 0.55
+			n.position.x = camera.position.x * coeff
 		
 		# Update Progress Bar
 		progress_bar.value = player.position.x
@@ -347,65 +563,172 @@ func _process_bombs(_delta: float) -> void:
 			b.queue_free()
 
 func _explode_bomb(pos: Vector2) -> void:
-	screen_shake(12.0, 0.4) # Increased from 3.5, 0.25 for B40-like impact
+	screen_shake(12.0, 0.4)
 	Audio.play("b40", 12.0)
-	
-	# Massive Fire Blast Visual (B40 style - Optimized)
-	var blast = Polygon2D.new()
-	var res = 12; var radius = 80.0 # Reduced resolution and initial radius
-	var pts = []
-	for i in res:
-		var a = i * TAU / res
-		pts.append(Vector2(cos(a)*radius, sin(a)*radius))
-	blast.polygon = PackedVector2Array(pts)
+
+	# Layer 1 — white hot core
+	var core := Polygon2D.new()
+	var core_pts: Array = []
+	for i in 10:
+		var a := i * TAU / 10.0
+		core_pts.append(Vector2(cos(a) * 30.0, sin(a) * 30.0))
+	core.polygon = PackedVector2Array(core_pts)
+	core.color = Color(1.0, 1.0, 0.9, 1.0)
+	core.global_position = pos; core.z_index = 8
+	_add_to_level(core)
+	var core_tw: Tween = core.create_tween().set_parallel(true)
+	core_tw.tween_property(core, "scale", Vector2(0.4, 0.4), 0.0)
+	core_tw.chain().tween_property(core, "scale", Vector2(1.0, 1.0), 0.08).set_trans(Tween.TRANS_QUAD)
+	core_tw.tween_property(core, "modulate:a", 0.0, 0.2).set_delay(0.08)
+	core_tw.finished.connect(core.queue_free)
+
+	# Layer 2 — orange fireball ring
+	var blast := Polygon2D.new()
+	var blast_pts: Array = []
+	for i in 14:
+		var a := i * TAU / 14.0
+		var r := 70.0 * (0.85 + randf() * 0.3)
+		blast_pts.append(Vector2(cos(a) * r, sin(a) * r))
+	blast.polygon = PackedVector2Array(blast_pts)
 	blast.color = Color(1.0, 0.45, 0.1, 0.9)
-	blast.global_position = pos
+	blast.global_position = pos; blast.z_index = 7
 	_add_to_level(blast)
-	
-	var tw = blast.create_tween().set_parallel(true)
-	tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	tw.tween_property(blast, "scale", Vector2(1.8, 1.8), 0.25)
-	tw.tween_property(blast, "modulate:a", 0.0, 0.45).set_delay(0.15)
-	tw.finished.connect(blast.queue_free)
-	
-	# Light flash on screen (Optimized using persistent rect)
+	var blast_tw: Tween = blast.create_tween().set_parallel(true)
+	blast_tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	blast_tw.tween_property(blast, "scale", Vector2(1.6, 1.6), 0.3)
+	blast_tw.tween_property(blast, "modulate:a", 0.0, 0.35).set_delay(0.1)
+	blast_tw.finished.connect(blast.queue_free)
+
+	# Layer 3 — dark rolling smoke cloud
+	var smoke := Polygon2D.new()
+	var smoke_pts: Array = []
+	for i in 12:
+		var a := i * TAU / 12.0
+		var r := 55.0 * (0.7 + randf() * 0.6)
+		smoke_pts.append(Vector2(cos(a) * r, sin(a) * r))
+	smoke.polygon = PackedVector2Array(smoke_pts)
+	smoke.color = Color(0.18, 0.14, 0.12, 0.75)
+	smoke.global_position = pos; smoke.z_index = 6
+	_add_to_level(smoke)
+	var smoke_tw: Tween = smoke.create_tween().set_parallel(true)
+	smoke_tw.set_ease(Tween.EASE_OUT)
+	smoke_tw.tween_property(smoke, "scale", Vector2(2.2, 2.2), 0.6)
+	smoke_tw.tween_property(smoke, "position:y", pos.y - 30, 0.6)
+	smoke_tw.tween_property(smoke, "modulate:a", 0.0, 0.6).set_delay(0.1)
+	smoke_tw.finished.connect(smoke.queue_free)
+
+	# Debris triangles fly outward with gravity
+	for _di in 7:
+		var deg := Polygon2D.new()
+		deg.polygon = PackedVector2Array([Vector2(-4, -6), Vector2(4, -6), Vector2(0, 6)])
+		deg.color = Color(0.25, 0.18, 0.1)
+		deg.global_position = pos; deg.z_index = 9
+		_add_to_level(deg)
+		var vel_x := randf_range(-180.0, 180.0)
+		var vel_y := randf_range(-280.0, -80.0)
+		var d_tw: Tween = create_tween()
+		d_tw.tween_property(deg, "position", deg.position + Vector2(vel_x * 0.5, 120.0), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		d_tw.parallel().tween_property(deg, "rotation", randf_range(-PI * 3, PI * 3), 0.6)
+		d_tw.parallel().tween_property(deg, "modulate:a", 0.0, 0.6).set_delay(0.3)
+		d_tw.finished.connect(deg.queue_free)
+
+	# Screen flash
 	if is_instance_valid(_flash_rect):
 		_flash_rect.modulate.a = 0.4
-		var f_tw = create_tween()
+		var f_tw: Tween = create_tween()
 		f_tw.tween_property(_flash_rect, "modulate:a", 0.0, 0.15)
 
-	# Create a visual crater (a dark pit in the ground)
 	_create_crater(pos)
-	
-	# Damage player if nearby (increased radius to 110)
+
 	if is_instance_valid(player) and player.global_position.distance_to(pos) < 110.0:
 		player.take_damage(2)
 
 func _create_crater(pos: Vector2) -> void:
-	var crater = Polygon2D.new()
-	var pts = []
-	var res = 12
-	var radius = randf_range(30, 50)
-	for i in res:
-		var a = i * TAU / res
-		var r = radius * (0.8 + randf() * 0.4)
-		pts.append(Vector2(cos(a) * r, sin(a) * r * 0.4))
-	crater.polygon = PackedVector2Array(pts)
-	crater.color = Color(0.1, 0.05, 0.0, 0.8) # Burnt soil
-	crater.position = Vector2(pos.x, _get_ground_y(pos.x)) # Stick to floor
+	var floor_y := _get_ground_y(pos.x)
+	# Scorched earth ring
+	var scorch := Polygon2D.new()
+	var scorch_pts: Array = []
+	var radius := randf_range(32.0, 52.0)
+	for i in 14:
+		var a := i * TAU / 14.0
+		var r := (radius + 8.0) * (0.8 + randf() * 0.4)
+		scorch_pts.append(Vector2(cos(a) * r, sin(a) * r * 0.35))
+	scorch.polygon = PackedVector2Array(scorch_pts)
+	scorch.color = Color(0.3, 0.1, 0.0, 0.6)
+	scorch.position = Vector2(pos.x, floor_y)
+	_add_to_level(scorch)
+	# Pit (dark inner)
+	var crater := Polygon2D.new()
+	var crater_pts: Array = []
+	for i in 12:
+		var a := i * TAU / 12.0
+		var r := radius * (0.8 + randf() * 0.4)
+		crater_pts.append(Vector2(cos(a) * r, sin(a) * r * 0.4))
+	crater.polygon = PackedVector2Array(crater_pts)
+	crater.color = Color(0.08, 0.04, 0.0, 0.85)
+	crater.position = Vector2(pos.x, floor_y)
 	_add_to_level(crater)
-	
-	# Add some smoke particles (simple version)
+	# Rising smoke puffs — 8-sided circles
+	for i in 8:
+		var puff := Polygon2D.new()
+		var puff_pts: Array = []
+		var pr := randf_range(10.0, 20.0)
+		for pi in 8:
+			var pa := pi * TAU / 8.0
+			puff_pts.append(Vector2(cos(pa) * pr, sin(pa) * pr))
+		puff.polygon = PackedVector2Array(puff_pts)
+		puff.color = Color(0.5, 0.45, 0.4, 0.55)
+		puff.position = pos + Vector2(randf_range(-28.0, 28.0), randf_range(-10.0, 5.0))
+		puff.z_index = 5
+		_add_to_level(puff)
+		var ptw: Tween = create_tween()
+		ptw.tween_property(puff, "position:y", puff.position.y - randf_range(50.0, 90.0), 1.4)
+		ptw.parallel().tween_property(puff, "scale", Vector2(1.8, 1.8), 1.4)
+		ptw.parallel().tween_property(puff, "modulate:a", 0.0, 1.4)
+		ptw.finished.connect(puff.queue_free)
+
+# ── Hit sparks on bullet impact ─────────────────────────────────────────────
+func create_hit_sparks(hit_pos: Vector2, normal: Vector2) -> void:
 	for i in 5:
-		var smoke = ColorRect.new()
-		smoke.size = Vector2(8, 8)
-		smoke.color = Color(0.4, 0.4, 0.4, 0.6)
-		smoke.position = pos + Vector2(randf_range(-20, 20), randf_range(-10, 0))
-		_add_to_level(smoke)
-		var tw = create_tween()
-		tw.tween_property(smoke, "position:y", smoke.position.y - 40, 1.0)
-		tw.tween_property(smoke, "modulate:a", 0.0, 1.0)
-		tw.finished.connect(smoke.queue_free)
+		var spark_angle := normal.angle() + randf_range(-0.8, 0.8)
+		var spd := randf_range(80.0, 200.0)
+		var spark := Line2D.new()
+		var dir := Vector2(cos(spark_angle), sin(spark_angle))
+		spark.add_point(Vector2.ZERO)
+		spark.add_point(dir * randf_range(6.0, 14.0))
+		spark.default_color = Color(1.0, 0.9, 0.3, 1.0)
+		spark.width = 1.5
+		spark.global_position = hit_pos; spark.z_index = 6
+		_add_to_level(spark)
+		var stw: Tween = create_tween()
+		stw.tween_property(spark, "position", spark.position + dir * spd * 0.15, 0.15)
+		stw.parallel().tween_property(spark, "modulate:a", 0.0, 0.18)
+		stw.finished.connect(spark.queue_free)
+	# Small flash
+	var flash := ColorRect.new()
+	flash.size = Vector2(6, 6)
+	flash.color = Color(1.0, 1.0, 0.6, 0.8)
+	flash.global_position = hit_pos - Vector2(3, 3); flash.z_index = 7
+	_add_to_level(flash)
+	var ftw: Tween = create_tween()
+	ftw.tween_property(flash, "modulate:a", 0.0, 0.1)
+	ftw.finished.connect(flash.queue_free)
+
+# ── Landing dust (called by player) ─────────────────────────────────────────
+func spawn_landing_dust(lpos: Vector2) -> void:
+	for i in 6:
+		var d := ColorRect.new()
+		d.size = Vector2(5, 5)
+		d.color = Color(0.75, 0.65, 0.5, 0.7)
+		var off_x := randf_range(-30.0, 30.0)
+		d.position = lpos + Vector2(off_x, 0.0)
+		d.z_index = 4
+		_add_to_level(d)
+		var dtw: Tween = create_tween()
+		dtw.tween_property(d, "position:y", d.position.y - randf_range(15.0, 35.0), 0.4)
+		dtw.parallel().tween_property(d, "position:x", d.position.x + off_x * 0.5, 0.4)
+		dtw.parallel().tween_property(d, "modulate:a", 0.0, 0.45)
+		dtw.finished.connect(d.queue_free)
 
 func _spawn_bomber() -> void:
 	var b = BOMBER_SCENE.instantiate()
@@ -416,25 +739,35 @@ func _spawn_bomber() -> void:
 	b.direction = -1
 	# Ensure they are added to world so they scroll correctly
 	_add_to_level(b)
+	# Thunder flash (stage 3 highlands)
+	if current_stage == 3 and is_instance_valid(_flash_rect):
+		var th_tw: Tween = create_tween()
+		th_tw.tween_property(_flash_rect, "modulate:a", 0.25, 0.05)
+		th_tw.tween_property(_flash_rect, "modulate:a", 0.0, 0.12)
+		th_tw.tween_interval(0.08)
+		th_tw.tween_property(_flash_rect, "modulate:a", 0.15, 0.03)
+		th_tw.tween_property(_flash_rect, "modulate:a", 0.0, 0.1)
 
 func spawn_shell(pos: Vector2, dir: float) -> void:
-	var shell = ColorRect.new()
-	shell.size = Vector2(4, 2)
-	shell.color = Color(1, 0.8, 0.2) # Brass
-	shell.position = pos
+	# Polygon2D 6-point brass cylinder casing
+	var shell := Polygon2D.new()
+	shell.polygon = PackedVector2Array([
+		Vector2(-1.5, -3.5), Vector2(1.5, -3.5),
+		Vector2(2.0, -1.0), Vector2(2.0, 3.0),
+		Vector2(-2.0, 3.0), Vector2(-2.0, -1.0)
+	])
+	shell.color = Color(0.85, 0.68, 0.18)
+	shell.global_position = pos; shell.z_index = 3
 	_add_to_level(shell)
-	
-	var tw = create_tween()
-	# Small horizontal bounce (opposite to firing direction), short arc
-	var jump_x = randf_range(8, 25) * -dir
-	var jump_y = -randf_range(15, 30)
-	# Land near player's feet
-	var ground_y = pos.y + randf_range(20, 40)
-	tw.tween_property(shell, "position", pos + Vector2(jump_x, jump_y), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_property(shell, "rotation", randf_range(-PI, PI), 0.15)
-	tw.tween_property(shell, "position:y", ground_y, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.tween_property(shell, "modulate:a", 0.0, 1.0)
-	tw.finished.connect(shell.queue_free)
+	var jump_x := randf_range(8.0, 25.0) * -dir
+	var jump_y := -randf_range(15.0, 30.0)
+	var ground_y := pos.y + randf_range(20.0, 40.0)
+	var stw: Tween = create_tween()
+	stw.tween_property(shell, "position", pos + Vector2(jump_x, jump_y), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	stw.parallel().tween_property(shell, "rotation", randf_range(-PI, PI), 0.15)
+	stw.tween_property(shell, "position:y", ground_y, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	stw.tween_property(shell, "modulate:a", 0.0, 1.0)
+	stw.finished.connect(shell.queue_free)
 
 func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 	var rng := RandomNumberGenerator.new()
@@ -739,6 +1072,11 @@ func _cleanup_level() -> void:
 	if progress_bar:
 		for c in progress_bar.get_children(): c.queue_free()
 	_rpg_cooldown_timer = 0.0
+	kill_count = 0
+	var kl = get_node_or_null("UI/HUDPanel/KillLabel")
+	if kl: kl.text = "⚔ 0 tiêu diệt"
+	var sl = get_node_or_null("UI/HUDPanel/ScoreLabel")
+	if sl: sl.text = "0"
 
 func _load_stage_data(num: int) -> void:
 	if STAGE_SCRIPTS.has(num):
@@ -2539,19 +2877,26 @@ func screen_shake(p, t) -> void:
 	_shake_time = t
 
 func refresh_heavy_weapon(cooldown: float, _max_cooldown: float) -> void:
-	if not has_node("UI/HeavyWeaponBox"):
+	var cd_bar  = get_node_or_null("UI/HUDPanel/B40CoolBar")
+	var cd_lbl  = get_node_or_null("UI/HUDPanel/B40CDLabel")
+	# Legacy fallback: lazy-create old box if HUDPanel not found
+	if not cd_lbl and not has_node("UI/HeavyWeaponBox"):
 		var box = Node2D.new(); box.name = "HeavyWeaponBox"; box.position = Vector2(250, 45); $UI.add_child(box)
 		var bg = ColorRect.new(); bg.size = Vector2(60, 40); bg.color = Color(0,0,0,0.5); box.add_child(bg)
 		var icon = Label.new(); icon.text = "B40"; icon.position = Vector2(5, 2); icon.add_theme_font_size_override("font_size", 12); box.add_child(icon)
-		var cd_lbl = Label.new(); cd_lbl.name = "CDLabel"; cd_lbl.position = Vector2(5, 18); cd_lbl.add_theme_font_size_override("font_size", 16); box.add_child(cd_lbl)
-	
-	var cd = $UI/HeavyWeaponBox/CDLabel
-	if cooldown > 0:
-		cd.text = "%.1fs" % cooldown
-		cd.add_theme_color_override("font_color", Color.RED)
-	else:
-		cd.text = "SẴN SÀNG"
-		cd.add_theme_color_override("font_color", Color.GREEN)
+		var lbl2 = Label.new(); lbl2.name = "CDLabel"; lbl2.position = Vector2(5, 18); lbl2.add_theme_font_size_override("font_size", 16); box.add_child(lbl2)
+	if not cd_lbl: cd_lbl = get_node_or_null("UI/HeavyWeaponBox/CDLabel")
+
+	if is_instance_valid(cd_bar):
+		cd_bar.max_value = _max_cooldown
+		cd_bar.value = _max_cooldown - cooldown  # bar fills up as cooldown counts down
+	if is_instance_valid(cd_lbl):
+		if cooldown > 0:
+			cd_lbl.text = "%.1fs" % cooldown
+			cd_lbl.add_theme_color_override("font_color", Color(1.0, 0.4, 0.1))
+		else:
+			cd_lbl.text = "SẴN SÀNG"
+			cd_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
 
 func on_player_die():
 	# FIX: call_deferred to avoid physics state changes during collision callbacks
@@ -2589,25 +2934,128 @@ func on_stage_complete():
 			tree.change_scene_to_file("res://scenes/level_select.tscn")
 
 
-func _show_victory():
+func flash_damage() -> void:
+	if not is_instance_valid(_damage_vignette): return
+	var tw: Tween = create_tween().set_parallel(true)
+	tw.tween_property(_damage_vignette, "color:a", 0.38, 0.05)
+	tw.tween_property(_damage_vignette, "color:a", 0.0,  0.35).set_delay(0.05)
+
+func show_alert(msg: String, duration: float = 2.5) -> void:
+	# Create or reuse the alert panel
+	if not is_instance_valid(_alert_panel):
+		_alert_panel = Panel.new()
+		_alert_panel.name = "AlertPanel"
+		_alert_panel.size = Vector2(520, 58)
+		_alert_panel.position = Vector2((1152 - 520) * 0.5, 175)
+		_alert_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_alert_panel.z_index = 95
+		var sty := StyleBoxFlat.new()
+		sty.bg_color = Color(0.05, 0.10, 0.04, 0.93)
+		sty.border_color = Color(0.84, 0.72, 0.22)
+		sty.border_width_left = 2; sty.border_width_right  = 2
+		sty.border_width_top  = 2; sty.border_width_bottom = 2
+		sty.set_corner_radius_all(8)
+		_alert_panel.add_theme_stylebox_override("panel", sty)
+		var al: Label = Label.new()
+		al.name = "AlertText"
+		al.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		al.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		al.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		al.add_theme_font_size_override("font_size", 20)
+		al.add_theme_color_override("font_color", Color(1.0, 0.92, 0.4))
+		al.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+		al.add_theme_constant_override("shadow_offset_x", 2)
+		al.add_theme_constant_override("shadow_offset_y", 2)
+		_alert_panel.add_child(al)
+		$UI.add_child(_alert_panel)
+		_alert_panel.modulate.a = 0.0
+	var text_lbl: Node = _alert_panel.get_node_or_null("AlertText")
+	if text_lbl is Label: (text_lbl as Label).text = msg
+	_alert_panel.scale = Vector2(0.6, 0.6)
+	_alert_panel.pivot_offset = _alert_panel.size * 0.5
+	var tw: Tween = create_tween()
+	tw.tween_property(_alert_panel, "modulate:a", 1.0, 0.1)
+	tw.parallel().tween_property(_alert_panel, "scale", Vector2(1.05, 1.05), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_alert_panel, "scale", Vector2(1.0, 1.0), 0.1)
+	tw.tween_interval(duration)
+	tw.tween_property(_alert_panel, "modulate:a", 0.0, 0.3)
+
+func _show_victory() -> void:
 	is_game_over = true
-	# Clear everything for victory
-	var tree = get_tree()
+	var tree: SceneTree = get_tree()
 	if tree:
 		for n in tree.get_nodes_in_group("enemy"): n.queue_free()
-	
-	# Create an EPIC Victory Title (Big, Centered, Red & Gold)
-	var vic_label = Label.new()
+
+	# Dark overlay fade-in
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0)
+	overlay.size = Vector2(1152, 720)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.z_index = 96
+	$UI.add_child(overlay)
+	var ov_tw: Tween = create_tween()
+	ov_tw.tween_property(overlay, "color:a", 0.65, 1.2).set_trans(Tween.TRANS_SINE)
+
+	# Main title — bounce-in after 0.3s
+	var vic_label := Label.new()
 	vic_label.text = "GIẢI PHÓNG MIỀN NAM"
 	vic_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vic_label.add_theme_font_size_override("font_size", 54)
 	vic_label.add_theme_color_override("font_color", Color.YELLOW)
 	vic_label.add_theme_constant_override("outline_size", 12)
 	vic_label.add_theme_color_override("font_outline_color", Color.RED)
-	vic_label.size = Vector2(1152, 200); vic_label.position = Vector2(0, 120)
+	vic_label.size = Vector2(1152, 120)
+	vic_label.position = Vector2(0, 80)
+	vic_label.modulate.a = 0.0
+	vic_label.scale = Vector2(0.7, 0.7)
+	vic_label.pivot_offset = Vector2(576, 60)
+	vic_label.z_index = 97
 	$UI.add_child(vic_label)
-	
-	var btn = Button.new(); btn.text = "VỀ MÀN HÌNH CHÍNH"; btn.size = Vector2(250, 60); btn.position = Vector2(451, 360)
+	var vl_tw: Tween = create_tween()
+	vl_tw.tween_interval(0.3)
+	vl_tw.tween_property(vic_label, "modulate:a", 1.0, 0.2)
+	vl_tw.parallel().tween_property(vic_label, "scale", Vector2(1.1, 1.1), 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	vl_tw.tween_property(vic_label, "scale", Vector2(1.0, 1.0), 0.15)
+
+	# Subtitle — slide up from offset
+	var sub_lbl := Label.new()
+	sub_lbl.text = "30 tháng 4, 1975"
+	sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub_lbl.add_theme_font_size_override("font_size", 22)
+	sub_lbl.add_theme_color_override("font_color", Color(0.85, 0.78, 0.45))
+	sub_lbl.size = Vector2(1152, 50)
+	sub_lbl.position = Vector2(0, 245)
+	sub_lbl.modulate.a = 0.0
+	sub_lbl.z_index = 97
+	$UI.add_child(sub_lbl)
+	var sl_tw: Tween = create_tween()
+	sl_tw.tween_interval(0.65)
+	sl_tw.tween_property(sub_lbl, "modulate:a", 1.0, 0.5).set_trans(Tween.TRANS_EXPO)
+
+	# 3 Polygon2D gold stars below subtitle
+	for s_idx: int in 3:
+		var star := Polygon2D.new()
+		var spts: Array = []
+		for j: int in 10:
+			var sr: float = 24.0 if j % 2 == 0 else 10.0
+			spts.append(Vector2(cos(j * TAU / 10.0 - PI / 2.0) * sr, sin(j * TAU / 10.0 - PI / 2.0) * sr))
+		star.polygon = PackedVector2Array(spts)
+		star.color = Color(1.0, 0.85, 0.05)
+		star.position = Vector2(516.0 + s_idx * 62.0, 315.0)
+		star.scale = Vector2.ZERO
+		star.z_index = 97
+		$UI.add_child(star)
+		var s_tw: Tween = create_tween()
+		var s_delay: float = 0.8 + s_idx * 0.2
+		s_tw.tween_interval(s_delay)
+		s_tw.tween_property(star, "scale", Vector2(1.2, 1.2), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		s_tw.tween_property(star, "scale", Vector2(1.0, 1.0), 0.10)
+
+	var btn := Button.new()
+	btn.text = "VỀ MÀN HÌNH CHÍNH"
+	btn.size = Vector2(250, 60)
+	btn.position = Vector2(451, 370)
+	btn.z_index = 97
 	btn.pressed.connect(_exit_to_main_menu)
 	$UI.add_child(btn)
 
@@ -2667,16 +3115,42 @@ func _show_victory():
 		Engine.time_scale = 1.0
 
 func _spawn_firework() -> void:
-	var fw = ColorRect.new()
-	fw.size = Vector2(6, 6)
-	fw.color = [Color.RED, Color.YELLOW, Color.CYAN, Color.GREEN].pick_random()
-	fw.position = camera.global_position + Vector2(randf_range(-400, 400), randf_range(-200, 100))
-	add_child(fw)
-	var tw = create_tween()
-	tw.set_parallel(true)
-	tw.tween_property(fw, "scale", Vector2(10, 10), 0.5)
-	tw.tween_property(fw, "modulate:a", 0.0, 0.5)
-	tw.finished.connect(fw.queue_free)
+	var colors := [Color(1.0,0.15,0.1), Color(1.0,0.85,0.0), Color(0.2,0.9,0.3), Color(0.2,0.7,1.0), Color(1.0,0.4,0.9)]
+	var cx := camera.global_position.x + randf_range(-420, 420)
+	var cy := camera.global_position.y + randf_range(-230, 80)
+	var fc: Color = colors.pick_random()
+	# Burst: 12 spark particles radiating outward
+	for i in 12:
+		var spark := Polygon2D.new()
+		var spts := PackedVector2Array()
+		for k in 8:
+			var a := k * TAU / 8.0
+			spts.append(Vector2(cos(a) * 5, sin(a) * 5))
+		spark.polygon = spts
+		spark.color = fc
+		spark.position = Vector2(cx, cy)
+		add_child(spark)
+		var angle := i * TAU / 12.0
+		var dist  := randf_range(60.0, 180.0)
+		var end_pos := Vector2(cx + cos(angle) * dist, cy + sin(angle) * dist)
+		var tw := spark.create_tween().set_parallel(true)
+		tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(spark, "position", end_pos, 0.55)
+		tw.tween_property(spark, "modulate:a", 0.0, 0.55)
+		tw.tween_property(spark, "scale", Vector2(0.3, 0.3), 0.55)
+		tw.finished.connect(spark.queue_free)
+	# Central flash
+	var flash := Polygon2D.new()
+	var fpts := PackedVector2Array()
+	for k in 16:
+		var a := k * TAU / 16.0
+		fpts.append(Vector2(cos(a) * 22, sin(a) * 22))
+	flash.polygon = fpts; flash.color = fc; flash.position = Vector2(cx, cy)
+	add_child(flash)
+	var ftw := flash.create_tween().set_parallel(true)
+	ftw.tween_property(flash, "scale", Vector2(3.0, 3.0), 0.3)
+	ftw.tween_property(flash, "modulate:a", 0.0, 0.3)
+	ftw.finished.connect(flash.queue_free)
 
 func _setup_cheat_menu() -> void:
 	_cheat_menu = Control.new()
@@ -2733,57 +3207,106 @@ func _setup_pause_menu() -> void:
 	_pause_menu.name = "PauseMenu"
 	_pause_menu.visible = false
 	_pause_menu.process_mode = PROCESS_MODE_ALWAYS
-	# FIX: Ensure the parent container covers the whole screen so children can center
 	_pause_menu.anchor_right = 1.0; _pause_menu.anchor_bottom = 1.0
 	_pause_menu.offset_right = 1152; _pause_menu.offset_bottom = 720
 	$UI.add_child(_pause_menu)
-	
+
 	_setup_history_panel()
-	
-	var dim_bg = ColorRect.new()
-	dim_bg.size = Vector2(1152, 720) # Full screen
-	dim_bg.color = Color(0, 0, 0, 0.7)
+
+	# ── Màn nền mờ ──────────────────────────────────────────────────────────
+	var dim_bg := ColorRect.new()
+	dim_bg.size = Vector2(1152, 720)
+	dim_bg.color = Color(0.0, 0.04, 0.0, 0.72)
 	_pause_menu.add_child(dim_bg)
-	
-	var panel = ColorRect.new()
+
+	# ── Panel chính: military olive + viền vàng ──────────────────────────────
+	var panel := Panel.new()
 	panel.name = "MainPanel"
-	panel.size = Vector2(360, 320)
-	panel.color = Color(0.1, 0.1, 0.1, 0.95)
-	# Reliable manual centering for 1152x720 screen
-	panel.position = Vector2(396, 200) 
+	panel.size = Vector2(380, 360)
+	panel.position = Vector2(386, 180)
+	var sty := StyleBoxFlat.new()
+	sty.bg_color        = Color(0.06, 0.12, 0.05, 0.97)
+	sty.border_color    = Color(0.82, 0.70, 0.18)
+	sty.border_width_left = 2; sty.border_width_right = 2
+	sty.border_width_top  = 2; sty.border_width_bottom = 2
+	sty.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", sty)
 	_pause_menu.add_child(panel)
-	
-	var title = Label.new()
-	title.text = "TẠM DỪNG"
+
+	# Thanh tiêu đề vàng ở đỉnh panel
+	var title_bar := ColorRect.new()
+	title_bar.size = Vector2(380, 44)
+	title_bar.color = Color(0.15, 0.22, 0.07, 0.95)
+	panel.add_child(title_bar)
+
+	var title_sep := ColorRect.new()
+	title_sep.size = Vector2(380, 2); title_sep.position = Vector2(0, 44)
+	title_sep.color = Color(0.82, 0.70, 0.18, 0.8)
+	panel.add_child(title_sep)
+
+	# Biểu tượng + tiêu đề "⏸  TẠM DỪNG"
+	var title := Label.new()
+	title.text = "⏸  TẠM DỪNG"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_color", Color.WHITE)
-	title.size = Vector2(360, 50)
-	title.position = Vector2(0, 15)
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color(0.95, 0.88, 0.30))
+	title.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
+	title.add_theme_constant_override("shadow_offset_x", 2)
+	title.add_theme_constant_override("shadow_offset_y", 2)
+	title.size = Vector2(380, 44); title.position = Vector2(0, 0)
 	panel.add_child(title)
-	
-	var btn_v = VBoxContainer.new()
-	btn_v.size = Vector2(280, 220)
-	btn_v.position = Vector2(40, 75)
-	btn_v.add_theme_constant_override("separation", 15)
+
+	# Thông tin wave / điểm bên trong panel
+	var info_lbl := Label.new()
+	info_lbl.name = "PauseInfoLabel"
+	info_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info_lbl.add_theme_font_size_override("font_size", 13)
+	info_lbl.add_theme_color_override("font_color", Color(0.70, 0.82, 0.55))
+	info_lbl.size = Vector2(360, 24); info_lbl.position = Vector2(10, 52)
+	panel.add_child(info_lbl)
+
+	# ── Nút bấm — tạo với style micro military ──────────────────────────────
+	var btn_v := VBoxContainer.new()
+	btn_v.size = Vector2(300, 260)
+	btn_v.position = Vector2(40, 84)
+	btn_v.add_theme_constant_override("separation", 12)
 	panel.add_child(btn_v)
-	
-	var btn_resume = Button.new()
-	btn_resume.text = "TIẾP TỤC"
-	btn_resume.custom_minimum_size = Vector2(0, 45)
+
+	var _mk_pbtn := func(txt: String) -> Button:
+		var b := Button.new()
+		b.text = txt
+		b.custom_minimum_size = Vector2(0, 48)
+		b.add_theme_font_size_override("font_size", 17)
+		b.add_theme_color_override("font_color", Color(0.90, 0.86, 0.55))
+		b.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.2))
+		b.add_theme_color_override("font_pressed_color", Color(1.0, 1.0, 1.0))
+		var sn := StyleBoxFlat.new()
+		sn.bg_color = Color(0.10, 0.18, 0.06, 0.92); sn.border_color = Color(0.55, 0.48, 0.12)
+		sn.border_width_left = 1; sn.border_width_right = 1
+		sn.border_width_top  = 1; sn.border_width_bottom = 1
+		sn.set_corner_radius_all(5)
+		var sh := sn.duplicate() as StyleBoxFlat
+		sh.bg_color = Color(0.16, 0.30, 0.10, 0.96); sh.border_color = Color(0.82, 0.70, 0.18)
+		var sp := sn.duplicate() as StyleBoxFlat
+		sp.bg_color = Color(0.06, 0.10, 0.04, 0.96)
+		b.add_theme_stylebox_override("normal",  sn)
+		b.add_theme_stylebox_override("hover",   sh)
+		b.add_theme_stylebox_override("pressed", sp)
+		return b
+
+	var btn_resume: Button = _mk_pbtn.call("▶  TIẾP TỤC  [ESC]")
+	btn_resume.process_mode = PROCESS_MODE_ALWAYS
 	btn_resume.pressed.connect(_toggle_pause_menu)
 	btn_v.add_child(btn_resume)
-	
-	var btn_history = Button.new()
-	btn_history.text = "LỊCH SỬ CHIẾN DỊCH"
-	btn_history.custom_minimum_size = Vector2(0, 45)
-	btn_history.modulate = Color(1, 0.9, 0.3)
+
+	var btn_history: Button = _mk_pbtn.call("📖  LỊCH SỬ CHIẾN DỊCH")
+	btn_history.process_mode = PROCESS_MODE_ALWAYS
 	btn_history.pressed.connect(func(): _show_history_info())
 	btn_v.add_child(btn_history)
-	
-	var btn_exit = Button.new()
-	btn_exit.text = "THOÁT RA MENU"
-	btn_exit.custom_minimum_size = Vector2(0, 45)
+
+	var btn_exit: Button = _mk_pbtn.call("✖  THOÁT RA MENU")
+	btn_exit.process_mode = PROCESS_MODE_ALWAYS
+	btn_exit.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
 	btn_exit.pressed.connect(_exit_to_main_menu)
 	btn_v.add_child(btn_exit)
 
@@ -2906,6 +3429,13 @@ func _toggle_cheat_menu() -> void:
 func _toggle_pause_menu() -> void:
 	_is_paused = !_is_paused
 	_pause_menu.visible = _is_paused
+	if _is_paused:
+		# Cập nhật thông tin wave/điểm vào label bên trong pause panel
+		var info = get_node_or_null("UI/PauseMenu/MainPanel/PauseInfoLabel")
+		if info:
+			var titles: Array[String] = ["RỪNG GIÀ", "ĐỊA ĐẠO", "ĐƯỜNG MÒN", "CĂN CỨ ĐỊCH", "SÀI GÒN"]
+			var stage_name: String = titles[current_stage - 1] if current_stage <= titles.size() else "MÀN %d" % current_stage
+			info.text = "Chiến dịch %d: %s  |  Điểm: %d" % [current_stage, stage_name, score]
 	_update_pause_state()
 
 func _update_pause_state() -> void:

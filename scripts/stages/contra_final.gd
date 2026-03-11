@@ -125,6 +125,34 @@ func setup():
 	for i in range(int(STAGE_LENGTH / 1200)):
 		_create_shophouse_row(600 + i * 1200)
 
+	# === NHÀ PHỐ SÀI GÒN 1975: kiến trúc đa dạng ===
+	# Khách sạn Rex — Nguyễn Huệ / Lê Lợi
+	_create_rex_hotel_bg(1800)
+	_create_rex_hotel_bg(9200)
+	_create_rex_hotel_bg(14800)
+
+	# Khách sạn Continental / Caravelle style
+	_create_continental_hotel_bg(3800)
+	_create_continental_hotel_bg(8600)
+	_create_continental_hotel_bg(13400)
+
+	# Nhà ống Sài Gòn — mỗi 1800px
+	for i in range(int(STAGE_LENGTH / 1800)):
+		_create_saigon_tube_house_row(900 + i * 1800 + randf_range(-120, 120))
+
+	# Biệt thự Pháp thuộc chi tiết cao
+	_create_french_villa_elaborate(2600)
+	_create_french_villa_elaborate(6500)
+	_create_french_villa_elaborate(10800)
+	_create_french_villa_elaborate(15200)
+
+	# Chùa / đền thờ Sài Gòn
+	_create_saigon_pagoda_bg(4200)
+	_create_saigon_pagoda_bg(11500)
+
+	# Dinh Độc Lập — toàn cảnh chi tiết phía cuối màn chơi
+	_create_independence_palace_main_building(13000)
+
 	# Extra foreground vegetation — Saigon boulevard trees
 	for i in range(int(STAGE_LENGTH / 320)):
 		var tx = 180 + i * 320 + randf_range(-40, 40)
@@ -136,13 +164,147 @@ func setup():
 		elif tree_roll < 0.75:
 			_create_banyan_tree(tx)
 
+	# --- Foreground flag poles every 600px ---
+	for i in range(int(STAGE_LENGTH / 600)):
+		var fpx := 300.0 + i * 600.0
+		var fpole := Node2D.new()
+		fpole.position = Vector2(fpx, 600.0); fpole.z_index = 1
+		main._add_to_level(fpole)
+		# Pole stick
+		var pstick := ColorRect.new()
+		pstick.size = Vector2(3, 80); pstick.position = Vector2(-1, -80)
+		pstick.color = Color(0.75, 0.7, 0.6); fpole.add_child(pstick)
+		# Flag body (red top, blue bottom)
+		var fred2 := ColorRect.new(); fred2.size = Vector2(28, 12); fred2.position = Vector2(2, -80)
+		fred2.color = Color(0.85, 0.1, 0.1); fpole.add_child(fred2)
+		var fblu2 := ColorRect.new(); fblu2.size = Vector2(28, 12); fblu2.position = Vector2(2, -68)
+		fblu2.color = Color(0.04, 0.35, 0.78); fpole.add_child(fblu2)
+		# Star on flag
+		var fpts2: Array = []
+		for j in 10:
+			var fsz := 4.5 if j % 2 == 0 else 2.0
+			fpts2.append(Vector2(cos(j * TAU / 10.0 - PI / 2.0) * fsz + 16, sin(j * TAU / 10.0 - PI / 2.0) * fsz - 74))
+		var fstar2 := Polygon2D.new(); fstar2.polygon = PackedVector2Array(fpts2)
+		fstar2.color = Color.YELLOW; fpole.add_child(fstar2)
+		# Flag wave tween
+		var ftw2: Tween = fblu2.create_tween().set_loops()
+		ftw2.tween_property(fblu2, "size:x", 32.0, randf_range(0.4, 0.8)).set_trans(Tween.TRANS_SINE)
+		ftw2.tween_property(fblu2, "size:x", 24.0, randf_range(0.4, 0.8)).set_trans(Tween.TRANS_SINE)
+
+	# --- Building smoke from war-damaged structures ---
+	for i in 3:
+		var smx := 1200.0 + i * 4000.0
+		var smoke_emitter := Node2D.new()
+		smoke_emitter.position = Vector2(smx, 440.0); smoke_emitter.z_index = 4
+		main._add_to_level(smoke_emitter)
+		var stw3: Tween = smoke_emitter.create_tween().set_loops()
+		stw3.tween_callback(func():
+			var sp := Polygon2D.new()
+			var smoke_pts: Array = []
+			var sr3 := randf_range(12.0, 22.0)
+			for si in 8:
+				var sa := si * TAU / 8.0
+				smoke_pts.append(Vector2(cos(sa) * sr3, sin(sa) * sr3))
+			sp.polygon = PackedVector2Array(smoke_pts)
+			sp.color = Color(0.3, 0.28, 0.26, 0.45)
+			sp.global_position = smoke_emitter.global_position + Vector2(randf_range(-20.0, 20.0), 0.0)
+			sp.z_index = 4
+			main._add_to_level(sp)
+			var ptw2: Tween = sp.create_tween()
+			ptw2.tween_property(sp, "position:y", sp.position.y - randf_range(60.0, 110.0), 2.5)
+			ptw2.parallel().tween_property(sp, "scale", Vector2(2.5, 2.5), 2.5)
+			ptw2.parallel().tween_property(sp, "modulate:a", 0.0, 2.5)
+			ptw2.finished.connect(sp.queue_free)
+		)
+		stw3.tween_interval(randf_range(0.5, 1.2))
+
 # --- PERFECT VISUAL HELPERS ---
 
 func _create_independence_palace_distant(x: float):
+	# Dinh Độc Lập (Reunification Palace) — kiến trúc Ngô Viết Thụ 1966
+	# Chi tiết 80-90% giống thực tế: lam che nắng, 2 cánh, cầu thang lớn, cột cờ
 	var p = Node2D.new(); p.position = Vector2(x, 600); p.z_index = -98; _get_parallax().add_child(p)
-	p.modulate = Color(0.4, 0.45, 0.6, 0.4)
-	var body = ColorRect.new(); body.size = Vector2(500, 150); body.position = Vector2(-250, -150); p.add_child(body)
-	var dome = Polygon2D.new(); dome.polygon = [Vector2(-80, 0), Vector2(0, -60), Vector2(80, 0)]; dome.position = Vector2(0, -150); p.add_child(dome)
+	p.modulate = Color(0.48, 0.52, 0.68, 0.5)
+
+	var WALL   = Color(0.93, 0.88, 0.74)  # bê tông màu kem
+	var LOUVER = Color(0.75, 0.70, 0.54)  # lam che nắng tối hơn
+	var WIN    = Color(0.10, 0.13, 0.20)  # ô cửa sổ
+	var GRASS  = Color(0.20, 0.40, 0.16)
+
+	# --- Bãi cỏ trước Dinh ---
+	var lawn = ColorRect.new(); lawn.size = Vector2(600, 20); lawn.position = Vector2(-300, -20)
+	lawn.color = GRASS; p.add_child(lawn)
+
+	# --- Hai cánh nhà bên trái và phải ---
+	for side in [-1, 1]:
+		var wx = side * 210
+		var wing = ColorRect.new(); wing.size = Vector2(130, 200); wing.position = Vector2(wx - 65, -220)
+		wing.color = WALL; p.add_child(wing)
+		# Đường ngang phân tầng (3 tầng)
+		for fl in 3:
+			var wfl = ColorRect.new(); wfl.size = Vector2(134, 5); wfl.position = Vector2(wx - 67, -220 + fl * 66)
+			wfl.color = LOUVER; p.add_child(wfl)
+		# Cửa sổ cánh (2 tầng × 2 cửa)
+		for fl in 2:
+			for wc in 2:
+				var win = ColorRect.new(); win.size = Vector2(20, 32); win.position = Vector2(wx - 50 + wc * 44, -200 + fl * 66)
+				win.color = WIN; p.add_child(win)
+		# Parapet cánh
+		var w_par = ColorRect.new(); w_par.size = Vector2(136, 12); w_par.position = Vector2(wx - 68, -222)
+		w_par.color = LOUVER; p.add_child(w_par)
+
+	# --- Khối trung tâm chính (cao hơn cánh) ---
+	var main_body = ColorRect.new(); main_body.size = Vector2(280, 320); main_body.position = Vector2(-140, -340)
+	main_body.color = WALL; p.add_child(main_body)
+
+	# --- Lam che nắng đặc trưng — 4 tầng × 10 ô lam ---
+	for fl in 4:
+		var fy = -310 + fl * 72
+		# Thanh ngang phân sàn
+		var slab = ColorRect.new(); slab.size = Vector2(280, 6); slab.position = Vector2(-140, fy)
+		slab.color = LOUVER; p.add_child(slab)
+		# Các ô lam
+		for bay in 9:
+			var bx = -132 + bay * 29
+			var lam = ColorRect.new(); lam.size = Vector2(24, 62); lam.position = Vector2(bx, fy + 6)
+			lam.color = LOUVER; p.add_child(lam)
+			# Vạch bóng ngang trong ô lam (tạo cảm giác 3D)
+			for sl in 3:
+				var slat = ColorRect.new(); slat.size = Vector2(24, 2); slat.position = Vector2(bx, fy + 6 + sl * 20)
+				slat.color = Color(0.08, 0.08, 0.10, 0.35); p.add_child(slat)
+			# Ô tối sau lam (gợi cửa sổ bên trong)
+			var bg_win = ColorRect.new(); bg_win.size = Vector2(18, 60); bg_win.position = Vector2(bx + 3, fy + 7)
+			bg_win.color = WIN; bg_win.modulate.a = 0.45; p.add_child(bg_win)
+
+	# --- Mặt tiền tầng 1: ban công / cửa lớn ---
+	var ground_band = ColorRect.new(); ground_band.size = Vector2(280, 30); ground_band.position = Vector2(-140, -38)
+	ground_band.color = LOUVER; p.add_child(ground_band)
+	# Cửa vào chính (3 cửa lớn)
+	for ci in 3:
+		var door = ColorRect.new(); door.size = Vector2(30, 42); door.position = Vector2(-60 + ci * 42, -68)
+		door.color = WIN; p.add_child(door)
+
+	# --- Cầu thang trước Dinh (bậc thang rộng) ---
+	for step in 4:
+		var sw = 200 + step * 22; var sh = 8
+		var s = ColorRect.new(); s.size = Vector2(sw, sh); s.position = Vector2(-sw/2.0, -8 - step * sh)
+		s.color = Color(0.85, 0.80, 0.66 - step * 0.02); p.add_child(s)
+
+	# --- Parapet mái trung tâm ---
+	var roof_par = ColorRect.new(); roof_par.size = Vector2(290, 14); roof_par.position = Vector2(-145, -342)
+	roof_par.color = LOUVER; p.add_child(roof_par)
+
+	# --- Tầng thượng / penthouse nhỏ ---
+	var pent = ColorRect.new(); pent.size = Vector2(160, 30); pent.position = Vector2(-80, -372)
+	pent.color = WALL; p.add_child(pent)
+	var pent_par = ColorRect.new(); pent_par.size = Vector2(166, 10); pent_par.position = Vector2(-83, -372)
+	pent_par.color = LOUVER; p.add_child(pent_par)
+
+	# --- Cột cờ trên mái + cờ NLF lớn ---
+	var flagpole = ColorRect.new(); flagpole.size = Vector2(3, 80); flagpole.position = Vector2(-1, -452)
+	flagpole.color = Color(0.55, 0.50, 0.35); p.add_child(flagpole)
+	var flag_nd = Node2D.new(); flag_nd.position = Vector2(2, -448); flag_nd.scale = Vector2(0.85, 0.85); p.add_child(flag_nd)
+	_draw_flag_shapes(flag_nd, 52, 38)
 
 func _create_distant_city_complex(x: float):
 	var node = Node2D.new(); node.position = Vector2(x, 600); node.z_index = -95; _get_parallax().add_child(node)
@@ -220,8 +382,9 @@ func _create_power_line_complex(x: float):
 		_draw_flag_shapes(f, 40, 30)
 
 func _draw_flag_shapes(node: Node2D, w, h):
+	# Cờ Mặt trận Giải phóng miền Nam: đỏ trên, xanh dưới, ngôi sao 5 cánh vàng ở giữa
 	var red = ColorRect.new(); red.size = Vector2(w, h/2); red.color = Color(0.85, 0.1, 0.1); node.add_child(red)
-	var blu = ColorRect.new(); blu.size = Vector2(w, h/2); blu.position = Vector2(0, h/2); blu.color = Color(0.1, 0.4, 0.85); node.add_child(blu)
+	var blu = ColorRect.new(); blu.size = Vector2(w, h/2); blu.position = Vector2(0, h/2); blu.color = Color(0.04, 0.35, 0.78); node.add_child(blu)
 	var star = Polygon2D.new(); var pts = []
 	for j in 10:
 		var r = 9 if j % 2 == 0 else 4; pts.append(Vector2(cos(j*TAU/10-PI/2)*r, sin(j*TAU/10-PI/2)*r))
@@ -731,12 +894,15 @@ func _create_crowd_civilians(x: float) -> void:
 		# Tiny flag above head
 		var flag_pole = ColorRect.new(); flag_pole.size = Vector2(2, 14); flag_pole.position = Vector2(3, -44)
 		flag_pole.color = Color(0.4, 0.25, 0.1); civ.add_child(flag_pole)
-		var flag_top = ColorRect.new(); flag_top.size = Vector2(12, 8); flag_top.position = Vector2(5, -52)
-		flag_top.color = Color(0.85, 0.1, 0.1); civ.add_child(flag_top)
+		# Cờ đỏ trên, xanh dưới
+		var flag_red = ColorRect.new(); flag_red.size = Vector2(12, 4); flag_red.position = Vector2(5, -52)
+		flag_red.color = Color(0.85, 0.1, 0.1); civ.add_child(flag_red)
+		var flag_blu = ColorRect.new(); flag_blu.size = Vector2(12, 4); flag_blu.position = Vector2(5, -48)
+		flag_blu.color = Color(0.04, 0.35, 0.78); civ.add_child(flag_blu)
 		var star_pts = PackedVector2Array()
 		for j in 10:
-			var r2 = 3.0 if j % 2 == 0 else 1.5
-			star_pts.append(Vector2(cos(j*TAU/10 - PI/2)*r2 + 11, sin(j*TAU/10 - PI/2)*r2 - 48))
+			var r2 = 2.5 if j % 2 == 0 else 1.2
+			star_pts.append(Vector2(cos(j*TAU/10 - PI/2)*r2 + 11, sin(j*TAU/10 - PI/2)*r2 - 50))
 		var star2 = Polygon2D.new(); star2.polygon = star_pts; star2.color = Color.YELLOW; civ.add_child(star2)
 
 # --- 9. NLF/PAVN marching soldier group ---
@@ -774,8 +940,9 @@ func _process(delta):
 		if i == 0:
 			var fp = ColorRect.new(); fp.size = Vector2(2, 30); fp.position = Vector2(6, -50)
 			fp.color = Color(0.35, 0.22, 0.08); sol.add_child(fp)
+			# Cờ đỏ trên, xanh dưới
 			var ft = ColorRect.new(); ft.size = Vector2(18, 10); ft.position = Vector2(8, -50); ft.color = Color(0.85,0.1,0.1); sol.add_child(ft)
-			var fb = ColorRect.new(); fb.size = Vector2(18, 10); fb.position = Vector2(8, -40); fb.color = Color(0.1,0.35,0.85); sol.add_child(fb)
+			var fb = ColorRect.new(); fb.size = Vector2(18, 10); fb.position = Vector2(8, -40); fb.color = Color(0.04,0.35,0.78); sol.add_child(fb)
 			var fs_pts = PackedVector2Array()
 			for j in 10:
 				var r3 = 4.0 if j%2==0 else 2.0
@@ -814,8 +981,9 @@ func _create_victory_arch(x: float) -> void:
 
 # --- 2. Tank 843 ---
 func _create_tank_843(x: float) -> void:
-	var tank = Node2D.new()
-	tank.position = Vector2(x, 600)
+	var tank := Node2D.new()
+	# Start off-screen to the right, then drive in
+	tank.position = Vector2(x + 600.0, 600)
 	tank.z_index = 2
 	main._add_to_level(tank)
 
@@ -863,13 +1031,31 @@ func _create_tank_843(x: float) -> void:
 	# Antenna + NLF flag
 	var antenna = ColorRect.new(); antenna.size = Vector2(2, 40); antenna.position = Vector2(-30, -102)
 	antenna.color = Color(0.2, 0.15, 0.08); tank.add_child(antenna)
+	# Cờ đỏ trên, xanh dưới
 	var ft = ColorRect.new(); ft.size = Vector2(20, 10); ft.position = Vector2(-28, -140); ft.color = Color(0.85,0.1,0.1); tank.add_child(ft)
-	var fb = ColorRect.new(); fb.size = Vector2(20, 10); fb.position = Vector2(-28, -130); fb.color = Color(0.1,0.35,0.85); tank.add_child(fb)
+	var fb = ColorRect.new(); fb.size = Vector2(20, 10); fb.position = Vector2(-28, -130); fb.color = Color(0.04,0.35,0.78); tank.add_child(fb)
 	var fstar_pts = PackedVector2Array()
 	for j in 10:
 		var fr = 4.5 if j%2==0 else 2.0
 		fstar_pts.append(Vector2(cos(j*TAU/10-PI/2)*fr - 18, sin(j*TAU/10-PI/2)*fr - 135))
-	var fstar = Polygon2D.new(); fstar.polygon = fstar_pts; fstar.color = Color.YELLOW; tank.add_child(fstar)
+	var fstar := Polygon2D.new(); fstar.polygon = fstar_pts; fstar.color = Color.YELLOW; tank.add_child(fstar)
+
+	# Entry animation: drive from right to final position with engine rumble shake
+	var entry_tw: Tween = tank.create_tween()
+	entry_tw.tween_property(tank, "position:x", x, 4.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	# Dust clouds during entry
+	entry_tw.tween_callback(func():
+		for _di in 5:
+			var dust2 := ColorRect.new()
+			dust2.size = Vector2(30, 14)
+			dust2.color = Color(0.7, 0.62, 0.5, 0.4)
+			dust2.global_position = tank.global_position + Vector2(randf_range(-80.0, -20.0), randf_range(-8.0, 4.0))
+			dust2.z_index = 3
+			main._add_to_level(dust2)
+			var d_tw: Tween = dust2.create_tween()
+			d_tw.tween_property(dust2, "modulate:a", 0.0, 0.8)
+			d_tw.finished.connect(dust2.queue_free)
+	)
 
 # --- 1. Independence Palace entrance gate (Historical Crashing Scene) ---
 func _create_independence_palace_entrance(x: float) -> void:
@@ -1114,3 +1300,509 @@ func _show_panel():
 	watcher.set("_trigger_x", stage_x)
 	watcher.set("_main_ref", main)
 	main._add_to_level(watcher)
+
+# ============================================================
+# === DINH ĐỘC LẬP — CHI TIẾT CAO (80-90% THỰC TẾ) =========
+# ============================================================
+# Thiết kế KTS Ngô Viết Thụ 1962-1966: lam che nắng bê-tông,
+# hai cánh đối xứng, cầu thang lớn, sân trực thăng trên mái,
+# cổng sắt + tường rào bên ngoài, vườn cỏ xanh.
+func _create_independence_palace_main_building(x: float) -> void:
+	var node = Node2D.new()
+	node.position = Vector2(x, 600)
+	node.z_index = -55
+	_get_parallax().add_child(node)
+
+	var WALL   = Color(0.94, 0.90, 0.76)  # bê tông màu kem
+	var LOUVER = Color(0.74, 0.69, 0.52)  # lam che nắng
+	var SHADOW = Color(0.06, 0.06, 0.08, 0.32)
+	var WIN    = Color(0.10, 0.13, 0.20, 0.92)
+	var TRIM   = Color(0.80, 0.74, 0.58)
+	var GRASS  = Color(0.18, 0.40, 0.14)
+	var FENCE  = Color(0.62, 0.60, 0.46)
+
+	# ── Bãi cỏ trước Dinh ──────────────────────────────────
+	var lawn = ColorRect.new(); lawn.size = Vector2(900, 28); lawn.position = Vector2(-450, -28)
+	lawn.color = GRASS; node.add_child(lawn)
+	# Lối đi trung tâm (đường nhựa)
+	var path = ColorRect.new(); path.size = Vector2(80, 28); path.position = Vector2(-40, -28)
+	path.color = Color(0.20, 0.20, 0.22); node.add_child(path)
+
+	# ── Hàng rào + cổng sắt ──────────────────────────────
+	var fence_rail = ColorRect.new(); fence_rail.size = Vector2(900, 4); fence_rail.position = Vector2(-450, -32)
+	fence_rail.color = FENCE; node.add_child(fence_rail)
+	for fi in 20:
+		var fp = ColorRect.new(); fp.size = Vector2(4, 22); fp.position = Vector2(-440 + fi * 46, -52)
+		fp.color = FENCE; node.add_child(fp)
+		# Đầu nhọn kiểu Pháp
+		var tip = Polygon2D.new()
+		tip.polygon = PackedVector2Array([Vector2(-3,0),Vector2(0,-8),Vector2(3,0)])
+		tip.color = FENCE; tip.position = Vector2(-438 + fi * 46, -52); node.add_child(tip)
+	# Cổng trung tâm (mở toang do xe tăng húc)
+	for gi in 2:
+		var gbar = ColorRect.new(); gbar.size = Vector2(6, 75)
+		gbar.position = Vector2(-30 + gi * 56, -105)
+		gbar.rotation = (1.2 if gi == 0 else -1.2)
+		gbar.color = Color(0.22, 0.22, 0.26); node.add_child(gbar)
+
+	# ── Nền móng / bậc thềm lớn ──────────────────────────
+	var plinth = ColorRect.new(); plinth.size = Vector2(820, 32); plinth.position = Vector2(-410, -62)
+	plinth.color = Color(0.74, 0.70, 0.56); node.add_child(plinth)
+	for step in 5:
+		var sw = 320 + step * 40
+		var s = ColorRect.new(); s.size = Vector2(sw, 10); s.position = Vector2(-sw/2.0, -62 - step * 10)
+		s.color = Color(0.87, 0.82, 0.68 - step * 0.015); node.add_child(s)
+
+	# ── Hai cánh nhà (trái và phải) ──────────────────────
+	for side in [-1, 1]:
+		var wx = side * 295
+		# Thân cánh (3 tầng)
+		var wing = ColorRect.new(); wing.size = Vector2(220, 310); wing.position = Vector2(wx - 110, -372)
+		wing.color = WALL; node.add_child(wing)
+		# Đường ngang phân tầng × 3
+		for fl in 4:
+			var wfl = ColorRect.new(); wfl.size = Vector2(224, 6); wfl.position = Vector2(wx - 112, -372 + fl * 100)
+			wfl.color = LOUVER; node.add_child(wfl)
+		# Lam che nắng cánh (3 tầng × 6 ô)
+		for fl in 3:
+			for bay in 6:
+				var bx = wx - 100 + bay * 33
+				var lam = ColorRect.new(); lam.size = Vector2(28, 88); lam.position = Vector2(bx, -366 + fl * 100)
+				lam.color = LOUVER; node.add_child(lam)
+				for sl in 3:
+					var slat = ColorRect.new(); slat.size = Vector2(28, 2); slat.position = Vector2(bx, -366 + fl * 100 + sl * 28)
+					slat.color = SHADOW; node.add_child(slat)
+				var bwin = ColorRect.new(); bwin.size = Vector2(22, 86); bwin.position = Vector2(bx + 3, -365 + fl * 100)
+				bwin.color = WIN; bwin.modulate.a = 0.42; node.add_child(bwin)
+		# Parapet cánh
+		var w_par = ColorRect.new(); w_par.size = Vector2(226, 16); w_par.position = Vector2(wx - 113, -374)
+		w_par.color = LOUVER; node.add_child(w_par)
+		# Cờ nhỏ đầu cánh
+		var sf_pole = ColorRect.new(); sf_pole.size = Vector2(3, 45); sf_pole.position = Vector2(wx - 2, -419)
+		sf_pole.color = Color(0.52, 0.47, 0.32); node.add_child(sf_pole)
+		var sf_flag = Node2D.new(); sf_flag.position = Vector2(wx + 1, -415); sf_flag.scale = Vector2(0.55, 0.55)
+		node.add_child(sf_flag); _draw_flag_shapes(sf_flag, 44, 32)
+
+	# ── Khối trung tâm chính (cao nhất) ──────────────────
+	var central = ColorRect.new(); central.size = Vector2(420, 440); central.position = Vector2(-210, -502)
+	central.color = WALL; node.add_child(central)
+
+	# ── Lam che nắng đặc trưng khối trung tâm (4 tầng × 14 ô) ──
+	for fl in 4:
+		var fy = -472 + fl * 108
+		# Sàn ngang
+		var slab = ColorRect.new(); slab.size = Vector2(420, 8); slab.position = Vector2(-210, fy)
+		slab.color = LOUVER; node.add_child(slab)
+		for bay in 13:
+			var bx = -202 + bay * 30
+			var lam = ColorRect.new(); lam.size = Vector2(26, 96); lam.position = Vector2(bx, fy + 8)
+			lam.color = LOUVER; node.add_child(lam)
+			for sl in 4:
+				var slat = ColorRect.new(); slat.size = Vector2(26, 2); slat.position = Vector2(bx, fy + 8 + sl * 23)
+				slat.color = SHADOW; node.add_child(slat)
+			var bg_win = ColorRect.new(); bg_win.size = Vector2(20, 94); bg_win.position = Vector2(bx + 3, fy + 9)
+			bg_win.color = WIN; bg_win.modulate.a = 0.40; node.add_child(bg_win)
+
+	# ── Ban công + hành lang mặt tiền tầng 1 ──
+	var portico_slab = ColorRect.new(); portico_slab.size = Vector2(260, 14); portico_slab.position = Vector2(-130, -118)
+	portico_slab.color = LOUVER; node.add_child(portico_slab)
+	# Cột hành lang (4 cột)
+	for ci in 4:
+		var col = ColorRect.new(); col.size = Vector2(14, 52); col.position = Vector2(-120 + ci * 78, -170)
+		col.color = WALL; node.add_child(col)
+		var cap = ColorRect.new(); cap.size = Vector2(20, 8); cap.position = Vector2(-123 + ci * 78, -170)
+		cap.color = LOUVER; node.add_child(cap)
+	# Cửa lớn tầng 1 (3 cửa đôi)
+	for ci in 3:
+		var door = ColorRect.new(); door.size = Vector2(36, 60); door.position = Vector2(-74 + ci * 52, -170)
+		door.color = WIN; node.add_child(door)
+		var d_arch = Polygon2D.new()
+		d_arch.polygon = PackedVector2Array([Vector2(0,0),Vector2(18,-16),Vector2(36,0)])
+		d_arch.color = WIN; d_arch.position = door.position; node.add_child(d_arch)
+
+	# ── Parapet mái trung tâm ──
+	var roof_par = ColorRect.new(); roof_par.size = Vector2(432, 20); roof_par.position = Vector2(-216, -504)
+	roof_par.color = LOUVER; node.add_child(roof_par)
+	# Tường nhỏ phân ô trên parapet
+	for pi in 8:
+		var pblock = ColorRect.new(); pblock.size = Vector2(40, 20); pblock.position = Vector2(-210 + pi * 55, -524)
+		pblock.color = WALL; node.add_child(pblock)
+
+	# ── Tầng thượng (penthouse) ──
+	var pent = ColorRect.new(); pent.size = Vector2(240, 46); pent.position = Vector2(-120, -550)
+	pent.color = WALL; node.add_child(pent)
+	var pent_par = ColorRect.new(); pent_par.size = Vector2(248, 12); pent_par.position = Vector2(-124, -550)
+	pent_par.color = LOUVER; node.add_child(pent_par)
+	# Cửa sổ penthouse (5 ô)
+	for pi in 5:
+		var pw = ColorRect.new(); pw.size = Vector2(26, 30); pw.position = Vector2(-105 + pi * 44, -538)
+		pw.color = WIN; node.add_child(pw)
+
+	# ── Sân thượng + bãi đáp trực thăng ──
+	var helipad_base = ColorRect.new(); helipad_base.size = Vector2(100, 8); helipad_base.position = Vector2(-50, -558)
+	helipad_base.color = Color(0.28, 0.28, 0.30); node.add_child(helipad_base)
+	var hcpts = PackedVector2Array()
+	for j in 20: hcpts.append(Vector2(cos(j*TAU/20)*40, sin(j*TAU/20)*26))
+	var helipad = Polygon2D.new(); helipad.polygon = hcpts
+	helipad.color = Color(0.25, 0.25, 0.28, 0.6); helipad.position = Vector2(-50, -568); node.add_child(helipad)
+	# Chữ H sân đáp
+	var hv = ColorRect.new(); hv.size = Vector2(4, 20); hv.position = Vector2(-58, -578); hv.color = Color(0.85, 0.85, 0.85, 0.7); node.add_child(hv)
+	var hv2 = ColorRect.new(); hv2.size = Vector2(4, 20); hv2.position = Vector2(-46, -578); hv2.color = Color(0.85, 0.85, 0.85, 0.7); node.add_child(hv2)
+	var hh = ColorRect.new(); hh.size = Vector2(16, 3); hh.position = Vector2(-58, -569); hh.color = Color(0.85, 0.85, 0.85, 0.7); node.add_child(hh)
+
+	# ── Cột cờ chính trên mái + cờ NLF lớn ──
+	var flagpole = ColorRect.new(); flagpole.size = Vector2(5, 150); flagpole.position = Vector2(-2, -700)
+	flagpole.color = Color(0.70, 0.65, 0.50); node.add_child(flagpole)
+	var flag_nd = Node2D.new(); flag_nd.position = Vector2(3, -695); node.add_child(flag_nd)
+	_draw_flag_shapes(flag_nd, 110, 78)
+
+# ============================================================
+# === KHÁCH SẠN REX (REX HOTEL) STYLE — NGÔ ĐỨC KẾ / LÊ LỢI
+# ============================================================
+func _create_rex_hotel_bg(x: float) -> void:
+	var node = Node2D.new()
+	node.position = Vector2(x, 600)
+	node.z_index = -82
+	node.modulate = Color(0.52, 0.55, 0.72, 0.58)
+	_get_parallax().add_child(node)
+
+	var WALL  = Color(0.88, 0.80, 0.60)
+	var TRIM  = Color(0.70, 0.62, 0.44)
+	var WIN   = Color(0.12, 0.15, 0.22)
+	var ROOF  = Color(0.30, 0.35, 0.22)   # vườn trên mái (màu xanh lá)
+
+	# Thân khách sạn (5 tầng)
+	var body = ColorRect.new(); body.size = Vector2(340, 360); body.position = Vector2(-170, -360)
+	body.color = WALL; node.add_child(body)
+	# Đường phân tầng × 5
+	for fl in 5:
+		var fline = ColorRect.new(); fline.size = Vector2(344, 6); fline.position = Vector2(-172, -360 + fl * 72)
+		fline.color = TRIM; node.add_child(fline)
+	# Cửa sổ vòng cung kiểu Pháp (5 tầng × 5 cửa)
+	for fl in 5:
+		for wc in 5:
+			var win = ColorRect.new(); win.size = Vector2(30, 48); win.position = Vector2(-150 + wc * 62, -340 + fl * 72)
+			win.color = WIN; node.add_child(win)
+			var arc = Polygon2D.new()
+			arc.polygon = PackedVector2Array([Vector2(0,0),Vector2(15,-14),Vector2(30,0)])
+			arc.color = WIN; arc.position = win.position; node.add_child(arc)
+			# Cánh cửa chớp xanh
+			var shutter = ColorRect.new(); shutter.size = Vector2(12, 48)
+			shutter.position = Vector2(win.position.x + 30, win.position.y)
+			shutter.color = Color(0.22, 0.40, 0.22, 0.75); node.add_child(shutter)
+	# Tầng trệt arcade (hành lang mái vòm Pháp)
+	for ai in 5:
+		var arch_body = ColorRect.new(); arch_body.size = Vector2(54, 44); arch_body.position = Vector2(-162 + ai * 66, -56)
+		arch_body.color = TRIM; node.add_child(arch_body)
+		var arch_top = Polygon2D.new()
+		arch_top.polygon = PackedVector2Array([Vector2(0,0),Vector2(27,-24),Vector2(54,0)])
+		arch_top.color = TRIM; arch_top.position = Vector2(-162 + ai * 66, -56); node.add_child(arch_top)
+		var arch_in = ColorRect.new(); arch_in.size = Vector2(40, 44); arch_in.position = Vector2(-155 + ai * 66, -56)
+		arch_in.color = WIN; node.add_child(arch_in)
+	# Mái vườn trên nóc (đặc trưng Rex Hotel có vườn rooftop)
+	var roof_garden = ColorRect.new(); roof_garden.size = Vector2(350, 28); roof_garden.position = Vector2(-175, -388)
+	roof_garden.color = ROOF; node.add_child(roof_garden)
+	# Cây cảnh trên mái (4 cây)
+	for ti in 4:
+		var tree_trunk = ColorRect.new(); tree_trunk.size = Vector2(5, 22); tree_trunk.position = Vector2(-150 + ti * 100, -410)
+		tree_trunk.color = Color(0.28, 0.18, 0.10); node.add_child(tree_trunk)
+		var tree_crown = Polygon2D.new(); var tcpts = PackedVector2Array()
+		for j in 8: tcpts.append(Vector2(cos(j*TAU/8)*16, sin(j*TAU/8)*12))
+		tree_crown.polygon = tcpts; tree_crown.color = Color(0.18, 0.42, 0.14)
+		tree_crown.position = Vector2(-147 + ti * 100, -418); node.add_child(tree_crown)
+	# Parapet nóc + bảng hiệu REX
+	var par = ColorRect.new(); par.size = Vector2(350, 18); par.position = Vector2(-175, -390)
+	par.color = TRIM; node.add_child(par)
+	var sign = ColorRect.new(); sign.size = Vector2(120, 24); sign.position = Vector2(-60, -408)
+	sign.color = Color(0.85, 0.10, 0.08); node.add_child(sign)
+	var sign_lbl = Label.new(); sign_lbl.text = "REX"
+	sign_lbl.position = Vector2(-50, -409)
+	sign_lbl.add_theme_font_size_override("font_size", 14)
+	sign_lbl.add_theme_color_override("font_color", Color.YELLOW); node.add_child(sign_lbl)
+	# Cột cờ
+	var sp = ColorRect.new(); sp.size = Vector2(3, 55); sp.position = Vector2(-1, -445)
+	sp.color = Color(0.55, 0.50, 0.38); node.add_child(sp)
+	var sf = Node2D.new(); sf.position = Vector2(2, -441); sf.scale = Vector2(0.6, 0.6); node.add_child(sf)
+	_draw_flag_shapes(sf, 44, 32)
+
+# ============================================================
+# === KHÁCH SẠN CONTINENTAL / CARAVELLE STYLE ================
+# ============================================================
+func _create_continental_hotel_bg(x: float) -> void:
+	var node = Node2D.new()
+	node.position = Vector2(x, 600)
+	node.z_index = Vector2(-84, 0).x
+	node.z_index = -84
+	node.modulate = Color(0.50, 0.53, 0.70, 0.55)
+	_get_parallax().add_child(node)
+
+	var WALL = Color(0.90, 0.84, 0.64)
+	var TRIM = Color(0.68, 0.60, 0.42)
+	var WIN  = Color(0.12, 0.14, 0.20)
+
+	# Khối chính (6 tầng)
+	var body = ColorRect.new(); body.size = Vector2(300, 420); body.position = Vector2(-150, -420)
+	body.color = WALL; node.add_child(body)
+	# Đường phân tầng
+	for fl in 6:
+		var fl_line = ColorRect.new(); fl_line.size = Vector2(304, 5); fl_line.position = Vector2(-152, -420 + fl * 70)
+		fl_line.color = TRIM; node.add_child(fl_line)
+	# Cửa sổ (6 tầng × 4 cửa)
+	for fl in 6:
+		for wc in 4:
+			var win = ColorRect.new(); win.size = Vector2(34, 52); win.position = Vector2(-132 + wc * 76, -400 + fl * 70)
+			win.color = WIN; node.add_child(win)
+			var arc = Polygon2D.new()
+			arc.polygon = PackedVector2Array([Vector2(0,0),Vector2(17,-15),Vector2(34,0)])
+			arc.color = WIN; arc.position = win.position; node.add_child(arc)
+	# Mái tam giác kiểu Pháp (mansard)
+	var mansard = Polygon2D.new()
+	mansard.polygon = PackedVector2Array([Vector2(-155,-420),Vector2(-130,-460),Vector2(0,-480),Vector2(130,-460),Vector2(155,-420)])
+	mansard.color = Color(0.42, 0.30, 0.20); node.add_child(mansard)
+	# Cửa sổ mái (dormer windows) × 3
+	for di in 3:
+		var dwx = -80 + di * 80
+		var dw = Polygon2D.new()
+		dw.polygon = PackedVector2Array([Vector2(-10,0),Vector2(0,-18),Vector2(10,0)])
+		dw.color = WALL; dw.position = Vector2(dwx, -440); node.add_child(dw)
+		var dwin = ColorRect.new(); dwin.size = Vector2(14, 14); dwin.position = Vector2(dwx - 7, -436)
+		dwin.color = WIN; node.add_child(dwin)
+	# Arcade tầng trệt
+	for ai in 4:
+		var col = ColorRect.new(); col.size = Vector2(10, 55); col.position = Vector2(-130 + ai * 80, -65)
+		col.color = TRIM; node.add_child(col)
+	var awning = ColorRect.new(); awning.size = Vector2(310, 12); awning.position = Vector2(-155, -62)
+	awning.color = Color(0.80, 0.15, 0.12); node.add_child(awning)
+	# Cờ
+	var sp = ColorRect.new(); sp.size = Vector2(3, 60); sp.position = Vector2(-1, -542)
+	sp.color = Color(0.55, 0.50, 0.38); node.add_child(sp)
+	var sf = Node2D.new(); sf.position = Vector2(2, -537); sf.scale = Vector2(0.6, 0.6); node.add_child(sf)
+	_draw_flag_shapes(sf, 44, 32)
+
+# ============================================================
+# === NHÀ ỐNG SÀI GÒN (TUBE HOUSES ROW) =====================
+# ============================================================
+func _create_saigon_tube_house_row(x: float) -> void:
+	var node = Node2D.new()
+	node.position = Vector2(x, 600)
+	node.z_index = -75
+	_get_parallax().add_child(node)
+
+	var palette = [
+		Color(0.94, 0.85, 0.62), Color(0.78, 0.90, 0.80),
+		Color(0.92, 0.78, 0.74), Color(0.82, 0.82, 0.94),
+		Color(0.96, 0.90, 0.70), Color(0.74, 0.88, 0.86)
+	]
+	var count = randi_range(4, 7)
+	for i in count:
+		var sw = randf_range(65, 95)
+		var sh = randf_range(200, 360)
+		var sx = -count * 48 + i * 100.0
+		var col = palette[i % palette.size()]
+
+		# Mặt tiền
+		var face = ColorRect.new(); face.size = Vector2(sw, sh); face.position = Vector2(sx, -sh)
+		face.color = col; node.add_child(face)
+
+		# Tường ngăn giữa
+		var div = ColorRect.new(); div.size = Vector2(2, sh); div.position = Vector2(sx + sw, -sh)
+		div.color = Color(0.4, 0.38, 0.3, 0.6); node.add_child(div)
+
+		# Parapet (gờ sênô trên đỉnh)
+		var par = ColorRect.new(); par.size = Vector2(sw + 4, 16); par.position = Vector2(sx - 2, -sh - 10)
+		par.color = Color(0.60, 0.55, 0.40); node.add_child(par)
+
+		# Tầng trệt: cửa cuốn hoặc shop
+		var shutter = ColorRect.new(); shutter.size = Vector2(sw * 0.72, 62); shutter.position = Vector2(sx + sw * 0.14, -64)
+		shutter.color = Color(0.08, 0.06, 0.05); node.add_child(shutter)
+		# Thanh sắt cửa cuốn
+		for bar in 5:
+			var bline = ColorRect.new(); bline.size = Vector2(sw * 0.72, 2)
+			bline.position = Vector2(sx + sw * 0.14, -62 + bar * 12)
+			bline.color = Color(0.22, 0.20, 0.18); node.add_child(bline)
+
+		# Mái che vải / hiên (awning)
+		var awning = Polygon2D.new()
+		awning.polygon = PackedVector2Array([
+			Vector2(sx - 4, -64), Vector2(sx + sw + 4, -64),
+			Vector2(sx + sw + 14, -80), Vector2(sx - 14, -80)
+		])
+		awning.color = [Color(0.80,0.18,0.12), Color(0.18,0.50,0.22), Color(0.18,0.22,0.72)][i % 3]
+		node.add_child(awning)
+
+		# Số tầng: 2-3 tầng trên
+		var floors = randi_range(2, 3)
+		for fl in floors:
+			var wy = -sh + 28 + fl * (sh / float(floors + 1))
+			# Cửa sổ khung gỗ
+			var win = ColorRect.new(); win.size = Vector2(sw * 0.5, 38); win.position = Vector2(sx + sw * 0.25, wy)
+			win.color = Color(0.10, 0.13, 0.20); node.add_child(win)
+			var win_frame = ColorRect.new(); win_frame.size = Vector2(sw * 0.5 + 4, 40)
+			win_frame.position = Vector2(sx + sw * 0.25 - 2, wy - 1)
+			win_frame.color = Color(0.58, 0.50, 0.36, 0.8); win_frame.z_index = -1; node.add_child(win_frame)
+			# Cờ / đồ phơi trên cửa sổ
+			if randf() < 0.45:
+				_add_flag_to_node(node, Vector2(sx + sw * 0.5, wy - 10), 0.40)
+			else:
+				var rope = ColorRect.new(); rope.size = Vector2(sw * 0.6, 2); rope.position = Vector2(sx + sw * 0.2, wy - 4)
+				rope.color = Color(0.08,0.08,0.08); node.add_child(rope)
+				for k in randi_range(2, 4):
+					var cloth = ColorRect.new(); cloth.size = Vector2(randf_range(8,16), randf_range(12,22))
+					cloth.position = Vector2(sx + sw * 0.2 + k * 16, wy - 4 + randf_range(0,4))
+					cloth.color = Color(randf(), randf(), randf()); node.add_child(cloth)
+
+		# Bảng hiệu tầng trệt
+		if randf() < 0.6:
+			var sign = ColorRect.new(); sign.size = Vector2(sw * 0.8, 14); sign.position = Vector2(sx + sw * 0.1, -82)
+			sign.color = Color(randf_range(0.7,1.0), randf_range(0.1,0.3), randf_range(0.05,0.2)); node.add_child(sign)
+
+# ============================================================
+# === BIỆT THỰ PHÁP THUỘC (ELABORATE FRENCH COLONIAL VILLA) ==
+# ============================================================
+func _create_french_villa_elaborate(x: float) -> void:
+	var node = Node2D.new()
+	node.position = Vector2(x, 600)
+	node.z_index = -74
+	_get_parallax().add_child(node)
+
+	var WALL   = Color(0.92, 0.84, 0.62)
+	var TRIM   = Color(0.72, 0.64, 0.44)
+	var WIN    = Color(0.14, 0.16, 0.22)
+	var SHUTTER = Color(0.22, 0.42, 0.22)
+	var ROOF   = Color(0.72, 0.28, 0.18)
+
+	# Tường cổng + hàng rào villa
+	var fence = ColorRect.new(); fence.size = Vector2(480, 10); fence.position = Vector2(-240, -10)
+	fence.color = TRIM; node.add_child(fence)
+	for fi in 10:
+		var fp = ColorRect.new(); fp.size = Vector2(5, 22); fp.position = Vector2(-230 + fi * 48, -30)
+		fp.color = TRIM; node.add_child(fp)
+
+	# Bãi cỏ trước villa
+	var lawn = ColorRect.new(); lawn.size = Vector2(480, 22); lawn.position = Vector2(-240, -22)
+	lawn.color = Color(0.20, 0.42, 0.16); node.add_child(lawn)
+
+	# Thân villa chính (2 tầng)
+	var body = ColorRect.new(); body.size = Vector2(380, 240); body.position = Vector2(-190, -270)
+	body.color = WALL; node.add_child(body)
+
+	# Mái ngói kiểu Pháp (hip roof 4 mặt)
+	var roof_front = Polygon2D.new()
+	roof_front.polygon = PackedVector2Array([Vector2(-200,-270),Vector2(-80,-340),Vector2(80,-340),Vector2(200,-270)])
+	roof_front.color = ROOF; node.add_child(roof_front)
+	var chimney = ColorRect.new(); chimney.size = Vector2(18, 40); chimney.position = Vector2(60, -370)
+	chimney.color = Color(0.60, 0.25, 0.14); node.add_child(chimney)
+
+	# Đường phân tầng
+	var floor_band = ColorRect.new(); floor_band.size = Vector2(384, 8); floor_band.position = Vector2(-192, -152)
+	floor_band.color = TRIM; node.add_child(floor_band)
+
+	# Ban công tầng 2 (với lan can trụ đứng kiểu Pháp)
+	var bal_slab = ColorRect.new(); bal_slab.size = Vector2(240, 10); bal_slab.position = Vector2(-120, -154)
+	bal_slab.color = TRIM; node.add_child(bal_slab)
+	for bi in 12:
+		var baluster = ColorRect.new(); baluster.size = Vector2(5, 24); baluster.position = Vector2(-118 + bi * 19, -178)
+		baluster.color = Color(0.88, 0.82, 0.64); node.add_child(baluster)
+	var bal_rail = ColorRect.new(); bal_rail.size = Vector2(240, 5); bal_rail.position = Vector2(-120, -178)
+	bal_rail.color = TRIM; node.add_child(bal_rail)
+
+	# Cửa sổ tầng 1 (3 cửa đôi vòm Pháp)
+	for ci in 3:
+		var win = ColorRect.new(); win.size = Vector2(38, 65); win.position = Vector2(-148 + ci * 100, -215)
+		win.color = WIN; node.add_child(win)
+		var arc = Polygon2D.new()
+		arc.polygon = PackedVector2Array([Vector2(0,0),Vector2(19,-18),Vector2(38,0)])
+		arc.color = WIN; arc.position = win.position; node.add_child(arc)
+		# Cánh cửa chớp xanh
+		for sh in 2:
+			var s = ColorRect.new(); s.size = Vector2(16, 65)
+			s.position = Vector2(win.position.x + sh * 22, win.position.y)
+			s.color = SHUTTER; node.add_child(s)
+
+	# Cửa sổ tầng 2 (3 cửa có ô lưới)
+	for ci in 3:
+		var win2 = ColorRect.new(); win2.size = Vector2(34, 52); win2.position = Vector2(-146 + ci * 100, -112)
+		win2.color = WIN; node.add_child(win2)
+		var arc2 = Polygon2D.new()
+		arc2.polygon = PackedVector2Array([Vector2(0,0),Vector2(17,-14),Vector2(34,0)])
+		arc2.color = WIN; arc2.position = win2.position; node.add_child(arc2)
+		var sh2 = ColorRect.new(); sh2.size = Vector2(14, 52); sh2.position = Vector2(win2.position.x + 34, win2.position.y)
+		sh2.color = SHUTTER; node.add_child(sh2)
+
+	# Hàng cột hành lang tầng trệt (4 cột)
+	for ci in 4:
+		var col = ColorRect.new(); col.size = Vector2(12, 60); col.position = Vector2(-170 + ci * 106, -270)
+		col.color = Color(0.94, 0.90, 0.72); node.add_child(col)
+		var base = ColorRect.new(); base.size = Vector2(18, 10); base.position = Vector2(-173 + ci * 106, -270)
+		base.color = TRIM; node.add_child(base)
+		var cap = ColorRect.new(); cap.size = Vector2(18, 8); cap.position = Vector2(-173 + ci * 106, -274)
+		cap.color = TRIM; node.add_child(cap)
+
+	# Cửa ra vào chính (cửa đôi lớn)
+	var main_door = ColorRect.new(); main_door.size = Vector2(52, 70); main_door.position = Vector2(-26, -270)
+	main_door.color = Color(0.18, 0.12, 0.08); node.add_child(main_door)
+	var door_arc = Polygon2D.new()
+	door_arc.polygon = PackedVector2Array([Vector2(0,0),Vector2(26,-24),Vector2(52,0)])
+	door_arc.color = Color(0.18, 0.12, 0.08); door_arc.position = main_door.position; node.add_child(door_arc)
+
+	# Cột cờ + cờ
+	var sp = ColorRect.new(); sp.size = Vector2(3, 65); sp.position = Vector2(-1, -335)
+	sp.color = Color(0.52, 0.47, 0.32); node.add_child(sp)
+	var sf = Node2D.new(); sf.position = Vector2(2, -331); sf.scale = Vector2(0.65, 0.65); node.add_child(sf)
+	_draw_flag_shapes(sf, 44, 32)
+
+	# Con đường lát gạch dẫn vào cửa
+	for pi in 5:
+		var pstone = ColorRect.new(); pstone.size = Vector2(22, 10); pstone.position = Vector2(-11 + randf_range(-4,4), -22 - pi * 8)
+		pstone.color = Color(0.60, 0.56, 0.44); node.add_child(pstone)
+
+# ============================================================
+# === CHÙA / ĐỀN THỜ SÀI GÒN (BUDDHIST PAGODA) ==============
+# ============================================================
+func _create_saigon_pagoda_bg(x: float) -> void:
+	var node = Node2D.new()
+	node.position = Vector2(x, 600)
+	node.z_index = -86
+	node.modulate = Color(0.50, 0.52, 0.65, 0.52)
+	_get_parallax().add_child(node)
+
+	var WALL = Color(0.88, 0.78, 0.55)
+	var ROOF = Color(0.24, 0.42, 0.20)   # ngói xanh chùa
+	var TRIM = Color(0.82, 0.55, 0.18)   # viền vàng son
+
+	# Thân chính
+	var body = ColorRect.new(); body.size = Vector2(280, 180); body.position = Vector2(-140, -180)
+	body.color = WALL; node.add_child(body)
+	# Cổng tam quan (3 vòm)
+	for ai in 3:
+		var ax = -100 + ai * 90
+		var arch = Polygon2D.new()
+		arch.polygon = PackedVector2Array([Vector2(-20,0),Vector2(-20,-55),Vector2(0,-75),Vector2(20,-55),Vector2(20,0)])
+		arch.color = Color(0.08,0.08,0.10); arch.position = Vector2(ax, -18); node.add_child(arch)
+		var at = Polygon2D.new()
+		at.polygon = PackedVector2Array([Vector2(-24, 0), Vector2(-22,-57), Vector2(0,-78), Vector2(22,-57), Vector2(24,0)])
+		at.color = TRIM; at.position = Vector2(ax, -18); at.z_index = -1; node.add_child(at)
+
+	# Tháp chính (tháp chuông phía trên)
+	var tower = ColorRect.new(); tower.size = Vector2(100, 160); tower.position = Vector2(-50, -340)
+	tower.color = WALL; node.add_child(tower)
+	# Mái 3 tầng kiểu chùa (3 eaves giật cấp)
+	for tier in 3:
+		var tw = 130 - tier * 28; var ty = -340 - tier * 40
+		var eave_pts = PackedVector2Array()
+		eave_pts.append(Vector2(-tw/2.0 - 10, 0)); eave_pts.append(Vector2(-tw/2.0 + 6, -12))
+		eave_pts.append(Vector2(tw/2.0 - 6, -12)); eave_pts.append(Vector2(tw/2.0 + 10, 0))
+		var eave = Polygon2D.new(); eave.polygon = eave_pts; eave.color = ROOF; eave.position = Vector2(0, ty); node.add_child(eave)
+		var eave_ridge = ColorRect.new(); eave_ridge.size = Vector2(tw - 12, 5)
+		eave_ridge.position = Vector2(-(tw - 12)/2.0, ty - 5)
+		eave_ridge.color = TRIM; node.add_child(eave_ridge)
+	# Ngọn tháp (đỉnh nhọn)
+	var spire = Polygon2D.new()
+	spire.polygon = PackedVector2Array([Vector2(-10,0),Vector2(0,-50),Vector2(10,0)])
+	spire.color = TRIM; spire.position = Vector2(0, -460); node.add_child(spire)
+	# Tường bao + sân chùa
+	for side2 in [-1, 1]:
+		var wwall = ColorRect.new(); wwall.size = Vector2(14, 140); wwall.position = Vector2(side2 * 140 - 7, -140)
+		wwall.color = WALL; node.add_child(wwall)
+	var yard = ColorRect.new(); yard.size = Vector2(296, 16); yard.position = Vector2(-148, -16)
+	yard.color = Color(0.62, 0.58, 0.45); node.add_child(yard)
