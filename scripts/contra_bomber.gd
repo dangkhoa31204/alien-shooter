@@ -87,9 +87,9 @@ func _die() -> void:
 	var main = _get_main_scene()
 	if main:
 		main.screen_shake(18.0, 0.6)
-		# Mid-air Explosion Visual (B40 style)
+		# Mid-air Explosion Visual (B40 style - Optimized)
 		var blast = Polygon2D.new()
-		var res = 20; var radius = 180.0
+		var res = 12; var radius = 150.0
 		var pts = []
 		for i in res:
 			var a = i * TAU / res
@@ -99,27 +99,25 @@ func _die() -> void:
 		blast.global_position = global_position
 		main._world.add_child(blast)
 		
-		Audio.play("b40", 15.0) # Massive plane explosion sound
+		Audio.play("b40", 15.0)
 
 		var tw = blast.create_tween().set_parallel(true)
 		tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-		tw.tween_property(blast, "scale", Vector2(2.2, 2.2), 0.35)
+		tw.tween_property(blast, "scale", Vector2(2.0, 2.0), 0.35)
 		tw.tween_property(blast, "modulate:a", 0.0, 0.6).set_delay(0.2)
 		tw.finished.connect(blast.queue_free)
 		
-		# Falling Plane Debris
-		for i in 12:
+		# Falling Plane Debris (Reduced count to 6)
+		for i in 6:
 			var debris = ColorRect.new()
 			debris.size = Vector2(10, 8)
-			debris.color = Color(0.18, 0.2, 0.22) # Dark metal
+			debris.color = Color(0.18, 0.2, 0.22)
 			debris.position = global_position + Vector2(randf_range(-50, 50), randf_range(-20, 20))
 			main._world.add_child(debris)
 			
 			var d_tw = create_tween().set_parallel(true)
-			var land_y = global_position.y + 450
-			d_tw.tween_property(debris, "position", debris.position + Vector2(randf_range(-200, 200), 500), 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-			d_tw.parallel().tween_property(debris, "rotation", randf_range(-PI*4, PI*4), 1.0)
-			d_tw.tween_property(debris, "modulate:a", 0.0, 0.5).set_delay(0.8)
+			d_tw.tween_property(debris, "position", debris.position + Vector2(randf_range(-150, 150), 500), 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			d_tw.parallel().tween_property(debris, "modulate:a", 0.0, 0.4).set_delay(0.6)
 			d_tw.finished.connect(debris.queue_free)
 	
 	queue_free()

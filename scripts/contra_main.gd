@@ -50,31 +50,40 @@ var last_checkpoint_x: float = 100.0
 var _checkpoint_positions: Array[float] = []
 var _rpg_cooldown_timer: float = 0.0 # Added for RPG cooldown tracking
 var _perf_frame: int = 0
+var _flash_rect: ColorRect = null # Persistent flash for explosions
+var _level_node: Node2D = null # Container for all stage-specific objects (for fast cleanup)
+var _history_panel: Control = null # Historical info panel
 
-func _get_ground_y(x: float) -> float:
+func _add_to_level(node: Node) -> void:
+	if is_instance_valid(_level_node):
+		_level_node.add_child(node)
+	else:
+		_world.add_child(node)
+
+func _get_ground_y(x_pos: float) -> float:
 	if current_stage in [1, 2, 3] and not _stage_terrain.is_empty():
-		var size = _stage_terrain.size()
+		var terrain_size = _stage_terrain.size()
 		# Fast Binary Search for large terrain sets
-		var low = 0
-		var high = size - 2
-		var index = -1
+		var low_idx = 0
+		var high_idx = terrain_size - 2
+		var res_idx = -1
 		
-		while low <= high:
-			var mid = (low + high) / 2
-			if x >= _stage_terrain[mid].x and x <= _stage_terrain[mid+1].x:
-				index = mid
+		while low_idx <= high_idx:
+			var mid_idx = floori((float(low_idx) + float(high_idx)) / 2.0)
+			if x_pos >= _stage_terrain[mid_idx].x and x_pos <= _stage_terrain[mid_idx+1].x:
+				res_idx = mid_idx
 				break
-			elif x < _stage_terrain[mid].x:
-				high = mid - 1
+			elif x_pos < _stage_terrain[mid_idx].x:
+				high_idx = mid_idx - 1
 			else:
-				low = mid + 1
+				low_idx = mid_idx + 1
 				
-		if index != -1:
-			var p1 = _stage_terrain[index]
-			var p2 = _stage_terrain[index+1]
-			if p1.x == p2.x: return p1.y
-			var t = (x - p1.x) / (p2.x - p1.x)
-			return lerp(p1.y, p2.y, t)
+		if res_idx != -1:
+			var p_node1 = _stage_terrain[res_idx]
+			var p_node2 = _stage_terrain[res_idx+1]
+			if p_node1.x == p_node2.x: return p_node1.y
+			var t_lerp = (x_pos - p_node1.x) / (p_node2.x - p_node1.x)
+			return lerp(p_node1.y, p_node2.y, t_lerp)
 	return 600.0
 
 func _ready() -> void:
@@ -101,6 +110,15 @@ func _ready() -> void:
 	if camera: camera.process_mode = Node.PROCESS_MODE_PAUSABLE
 	if bullet_container: bullet_container.process_mode = Node.PROCESS_MODE_PAUSABLE
 	$UI.process_mode = Node.PROCESS_MODE_PAUSABLE
+	
+	_level_node = Node2D.new(); _level_node.name = "LevelNode"; _world.add_child(_level_node)
+	
+	# Persistent Full-screen Flash Rect
+	_flash_rect = ColorRect.new()
+	_flash_rect.color = Color(1, 0.9, 0.7, 0.0)
+	_flash_rect.size = Vector2(2500, 2000); _flash_rect.position = Vector2(-500, -500)
+	_flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$UI.add_child(_flash_rect)
 
 func _setup_progress_ui() -> void:
 	# Add Progress Bar
@@ -215,7 +233,8 @@ func _process(delta: float) -> void:
 		
 		# Staggered background army processing (update subset of units per frame)
 		_perf_frame += 1
-		_process_background_army(delta)
+		if _perf_frame % 2 == 0:
+			_process_background_army(delta)
 		
 		# Army spawn: soldiers enter from the LEFT edge, march right alongside player
 		_army_spawn_timer -= delta
@@ -273,40 +292,53 @@ func _process(delta: float) -> void:
 	else:
 		camera.offset = Vector2.ZERO
 
-func _process_bombs(delta: float) -> void:
+func _process_bombs(_delta: float) -> void:
 	var tree = get_tree()
 	if not tree: return
+	
+	var bullets = tree.get_nodes_in_group("enemy_bullet")
+	var count = bullets.size()
+	if count == 0: return
+
 	var space_state = get_world_2d().direct_space_state
 	var cam_x = camera.global_position.x
-	for b in tree.get_nodes_in_group("enemy_bullet"):
+	
+	# Skip some bullets per frame if many exist
+	var step = 1 if count < 10 else 2
+	
+	for idx_b in range(0, count, step):
+		var b = bullets[idx_b]
+		if (idx_b + _perf_frame) % step != 0: continue
 		if not is_instance_valid(b): continue
 		
-		# Offscreen Cleanup for ALL bullets to save performance
-		if b.global_position.x < cam_x - 800 or b.global_position.x > cam_x + 1200:
-			b.queue_free()
+		# Proximity early exit (Performance)
+		if b.global_position.x < cam_x - 700 or b.global_position.x > cam_x + 900:
+			if b.global_position.x < cam_x - 1200 or b.global_position.x > cam_x + 1500:
+				b.queue_free()
 			continue
 
 		if not b.has_meta("is_bomb") and not b.has_meta("is_tank_shell"): continue
 		
+		var contact_offset = 20.0
 		var ground_y = _get_ground_y(b.global_position.x)
-		if b.global_position.y >= ground_y - 20:
-			# Raycast only when close to ground
-			var query = PhysicsRayQueryParameters2D.create(b.global_position, b.global_position + Vector2(0, 25))
+		
+		if b.global_position.y >= ground_y - contact_offset:
+			var query = PhysicsRayQueryParameters2D.create(b.global_position, b.global_position + Vector2(0, 30))
 			var result = space_state.intersect_ray(query)
 			
-			if result or b.global_position.y >= ground_y - 5:
+			if result or b.global_position.y >= ground_y - 5.0:
 				_explode_bomb(b.global_position)
 				b.queue_free()
-			elif b.global_position.y > 900: 
-				b.queue_free()
+		elif b.global_position.y > 1000: 
+			b.queue_free()
 
 func _explode_bomb(pos: Vector2) -> void:
 	screen_shake(12.0, 0.4) # Increased from 3.5, 0.25 for B40-like impact
 	Audio.play("b40", 12.0)
 	
-	# Massive Fire Blast Visual (B40 style)
+	# Massive Fire Blast Visual (B40 style - Optimized)
 	var blast = Polygon2D.new()
-	var res = 16; var radius = 90.0
+	var res = 12; var radius = 80.0 # Reduced resolution and initial radius
 	var pts = []
 	for i in res:
 		var a = i * TAU / res
@@ -322,14 +354,11 @@ func _explode_bomb(pos: Vector2) -> void:
 	tw.tween_property(blast, "modulate:a", 0.0, 0.45).set_delay(0.15)
 	tw.finished.connect(blast.queue_free)
 	
-	# Light flash on screen
-	var flash = ColorRect.new()
-	flash.color = Color(1, 0.9, 0.7, 0.45) # Warmer flash
-	flash.size = Vector2(2500, 2000); flash.position = Vector2(-1000, -1000)
-	$UI.add_child(flash) # Added to UI to cover everything
-	var f_tw = create_tween()
-	f_tw.tween_property(flash, "modulate:a", 0.0, 0.12)
-	f_tw.finished.connect(flash.queue_free)
+	# Light flash on screen (Optimized using persistent rect)
+	if is_instance_valid(_flash_rect):
+		_flash_rect.modulate.a = 0.4
+		var f_tw = create_tween()
+		f_tw.tween_property(_flash_rect, "modulate:a", 0.0, 0.15)
 
 	# Create a visual crater (a dark pit in the ground)
 	_create_crater(pos)
@@ -409,7 +438,7 @@ func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 	var strip_h := 100.0
 	for gi in grad_stops.size():
 		var band := ColorRect.new()
-		band.name    = "BackgroundSky" if gi == 0 else ""
+		band.name    = "BackgroundSkyStrip_" + str(gi)
 		band.size    = Vector2(40000, strip_h + 4)   # +4 to avoid 1px gaps
 		band.position = Vector2(-10000, -200.0 + gi * strip_h)
 		band.z_index  = -120
@@ -630,24 +659,27 @@ func _start_stage(stage_num: int, is_respawn: bool = false) -> void:
 	if progress_bar: progress_bar.max_value = STAGE_LENGTH
 	is_game_over = false # FIX: must be false before cleanup so _process works from frame 1
 	_cleanup_level()
-	_load_stage_data(stage_num)
+	# FIX: call_deferred to ensure old physic objects are gone before new ones are added
+	call_deferred("_load_stage_data", stage_num)
+	call_deferred("_spawn_player_at_start")
+
+func _spawn_player_at_start() -> void:
 	_spawn_player()
-	
 	# FIX: spawn army AFTER _spawn_player so camera is correctly positioned
-	for i in 6:
-		var sx = camera.position.x + 100 + i * 140
-		_add_individual_background_soldier(sx, _get_ground_y(sx))
+	for idx_army in 6:
+		var sx_army = camera.position.x + 100 + idx_army * 140
+		_add_individual_background_soldier(sx_army, _get_ground_y(sx_army))
 		
-	_show_stage_intro(stage_num)
+	_show_stage_intro(current_stage)
 
 func _spawn_player() -> void:
 	if is_instance_valid(player): player.queue_free()
 	player = PLAYER_SCENE.instantiate()
-	_world.add_child(player)
+	_level_node.add_child(player)
 	
 	# FIX: spawn at minimum x=576 (= half screen) so player is never behind camera left edge
-	var spawn_x = max(last_checkpoint_x, 576.0)
-	player.position = Vector2(spawn_x, 500)
+	var spawn_x_pos = max(last_checkpoint_x, 576.0)
+	player.position = Vector2(spawn_x_pos, 500)
 	# Snap to ground
 	player.position.y = _get_ground_y(player.position.x) - 40
 	# Sync camera immediately
@@ -664,11 +696,10 @@ func _show_stage_intro(num: int) -> void:
 		tw.tween_property(stage_label, "modulate:a", 0.0, 1.0)
 
 func _cleanup_level() -> void:
-	for n in _world.get_children():
-		if n.name in ["Parallax", "BackgroundSky"]: continue
-		if n is ColorRect and n.z_index == -10: continue
-		if n is Polygon2D and n.z_index == -9: continue
-		n.queue_free()
+	if is_instance_valid(_level_node):
+		_level_node.queue_free()
+	
+	_level_node = Node2D.new(); _level_node.name = "LevelNode"; _world.add_child(_level_node)
 	
 	var tree = get_tree()
 	if tree:
@@ -713,7 +744,7 @@ func _create_giant_ancient_tree(pos: Vector2) -> void:
 	tree.scale    = Vector2(tree_scale, tree_scale)
 	tree.rotation = tilt
 	tree.z_index  = -50
-	_world.add_child(tree)
+	_add_to_level(tree)
 
 	var tw := rng_t.randf_range(48.0, 76.0)
 	var trunk_h := 300.0
@@ -877,7 +908,7 @@ func _create_giant_ancient_tree(pos: Vector2) -> void:
 func _create_jungle_fern(pos: Vector2) -> void:
 	var fern  := Node2D.new()
 	fern.position = pos
-	_world.add_child(fern)
+	_add_to_level(fern)
 	fern.z_index = -5
 
 	# Base ambient shadow
@@ -924,7 +955,7 @@ func _create_jungle_fern(pos: Vector2) -> void:
 func _create_dense_shrub(pos: Vector2) -> void:
 	var shrub := Node2D.new()
 	shrub.position = pos
-	_world.add_child(shrub)
+	_add_to_level(shrub)
 	shrub.z_index = -5
 
 	# Ground shadow
@@ -981,7 +1012,7 @@ func _create_dense_shrub(pos: Vector2) -> void:
 
 func _create_hanging_vine_detailed(x: float) -> void:
 	var v_len = randf_range(300, 500)
-	var vine = Line2D.new(); _world.add_child(vine)
+	var vine = Line2D.new(); _add_to_level(vine)
 	vine.width = 2.0; vine.default_color = Color(0.1, 0.3, 0.05)
 	var pts = []
 	for i in 10: pts.append(Vector2(x + sin(i)*10, i * v_len/10 - 100))
@@ -1136,7 +1167,7 @@ func _create_ground_segment(x1: float, x2: float, y: float) -> void:
 		p.position = Vector2(px, -100)
 		p.color    = Color(0.05, 0.02, 0.01, 0.85)
 		p.z_index  = 10
-		_world.add_child(p)
+		_level_node.add_child(p)
 
 
 func _create_burning_wreckage(pos: Vector2) -> void:
@@ -1149,7 +1180,7 @@ func _create_burning_wreckage(pos: Vector2) -> void:
 		var tw = create_tween().set_loops()
 		tw.tween_property(s, "position:y", s.position.y - 60, 2.0).set_trans(Tween.TRANS_QUAD)
 		tw.parallel().tween_property(s, "modulate:a", 0.0, 2.0)
-		tw.tween_property(s, "position:y", -20, 0); tw.tween_property(s, "modulate:a", 0.6, 0)
+		tw.tween_property(s, "position:y", -20, 0.01); tw.tween_property(s, "modulate:a", 0.6, 0.01)
 
 func _create_aa_gun_bg(pos: Vector2) -> void:
 	var aa = Node2D.new(); aa.position = pos; _world.add_child(aa); aa.z_index = -8
@@ -1169,10 +1200,10 @@ func _create_aa_gun_bg(pos: Vector2) -> void:
 
 func _create_wooden_log_bridge(pos: Vector2) -> void:
 	var bridge = Node2D.new(); bridge.position = pos; _world.add_child(bridge); bridge.z_index = 0
-	for i in 6:
-		var log = ColorRect.new(); log.size = Vector2(25, 10); log.position = Vector2(i*26 - 75, -10)
-		log.color = Color(0.4, 0.25, 0.15).darkened(randf()*0.2); bridge.add_child(log)
-		var moss = ColorRect.new(); moss.size = Vector2(25, 3); moss.position = Vector2(i*26 - 75, -12); moss.color = Color(0.2, 0.4, 0.1); bridge.add_child(moss)
+	for idx_log in 6:
+		var w_log_obj = ColorRect.new(); w_log_obj.size = Vector2(25, 10); w_log_obj.position = Vector2(idx_log*26 - 75, -10)
+		w_log_obj.color = Color(0.4, 0.25, 0.15).darkened(randf()*0.2); bridge.add_child(w_log_obj)
+		var moss = ColorRect.new(); moss.size = Vector2(25, 3); moss.position = Vector2(idx_log*26 - 75, -12); moss.color = Color(0.2, 0.4, 0.1); bridge.add_child(moss)
 
 func _create_gaz_truck_bg(pos: Vector2) -> void:
 	var truck = Node2D.new(); truck.position = pos; _world.add_child(truck); truck.z_index = -15
@@ -1260,7 +1291,7 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 		coll.polygon = poly_pts
 		if has_gaps: coll.one_way_collision = true
 		ground.add_child(coll)
-		_world.add_child(ground)
+		_add_to_level(ground)
 		
 		# ── Base soil fill (full polygon shape) ───────────────────────────────
 		var soil := Polygon2D.new()
@@ -1336,7 +1367,7 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 			var bp1: Vector2 = surface_pts[bi]
 			var bp2: Vector2 = surface_pts[bi + 1]
 			var seg_len: float = bp2.x - bp1.x
-			var n_blades := int(seg_len / 10.0)
+			var n_blades := int(seg_len / 25.0) # Reduced density from 10.0 to 25.0
 			for bj in n_blades:
 				var t   := float(bj) / float(max(n_blades, 1))
 				var bx  := bp1.x + t * seg_len + randf_range(-3.0, 3.0)
@@ -1358,8 +1389,8 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 				).lightened(randf_range(-0.05, 0.22))
 				blades_node.add_child(blade)
 
-			# Small wildflowers every ~200px
-			if randf() < 0.04:
+			# Small wildflowers every ~500px (reduced from ~200px)
+			if randf() < 0.015:
 				var t   := randf()
 				var fbx := bp1.x + t * seg_len
 				var fby: float = lerp(bp1.y, bp2.y, t) - 18.0
@@ -1379,7 +1410,7 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 			var pp2: Vector2 = surface_pts[pi + 1]
 			var peb_count := int((pp2.x - pp1.x) / 80.0)
 			for pj in peb_count:
-				if randf() > 0.40: continue
+				if randf() > 0.20: continue # Reduced density from 0.40 to 0.20
 				var t   := randf()
 				var px: float = lerp(pp1.x, pp2.x, t)
 				var py: float = lerp(pp1.y, pp2.y, t) + randf_range(3.0, 12.0)
@@ -1393,7 +1424,7 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 				peb.polygon = PackedVector2Array(ppts)
 				peb.color   = Color(soil_color.r * 1.6 + 0.05, soil_color.g * 1.3, soil_color.b * 1.1, 0.68)
 				peb.z_index = -24
-				_world.add_child(peb)
+				_add_to_level(peb)
 				# Moss cap on some pebbles
 				if randf() < 0.35:
 					var moss2 := Polygon2D.new()
@@ -1404,7 +1435,7 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 					moss2.polygon = PackedVector2Array(m_pts2)
 					moss2.color   = Color(0.16, 0.36, 0.07, 0.50)
 					moss2.z_index = -23
-					_world.add_child(moss2)
+					_add_to_level(moss2)
 		
 		for p in surface_pts:
 			if p.x <= total_len: _stage_terrain.append(p)
@@ -1525,18 +1556,18 @@ func _spawn_boss(x, y) -> void:
 		var spike = Polygon2D.new(); spike.polygon = PackedVector2Array([Vector2(0,0), Vector2(4, -15), Vector2(8, 0)]); spike.color = Color(0.8, 0.7, 0.2); spike.position = Vector2(x-80 + i*35, y-450); spike.z_index = -15; _world.add_child(spike)
 
 	# Concrete Pillars
-	for i in 4:
-		var px = x -100 + i * 260
+	for idx_gate in 4:
+		var px_pos = x - 100 + idx_gate * 260
 		# Destroyed central pillars
-		var pillar_h = 500 if (i == 0 or i == 3) else randf_range(100, 200)
-		var pillar = ColorRect.new(); pillar.size = Vector2(60, pillar_h); pillar.position = Vector2(px, y-pillar_h); pillar.color = Color(0.8, 0.8, 0.75); pillar.z_index = -10; _world.add_child(pillar)
-		var base = ColorRect.new(); base.size = Vector2(80, 40); base.position = Vector2(px-10, y-40); base.color = Color(0.6, 0.6, 0.55); pillar.add_child(base)
+		var pillar_h = 500.0 if (idx_gate == 0 or idx_gate == 3) else randf_range(100.0, 200.0)
+		var pillar = ColorRect.new(); pillar.size = Vector2(60, pillar_h); pillar.position = Vector2(px_pos, y-pillar_h); pillar.color = Color(0.8, 0.8, 0.75); pillar.z_index = -10; _world.add_child(pillar)
+		var base = ColorRect.new(); base.size = Vector2(80, 40); base.position = Vector2(px_pos-10, y-40); base.color = Color(0.6, 0.6, 0.55); pillar.add_child(base)
 
 	# Banner above the gate
 	var banner = ColorRect.new(); banner.size = Vector2(500, 60); banner.position = Vector2(x-100, y-550); banner.color = Color(0.8, 0.1, 0.1); banner.z_index = -9; _world.add_child(banner)
 	
 	# Iconic T-54 Tank husk that rammed the center gate
-	var tank_husk = StaticBody2D.new(); tank_husk.position = Vector2(x + 100, y); _world.add_child(tank_husk)
+	var tank_husk = StaticBody2D.new(); tank_husk.position = Vector2(x + 100, y); _add_to_level(tank_husk)
 	var tcol = CollisionShape2D.new(); var tshp = RectangleShape2D.new(); tshp.size = Vector2(250, 100); tcol.shape = tshp; tcol.position = Vector2(0, -50); tcol.one_way_collision = true; tank_husk.add_child(tcol)
 	var tbody = Polygon2D.new(); tbody.polygon = PackedVector2Array([Vector2(-125, 0), Vector2(-100, -80), Vector2(100, -100), Vector2(125, 0)])
 	tbody.color = Color(0.1, 0.35, 0.1) # Viet Cong Green
@@ -1550,7 +1581,7 @@ func _spawn_boss(x, y) -> void:
 	# Note: No win_check timer needed. Winning is triggered by walking over STAGE_LENGTH - 100
 
 func _create_truck_husk(pos: Vector2) -> void:
-	var husk = StaticBody2D.new(); husk.position = pos; _world.add_child(husk)
+	var husk = StaticBody2D.new(); husk.position = pos; _add_to_level(husk)
 	var col = CollisionShape2D.new(); var shp = RectangleShape2D.new(); shp.size = Vector2(160, 80); col.shape = shp; col.position = Vector2(0, -40); col.one_way_collision = true; husk.add_child(col)
 	var body = Polygon2D.new(); body.polygon = PackedVector2Array([Vector2(-80, 0), Vector2(-80, -60), Vector2(-40, -80), Vector2(80, -80), Vector2(80, 0)])
 	body.color = Color(0.25, 0.28, 0.22); husk.add_child(body)
@@ -1561,7 +1592,7 @@ func _create_truck_husk(pos: Vector2) -> void:
 		var tw = create_tween().set_loops(); tw.tween_property(fire, "scale:y", 1.5, 0.15); tw.tween_property(fire, "scale:y", 1.0, 0.15)
 
 func _create_sandbag_fort(pos: Vector2, h: float) -> void:
-	var fort = StaticBody2D.new(); fort.position = pos; _world.add_child(fort)
+	var fort = StaticBody2D.new(); fort.position = pos; _add_to_level(fort)
 	var col = CollisionShape2D.new(); var shp = RectangleShape2D.new(); shp.size = Vector2(100, h); col.shape = shp; col.position = Vector2(0, -h/2); col.one_way_collision = true; fort.add_child(col)
 	for r in int(h/15):
 		for c in 4:
@@ -1624,7 +1655,7 @@ func _create_floor_detailed(start_x, end_x, y, grass_color = Color(0.08, 0.22, 0
 	col.shape = shape
 	floor_node.add_child(col)
 	floor_node.position.y = y
-	_world.add_child(floor_node)
+	_add_to_level(floor_node)
 	
 	var dirt = ColorRect.new()
 	dirt.color = Color(0.2, 0.12, 0.05)
@@ -1655,7 +1686,7 @@ func _create_palm_tree(pos: Vector2) -> void:
 	tree.z_index  = -20
 	tree.scale    = Vector2.ONE * rng_p.randf_range(0.80, 1.25)
 	tree.rotation = rng_p.randf_range(-0.06, 0.06)
-	_world.add_child(tree)
+	_add_to_level(tree)
 
 	var trunk_h := rng_p.randf_range(100.0, 145.0)
 	var lean_x  := rng_p.randf_range(-18.0, 18.0)
@@ -2020,7 +2051,7 @@ func _create_platform_detailed(pos: Vector2, width: float) -> void:
 	])
 	hill.color = Color(0.25, 0.15, 0.08)
 	hill.position = pos
-	_world.add_child(hill)
+	_add_to_level(hill)
 	
 	var plat = StaticBody2D.new()
 	var col = CollisionShape2D.new()
@@ -2030,7 +2061,7 @@ func _create_platform_detailed(pos: Vector2, width: float) -> void:
 	col.shape = shape
 	plat.add_child(col)
 	plat.position = pos
-	_world.add_child(plat)
+	_add_to_level(plat)
 	
 	var log_v = ColorRect.new()
 	log_v.size = Vector2(width, 16)
@@ -2054,7 +2085,7 @@ func _create_platform_detailed(pos: Vector2, width: float) -> void:
 func _spawn_enemy(x, y, is_off: bool = false) -> void:
 	var e = ENEMY_SCENE.instantiate()
 	e.is_officer = is_off
-	_world.add_child(e) # Add to _world for proper scrolling & cleanup
+	_add_to_level(e) # Add for proper scrolling & cleanup
 	e.position = Vector2(x, y)
 
 func _spawn_background_soldiers(count: int) -> void:
@@ -2121,7 +2152,7 @@ func _add_individual_background_soldier(x: float, y: float = 600, is_tun: bool =
 	soldier.set_meta("walk_speed", randf_range(100, 180))  # Slightly faster so they keep up
 	soldier.set_meta("on_tunnel", is_tun)
 	soldier.set_meta("jump_time", 0.0)  # Pre-set so _process_background_army never fails
-	_world.add_child(soldier)
+	_add_to_level(soldier)
 	# Bobbing animation handled procedurally in _process_background_army (no looping tween)
 
 	# Stage 5: occasional allied tank
@@ -2173,7 +2204,7 @@ func _add_allied_tank(x: float, y: float) -> void:
 	tw.tween_property(tank, "rotation", deg_to_rad(-1.5), 0.25).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(tank, "rotation", deg_to_rad(1.5), 0.25).set_trans(Tween.TRANS_SINE)
 
-	_world.add_child(tank)
+	_add_to_level(tank)
 
 func _process_background_army(delta: float) -> void:
 	var tree = get_tree()
@@ -2181,8 +2212,8 @@ func _process_background_army(delta: float) -> void:
 	var army_nodes = tree.get_nodes_in_group("ally_army")
 	var cam_pos = camera.position
 	
-	for i in range(army_nodes.size()):
-		var soldier = army_nodes[i]
+	for idx_a in range(army_nodes.size()):
+		var soldier = army_nodes[idx_a]
 		if not is_instance_valid(soldier): continue
 		
 		var cam_x = cam_pos.x
@@ -2201,7 +2232,7 @@ func _process_background_army(delta: float) -> void:
 			continue
 		
 		# Skip animation/movement for distant units (performance)
-		if (i + _perf_frame) % 2 != 0: continue
+		if (idx_a + _perf_frame) % 2 != 0: continue
 		
 		if not soldier.has_meta("walk_speed"): continue
 		var base_speed = soldier.get_meta("walk_speed")
@@ -2257,14 +2288,14 @@ func _spawn_heavy_enemy(x, y, type: String) -> void:
 		e.add_to_group("tank")
 	
 	if e:
-		_world.add_child(e)
+		_add_to_level(e)
 		e.position = Vector2(x, y)
 
 func screen_shake(p, t) -> void:
 	_shake_power = p
 	_shake_time = t
 
-func refresh_heavy_weapon(cooldown: float, max_cooldown: float) -> void:
+func refresh_heavy_weapon(cooldown: float, _max_cooldown: float) -> void:
 	if not has_node("UI/HeavyWeaponBox"):
 		var box = Node2D.new(); box.name = "HeavyWeaponBox"; box.position = Vector2(250, 45); $UI.add_child(box)
 		var bg = ColorRect.new(); bg.size = Vector2(60, 40); bg.color = Color(0,0,0,0.5); box.add_child(bg)
@@ -2280,7 +2311,8 @@ func refresh_heavy_weapon(cooldown: float, max_cooldown: float) -> void:
 		cd.add_theme_color_override("font_color", Color.GREEN)
 
 func on_player_die():
-	_start_stage(current_stage, true) # Respawn at last checkpoint x
+	# FIX: call_deferred to avoid physics state changes during collision callbacks
+	call_deferred("_start_stage", current_stage, true)
 
 func on_stage_complete():
 	if is_game_over: return  # FIX: prevent double-firing if player lingers at boundary
@@ -2345,16 +2377,16 @@ func _show_victory():
 		flag_pole.position = Vector2(STAGE_LENGTH - 150, 100)
 		flag_pole.color = Color(0.7, 0.7, 0.7)
 		flag_pole.z_index = -8
-		_world.add_child(flag_pole)
+		_add_to_level(flag_pole)
 		
 		# Chân đế cột cờ
-		var base = ColorRect.new(); base.size = Vector2(40, 20); base.position = Vector2(STAGE_LENGTH - 164, 600); base.color = Color(0.4, 0.4, 0.4); base.z_index = -8; _world.add_child(base)
+		var base_f = ColorRect.new(); base_f.size = Vector2(40, 20); base_f.position = Vector2(STAGE_LENGTH - 164, 600); base_f.color = Color(0.4, 0.4, 0.4); base_f.z_index = -8; _add_to_level(base_f)
 		
 		# Lá cờ nửa trên đỏ, nửa dưới xanh, sao vàng
 		var giant_flag = Node2D.new()
 		giant_flag.position = Vector2(STAGE_LENGTH - 144, 450) # Cờ bắt đầu kéo ở dưới
 		giant_flag.z_index = -7
-		_world.add_child(giant_flag)
+		_add_to_level(giant_flag)
 		
 		var red_half = ColorRect.new(); red_half.size = Vector2(240, 75); red_half.color = Color(0.85, 0.15, 0.15); giant_flag.add_child(red_half)
 		var blue_half = ColorRect.new(); blue_half.size = Vector2(240, 75); blue_half.position = Vector2(0, 75); blue_half.color = Color(0.1, 0.4, 0.85); giant_flag.add_child(blue_half)
@@ -2433,10 +2465,10 @@ func _setup_cheat_menu() -> void:
 		{"id": "god", "name": "BẤT TỬ (GOD MODE)", "fn": _cheat_god_mode},
 		{"id": "ammo", "name": "VÔ HẠN ĐẠN (INF AMMO)", "fn": _cheat_inf_ammo},
 		{"id": "hp", "name": "HỒI ĐẦY MÁU", "fn": _cheat_heal},
-		{"id": "s2", "name": "NHẢY ĐẾN MÀN 2", "fn": func(): _start_stage(2); _toggle_cheat_menu()},
-		{"id": "s3", "name": "NHẢY ĐẾN MÀN 3", "fn": func(): _start_stage(3); _toggle_cheat_menu()},
-		{"id": "s4", "name": "NHẢY ĐẾN MÀN 4", "fn": func(): _start_stage(4); _toggle_cheat_menu()},
-		{"id": "s5", "name": "NHẢY ĐẾN MÀN 5", "fn": func(): _start_stage(5); _toggle_cheat_menu()},
+		{"id": "s2", "name": "NHẢY ĐẾN MÀN 2", "fn": func(): call_deferred("_start_stage", 2); _toggle_cheat_menu()},
+		{"id": "s3", "name": "NHẢY ĐẾN MÀN 3", "fn": func(): call_deferred("_start_stage", 3); _toggle_cheat_menu()},
+		{"id": "s4", "name": "NHẢY ĐẾN MÀN 4", "fn": func(): call_deferred("_start_stage", 4); _toggle_cheat_menu()},
+		{"id": "s5", "name": "NHẢY ĐẾN MÀN 5", "fn": func(): call_deferred("_start_stage", 5); _toggle_cheat_menu()},
 		{"id": "tank", "name": "GỌI XE TĂNG CHIẾN ĐẤU", "fn": _cheat_spawn_tank},
 		{"id": "speed", "name": "SIÊU TỐC ĐỘ", "fn": _cheat_speed},
 	]
@@ -2457,9 +2489,13 @@ func _setup_pause_menu() -> void:
 	_pause_menu = Control.new()
 	_pause_menu.name = "PauseMenu"
 	_pause_menu.visible = false
-	_pause_menu.z_index = 2000 # On top of cheat menu
 	_pause_menu.process_mode = PROCESS_MODE_ALWAYS
+	# FIX: Ensure the parent container covers the whole screen so children can center
+	_pause_menu.anchor_right = 1.0; _pause_menu.anchor_bottom = 1.0
+	_pause_menu.offset_right = 1152; _pause_menu.offset_bottom = 720
 	$UI.add_child(_pause_menu)
+	
+	_setup_history_panel()
 	
 	var dim_bg = ColorRect.new()
 	dim_bg.size = Vector2(1152, 720) # Full screen
@@ -2467,25 +2503,27 @@ func _setup_pause_menu() -> void:
 	_pause_menu.add_child(dim_bg)
 	
 	var panel = ColorRect.new()
-	panel.size = Vector2(300, 200)
-	panel.position = Vector2(426, 260)
-	panel.color = Color(0.1, 0.1, 0.1, 0.9)
+	panel.name = "MainPanel"
+	panel.size = Vector2(360, 320)
+	panel.color = Color(0.1, 0.1, 0.1, 0.95)
+	# Reliable manual centering for 1152x720 screen
+	panel.position = Vector2(396, 200) 
 	_pause_menu.add_child(panel)
 	
 	var title = Label.new()
 	title.text = "TẠM DỪNG"
-	title.position = Vector2(426, 280)
-	title.size = Vector2(300, 30)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", Color.WHITE)
-	_pause_menu.add_child(title)
+	title.size = Vector2(360, 50)
+	title.position = Vector2(0, 15)
+	panel.add_child(title)
 	
 	var btn_v = VBoxContainer.new()
-	btn_v.size = Vector2(240, 100)
-	btn_v.position = Vector2(456, 330)
-	btn_v.add_theme_constant_override("separation", 20)
-	_pause_menu.add_child(btn_v)
+	btn_v.size = Vector2(280, 220)
+	btn_v.position = Vector2(40, 75)
+	btn_v.add_theme_constant_override("separation", 15)
+	panel.add_child(btn_v)
 	
 	var btn_resume = Button.new()
 	btn_resume.text = "TIẾP TỤC"
@@ -2493,11 +2531,120 @@ func _setup_pause_menu() -> void:
 	btn_resume.pressed.connect(_toggle_pause_menu)
 	btn_v.add_child(btn_resume)
 	
+	var btn_history = Button.new()
+	btn_history.text = "LỊCH SỬ CHIẾN DỊCH"
+	btn_history.custom_minimum_size = Vector2(0, 45)
+	btn_history.modulate = Color(1, 0.9, 0.3)
+	btn_history.pressed.connect(func(): _show_history_info())
+	btn_v.add_child(btn_history)
+	
 	var btn_exit = Button.new()
 	btn_exit.text = "THOÁT RA MENU"
 	btn_exit.custom_minimum_size = Vector2(0, 45)
 	btn_exit.pressed.connect(_exit_to_main_menu)
 	btn_v.add_child(btn_exit)
+
+func _setup_history_panel() -> void:
+	_history_panel = ColorRect.new()
+	_history_panel.name = "HistoryPanel"
+	_history_panel.visible = false
+	_history_panel.size = Vector2(850, 580)
+	# Reliable manual centering
+	_history_panel.position = Vector2(151, 70) 
+	_history_panel.color = Color(0.08, 0.08, 0.08, 1.0) # Full opaque
+	_history_panel.z_index = 2500
+	_history_panel.process_mode = PROCESS_MODE_ALWAYS
+	$UI.add_child(_history_panel)
+	
+	# Border
+	var border = ReferenceRect.new()
+	border.size = _history_panel.size
+	border.editor_only = false
+	border.border_color = Color(0.8, 0.7, 0.2, 0.8)
+	border.border_width = 3.0
+	_history_panel.add_child(border)
+	
+	var content_v = VBoxContainer.new()
+	content_v.name = "ContentV"
+	content_v.anchor_left = 0.0; content_v.anchor_right = 1.0
+	content_v.anchor_top = 0.0; content_v.anchor_bottom = 1.0
+	content_v.offset_left = 40; content_v.offset_right = -40
+	content_v.offset_top = 30; content_v.offset_bottom = -30
+	content_v.add_theme_constant_override("separation", 20)
+	_history_panel.add_child(content_v)
+	
+	var h_title = Label.new()
+	h_title.name = "HTitle"
+	h_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	h_title.add_theme_font_size_override("font_size", 28)
+	h_title.add_theme_color_override("font_color", Color(1, 0.9, 0.5))
+	content_v.add_child(h_title)
+	
+	var h_separator = ColorRect.new()
+	h_separator.custom_minimum_size = Vector2(600, 2)
+	h_separator.color = Color(0.4, 0.4, 0.4)
+	content_v.add_child(h_separator)
+	
+	var h_scroll = ScrollContainer.new()
+	h_scroll.custom_minimum_size = Vector2(640, 300)
+	content_v.add_child(h_scroll)
+	
+	var h_text_lbl = Label.new()
+	h_text_lbl.name = "HDescription"
+	h_text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	h_text_lbl.custom_minimum_size = Vector2(620, 0)
+	h_text_lbl.add_theme_font_size_override("font_size", 18)
+	h_text_lbl.add_theme_constant_override("line_spacing", 8)
+	h_scroll.add_child(h_text_lbl)
+	
+	var spacer = Control.new(); spacer.custom_minimum_size = Vector2(1, 10); content_v.add_child(spacer)
+	
+	var close_btn = Button.new()
+	close_btn.text = "ĐÓNG LẠI"
+	close_btn.custom_minimum_size = Vector2(200, 50)
+	close_btn.pressed.connect(_close_history)
+	content_v.add_child(close_btn)
+	content_v.set_alignment(BoxContainer.ALIGNMENT_CENTER)
+
+func _show_history_info() -> void:
+	var h_data = [
+		{
+			"title": "MÀN 1: CHIẾN DỊCH TÂY NGUYÊN (04/03 - 03/04/1975)",
+			"desc": "Đây là đòn then chốt chiến lược mở đầu cuộc Tổng tiến công và nổi dậy Xuân 1975. Quân Giải phóng đã bí mật tập trung lực lượng lớn, bất ngờ tấn công đánh chiếm thị xã Buôn Ma Thuột - yết hầu của Tây Nguyên.\n\nSự kiện then chốt này đã làm rung chuyển toàn bộ hệ thống phòng thủ của đối phương, buộc họ phải rút quân hỗn loạn khỏi vùng Tây Nguyên, tạo đà thắng lợi thần tốc cho chiến dịch giải phóng hoàn toàn miền Nam."
+		},
+		{
+			"title": "MÀN 2: CHIẾN DỊCH CEDAR FALLS (08/01 - 26/01/1967)",
+			"desc": "Cuộc hành quân quy mô lớn nhất của quân đội Mỹ nhằm xóa sổ 'Tam giác sắt' Củ Chi - cửa ngõ quan trọng dẫn vào Sài Gòn. Mỹ đã sử dụng xe ủi, bom napalm và các đội 'Chuột cống' để phá hủy địa đạo.\n\nTuy nhiên, dựa vào mạng lưới địa đạo chằng chịt dài hàng trăm km, quân và dân Củ Chi đã kiên cường bám trụ, sử dụng lối đánh du kích, cài bẫy chông và mìn tự chế để đẩy lùi quân đoàn khổng lồ của Mỹ, biến nơi đây thành 'vùng đất thép'."
+		},
+		{
+			"title": "MÀN 3: CHIẾN DỊCH ĐƯỜNG 9 - NAM LÀO (08/02 - 23/03/1971)",
+			"desc": "Trận chiến ác liệt nhằm bảo vệ Đường Trường Sơn - tuyến đường huyết mạch tiếp tế lửa đạn cho miền Nam. Quân lực Sài Gòn huy động lực lượng tinh nhuệ hòng cắt đứt tuyến đường nhưng đã bị chặn đứng hoàn toàn.\n\nChiến thắng này khẳng định sự lớn mạnh của quân đội dân tộc, bảo vệ vững chắc con đường huyền thoại giúp vận chuyển hàng vạn tấn vũ khí, lương thực tiến về phía Nam."
+		},
+		{
+			"title": "MÀN 4: CHIẾN DỊCH XUÂN LỘC (09/04 - 20/04/1975)",
+			"desc": "Trận chiến tại Xuân Lộc được mệnh danh là 'Cánh cửa thép' cuối cùng bảo vệ thủ đô Sài Gòn. Đây là nơi diễn ra những màn đọ pháo và đấu tăng dữ dội nhất thềm kết thúc chiến tranh.\n\nSau 12 ngày đêm chiến đấu không ngừng nghỉ, bằng lòng quả cảm và chiến thuật linh hoạt, quân giải phóng đã đập tan phòng tuyến cuối cùng, mở toang đại lộ giải phóng tiến về Sài Gòn."
+		},
+		{
+			"title": "MÀN 5: CHIẾN DỊCH HỒ CHÍ MINH (26/04 - 30/04/1975)",
+			"desc": "Chiến dịch vĩ đại nhất trong lịch sử dân tộc. 5 cánh quân từ các hướng đồng loạt tiến công vào trung tâm Sài Gòn.\n\n- 11h30 ngày 30/04: Xe tăng 390 húc đổ cổng Dinh Độc Lập.\n- Đại diện chính quyền Sài Gòn tuyên bố đầu hàng không điều kiện.\n- Cờ đỏ sao vàng tung bay trên nóc dinh, kết thúc 21 năm kháng chiến chống Mỹ, thống nhất hoàn toàn đất nước."
+		}
+	]
+	
+	var hist_data = h_data[current_stage - 1] if current_stage <= h_data.size() else h_data[0]
+	var h_t = _history_panel.find_child("HTitle", true, false)
+	var h_d = _history_panel.find_child("HDescription", true, false)
+	if h_t: h_t.text = hist_data["title"]
+	if h_d: h_d.text = hist_data["desc"]
+	_history_panel.visible = true
+	
+	# Hide main pause buttons to focus on history
+	var p_main = _pause_menu.get_node_or_null("MainPanel")
+	if p_main: p_main.visible = false
+
+func _close_history() -> void:
+	_history_panel.visible = false
+	var p_main = _pause_menu.get_node_or_null("MainPanel")
+	if p_main: p_main.visible = true
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
@@ -2552,7 +2699,7 @@ func _cheat_spawn_tank() -> void:
 		var tank = TANK_SCENE.new()
 		tank.is_ally = true
 		tank.position = player.position - Vector2(200, 0)
-		_world.add_child(tank)
+		_add_to_level(tank)
 
 func _cheat_speed() -> void:
 	if is_instance_valid(player):
@@ -2562,7 +2709,7 @@ func _cheat_speed() -> void:
 		if btn: btn.text = "SIÊU TỐC ĐỘ: " + ("BẬT" if !is_fast else "TẮT")
 
 func _create_health_kit(pos: Vector2) -> void:
-	var kit = Area2D.new(); kit.position = pos; _world.add_child(kit); kit.z_index = -1
+	var kit = Area2D.new(); kit.position = pos; _add_to_level(kit); kit.z_index = -1
 	var col = CollisionShape2D.new(); var shp = CircleShape2D.new(); shp.radius = 30; col.shape = shp; kit.add_child(col)
 	var box = ColorRect.new(); box.size = Vector2(30, 30); box.position = Vector2(-15, -15); box.color = Color.WHITE; kit.add_child(box)
 	var cross1 = ColorRect.new(); cross1.size = Vector2(20, 6); cross1.position = Vector2(-10, -3); cross1.color = Color.RED; kit.add_child(cross1)
@@ -2582,7 +2729,7 @@ func _create_health_kit(pos: Vector2) -> void:
 	tw.tween_property(kit, "position:y", pos.y, 0.8).set_trans(Tween.TRANS_SINE)
 
 func _create_checkpoint(pos: Vector2) -> void:
-	var cp = Area2D.new(); cp.position = pos; _world.add_child(cp); cp.z_index = -2
+	var cp = Area2D.new(); cp.position = pos; _add_to_level(cp); cp.z_index = -2
 	var col = CollisionShape2D.new(); var shp = RectangleShape2D.new(); shp.size = Vector2(100, 200); col.shape = shp; cp.add_child(col)
 	
 	# Visual: A red/blue pole that turns yellow when activated
