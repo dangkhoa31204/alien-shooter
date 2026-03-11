@@ -15,6 +15,6 @@ func _get_camera(): return main.camera
 func _get_parallax(): return main._parallax_bg
 func _get_ground_y(x: float) -> float: return main._get_ground_y(x)
 func _spawn_enemy(x, y, is_off = false): main._spawn_enemy(x, y, is_off)
-func _spawn_heavy_enemy(x, y, type: String): main._spawn_heavy_enemy(x, y, type)
+func _spawn_heavy_enemy(x, y, type: String, is_ally: bool = false, can_shoot: bool = true): main._spawn_heavy_enemy(x, y, type, is_ally, can_shoot)
 func _spawn_turret(x, y): main._spawn_turret(x, y)
 func _add_bg_soldier(x, y, is_tun = false): main._add_individual_background_soldier(x, y, is_tun)

@@ -15,12 +15,12 @@ func setup():
 	var sun_pos = Vector2(1100, 160)
 	var sun = Polygon2D.new(); var spts = PackedVector2Array()
 	for i in 24: spts.append(Vector2(cos(i*TAU/24)*70, sin(i*TAU/24)*70))
-	sun.polygon = spts; sun.color = Color(1.0, 1.0, 0.9); sun.position = sun_pos; sun.z_index = -110; _world.add_child(sun)
+	sun.polygon = spts; sun.color = Color(1.0, 1.0, 0.9); sun.position = sun_pos; sun.z_index = -110; main._add_to_level(sun)
 	
 	# 2. ROAD & SIDEWALK (MOVED TO BACK LAYER TO AVOID COVERING UNITS)
 	var floor_node = StaticBody2D.new()
 	var col = CollisionShape2D.new(); var shape = WorldBoundaryShape2D.new(); shape.normal = Vector2.UP; col.shape = shape
-	floor_node.add_child(col); floor_node.position.y = 600; _world.add_child(floor_node)
+	floor_node.add_child(col); floor_node.position.y = 600; main._add_to_level(floor_node)
 	var road = ColorRect.new(); road.color = Color(0.12, 0.12, 0.15); road.size = Vector2(STAGE_LENGTH+4000, 400); road.position = Vector2(-2000, 0); road.z_index = -105; floor_node.add_child(road)
 	var curb = ColorRect.new(); curb.color = Color(0.25, 0.25, 0.28); curb.size = Vector2(STAGE_LENGTH+4000, 15); curb.position = Vector2(-2000, -15); curb.z_index = -104; floor_node.add_child(curb)
 	
@@ -71,10 +71,17 @@ func setup():
 
 	# Gameplay Logic
 	main._spawn_enemy_wave(22, 0.4) 
-	for i in 4: main._spawn_heavy_enemy(3000 + i*4000, 595, "tank")
 	
-	main._spawn_background_soldiers(18) 
-	main._bomber_timer = 10.0 
+	# Allied Armored Advance (Tanks for our side - Just moving as decor)
+	for i in 10:
+		var tax = 1500 + i * 1400 
+		main._spawn_heavy_enemy(tax, 580, "tank", true, false)
+
+	# Enemy Defense Tanks (These still shoot)
+	for i in 4: main._spawn_heavy_enemy(4500 + i*3500, 595, "tank")
+	
+	main._spawn_background_soldiers(30) 
+	main._bomber_timer = 12.0 
 	main._spawn_boss(STAGE_LENGTH - 400, 600)
 
 # --- PERFECT VISUAL HELPERS ---
@@ -132,14 +139,14 @@ func _add_propaganda_poster(parent: Node, pos: Vector2):
 	var txt = ColorRect.new(); txt.size = Vector2(35, 2); txt.position = Vector2(5, 25); txt.color = Color(0,0,0,0.5); p.add_child(txt)
 
 func _create_sandbag_fortification(x: float):
-	var s = StaticBody2D.new(); s.position = Vector2(x, 600); s.z_index = -5; _get_world().add_child(s)
+	var s = StaticBody2D.new(); s.position = Vector2(x, 600); s.z_index = -5; main._add_to_level(s)
 	# Add collision for climbing
 	var col = CollisionShape2D.new(); var shp = RectangleShape2D.new(); shp.size = Vector2(100, 40); col.shape = shp; col.position = Vector2(0, -20); col.one_way_collision = true; s.add_child(col)
 	for i in 12:
 		var bag = ColorRect.new(); bag.size = Vector2(25, 12); bag.position = Vector2(-60 + (i%4)*28, -12 - (i/4)*10); bag.color = Color(0.5, 0.45, 0.4); s.add_child(bag)
 
 func _create_urban_scaffold(x: float, y: float):
-	var s = StaticBody2D.new(); s.position = Vector2(x, y); s.z_index = 0; _get_world().add_child(s)
+	var s = StaticBody2D.new(); s.position = Vector2(x, y); s.z_index = 0; main._add_to_level(s)
 	var w = randf_range(120, 220)
 	var col = CollisionShape2D.new(); var shp = RectangleShape2D.new(); shp.size = Vector2(w, 16); col.shape = shp; col.one_way_collision = true; s.add_child(col)
 	
@@ -152,7 +159,7 @@ func _create_urban_scaffold(x: float, y: float):
 	var right_p = ColorRect.new(); right_p.size = Vector2(4, 600-y); right_p.position = Vector2(w/2 - 14, 8); right_p.color = Color(0.15, 0.15, 0.15); s.add_child(right_p)
 
 func _create_power_line_complex(x: float):
-	var pole = Node2D.new(); pole.position = Vector2(x, 600); pole.z_index = -25; _get_world().add_child(pole)
+	var pole = Node2D.new(); pole.position = Vector2(x, 600); pole.z_index = -25; main._add_to_level(pole)
 	var trunk = ColorRect.new(); trunk.size = Vector2(8, 400); trunk.position = Vector2(-4, -400); trunk.color = Color(0.2, 0.15, 0.1); pole.add_child(trunk)
 	var cross = ColorRect.new(); cross.size = Vector2(80, 8); cross.position = Vector2(-40, -380); cross.color = trunk.color; pole.add_child(cross)
 	# Hanging Flags on power lines
@@ -181,24 +188,24 @@ func _create_detailed_palm_group(x: float):
 	for i in 3: main._create_palm_tree(Vector2(x + randf_range(-50, 50), 600))
 
 func _create_vintage_street_lamp(x: float):
-	var lamp = Node2D.new(); lamp.position = Vector2(x, 600); lamp.z_index = -40; _get_world().add_child(lamp)
+	var lamp = Node2D.new(); lamp.position = Vector2(x, 600); lamp.z_index = -40; main._add_to_level(lamp)
 	var pole = ColorRect.new(); pole.size = Vector2(6, 250); pole.position = Vector2(-3, -250); pole.color = Color(0.2, 0.2, 0.2); lamp.add_child(pole)
 	var light = ColorRect.new(); light.size = Vector2(30, 15); light.position = Vector2(-15, -255); light.color = Color(1, 1, 0.8, 0.8); lamp.add_child(light)
 
 func _create_abandoned_gear_pile(x: float):
-	var gear = Node2D.new(); gear.position = Vector2(x, 600); gear.z_index = -2; _get_world().add_child(gear)
+	var gear = Node2D.new(); gear.position = Vector2(x, 600); gear.z_index = -2; main._add_to_level(gear)
 	for i in 3:
 		var boot = ColorRect.new(); boot.size = Vector2(10, 7); boot.position = Vector2(i*12, -7); boot.color = Color(0.1, 0.1, 0.1); gear.add_child(boot)
 	var helm = Polygon2D.new(); helm.polygon = [Vector2(-8, 0), Vector2(-6, -8), Vector2(6, -8), Vector2(8, 0)]; helm.color = Color(0.2, 0.25, 0.2); helm.position = Vector2(-10, -5); gear.add_child(helm)
 
 func _create_abandoned_vespa(x: float):
-	var v = Node2D.new(); v.position = Vector2(x, 600); v.z_index = -5; _get_world().add_child(v)
+	var v = Node2D.new(); v.position = Vector2(x, 600); v.z_index = -5; main._add_to_level(v)
 	var body = Polygon2D.new(); body.polygon = [Vector2(-20, 0), Vector2(-25, -20), Vector2(10, -25), Vector2(25, -5), Vector2(20, 0)]; body.color = Color.AZURE; v.add_child(body)
 	var w1 = ColorRect.new(); w1.size = Vector2(12, 12); w1.position = Vector2(-16, -10); w1.color = Color.BLACK; v.add_child(w1)
 	var w2 = ColorRect.new(); w2.size = Vector2(w1.size.x, w1.size.y); w2.position = Vector2(10, -10); w2.color = Color.BLACK; v.add_child(w2)
 
 func _create_abandoned_jeep(x: float):
-	var j = Node2D.new(); j.position = Vector2(x, 600); j.z_index = -6; _get_world().add_child(j)
+	var j = Node2D.new(); j.position = Vector2(x, 600); j.z_index = -6; main._add_to_level(j)
 	var body = ColorRect.new(); body.size = Vector2(100, 35); body.position = Vector2(-50, -45); body.color = Color(0.22, 0.28, 0.18); j.add_child(body)
 	var hood = ColorRect.new(); hood.size = Vector2(50, 20); hood.position = Vector2(0, -65); hood.color = body.color; j.add_child(hood)
 	var wheels = [Vector2(-40, -18), Vector2(30, -18)]; for wp in wheels:

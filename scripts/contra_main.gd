@@ -44,6 +44,7 @@ var _shake_power: float = 0.0
 var _shake_time: float = 0.0
 var _bomber_timer: float = 5.0
 var _army_spawn_timer: float = 1.0 
+var _allied_tank_timer: float = 5.0 
 var _enemy_spawn_timer: float = 2.0 # Dynamic enemy spawn
 var _stage_terrain: PackedVector2Array = PackedVector2Array()
 var last_checkpoint_x: float = 100.0
@@ -61,30 +62,35 @@ func _add_to_level(node: Node) -> void:
 		_world.add_child(node)
 
 func _get_ground_y(x_pos: float) -> float:
-	if current_stage in [1, 2, 3] and not _stage_terrain.is_empty():
-		var terrain_size = _stage_terrain.size()
-		# Fast Binary Search for large terrain sets
-		var low_idx = 0
-		var high_idx = terrain_size - 2
-		var res_idx = -1
-		
-		while low_idx <= high_idx:
-			var mid_idx = floori((float(low_idx) + float(high_idx)) / 2.0)
-			if x_pos >= _stage_terrain[mid_idx].x and x_pos <= _stage_terrain[mid_idx+1].x:
-				res_idx = mid_idx
-				break
-			elif x_pos < _stage_terrain[mid_idx].x:
-				high_idx = mid_idx - 1
-			else:
-				low_idx = mid_idx + 1
-				
-		if res_idx != -1:
-			var p_node1 = _stage_terrain[res_idx]
-			var p_node2 = _stage_terrain[res_idx+1]
-			if p_node1.x == p_node2.x: return p_node1.y
-			var t_lerp = (x_pos - p_node1.x) / (p_node2.x - p_node1.x)
-			return lerp(p_node1.y, p_node2.y, t_lerp)
-	return 600.0
+	if current_stage >= 4: return 600.0 # Map 4 & 5 are flat
+	if _stage_terrain.is_empty(): return 600.0
+	
+	var terrain_size = _stage_terrain.size()
+	# Fast Binary Search for large terrain sets
+	var low_idx = 0
+	var high_idx = terrain_size - 2
+	var res_idx = -1
+	
+	while low_idx <= high_idx:
+		var mid_idx = floori((float(low_idx) + float(high_idx)) / 2.0)
+		if x_pos >= _stage_terrain[mid_idx].x and x_pos <= _stage_terrain[mid_idx+1].x:
+			res_idx = mid_idx
+			break
+		elif x_pos < _stage_terrain[mid_idx].x:
+			high_idx = mid_idx - 1
+		else:
+			low_idx = mid_idx + 1
+			
+	if res_idx != -1:
+		var p_node1 = _stage_terrain[res_idx]
+		var p_node2 = _stage_terrain[res_idx+1]
+		if p_node1.x == p_node2.x: return p_node1.y
+		var t_lerp = (x_pos - p_node1.x) / (p_node2.x - p_node1.x)
+		return lerp(p_node1.y, p_node2.y, t_lerp)
+	
+	# Out of bounds fallback: use the nearest edge point
+	if x_pos < _stage_terrain[0].x: return _stage_terrain[0].y
+	return _stage_terrain[terrain_size - 1].y
 
 func _ready() -> void:
 	Audio.stop_menu_music()
@@ -249,6 +255,14 @@ func _process(delta: float) -> void:
 					var use_tunnel = (current_stage == 2 and randf() < 0.35)
 					var sy = 650.0 if use_tunnel else _get_ground_y(sx)
 					_add_individual_background_soldier(sx, sy, use_tunnel)
+		
+		# Map 5: Continuous tank column spawn from the LEFT edge
+		if current_stage == 5:
+			_allied_tank_timer -= delta
+			if _allied_tank_timer <= 0:
+				var tax = camera.position.x - 650 # Spawn just off left screen
+				_spawn_heavy_enemy(tax, 580, "tank", true, false)
+				_allied_tank_timer = randf_range(12.0, 18.0)
 			# Always reset timer
 			_army_spawn_timer = 3.0
 		
@@ -346,7 +360,7 @@ func _explode_bomb(pos: Vector2) -> void:
 	blast.polygon = PackedVector2Array(pts)
 	blast.color = Color(1.0, 0.45, 0.1, 0.9)
 	blast.global_position = pos
-	_world.add_child(blast)
+	_add_to_level(blast)
 	
 	var tw = blast.create_tween().set_parallel(true)
 	tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
@@ -379,7 +393,7 @@ func _create_crater(pos: Vector2) -> void:
 	crater.polygon = PackedVector2Array(pts)
 	crater.color = Color(0.1, 0.05, 0.0, 0.8) # Burnt soil
 	crater.position = Vector2(pos.x, _get_ground_y(pos.x)) # Stick to floor
-	_world.add_child(crater)
+	_add_to_level(crater)
 	
 	# Add some smoke particles (simple version)
 	for i in 5:
@@ -387,7 +401,7 @@ func _create_crater(pos: Vector2) -> void:
 		smoke.size = Vector2(8, 8)
 		smoke.color = Color(0.4, 0.4, 0.4, 0.6)
 		smoke.position = pos + Vector2(randf_range(-20, 20), randf_range(-10, 0))
-		_world.add_child(smoke)
+		_add_to_level(smoke)
 		var tw = create_tween()
 		tw.tween_property(smoke, "position:y", smoke.position.y - 40, 1.0)
 		tw.tween_property(smoke, "modulate:a", 0.0, 1.0)
@@ -401,14 +415,14 @@ func _spawn_bomber() -> void:
 	b.position = Vector2(spawn_x, spawn_y)
 	b.direction = -1
 	# Ensure they are added to world so they scroll correctly
-	_world.add_child(b)
+	_add_to_level(b)
 
 func spawn_shell(pos: Vector2, dir: float) -> void:
 	var shell = ColorRect.new()
 	shell.size = Vector2(4, 2)
 	shell.color = Color(1, 0.8, 0.2) # Brass
 	shell.position = pos
-	_world.add_child(shell)
+	_add_to_level(shell)
 	
 	var tw = create_tween()
 	# Small horizontal bounce (opposite to firing direction), short arc
@@ -443,7 +457,7 @@ func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 		band.position = Vector2(-10000, -200.0 + gi * strip_h)
 		band.z_index  = -120
 		band.color    = grad_stops[gi]
-		_world.add_child(band)
+		_add_to_level(band)
 
 	# ── Sun disk + 3 concentric glow rings ────────────────────────────────────
 	var sun_x := 3800.0
@@ -465,7 +479,7 @@ func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 		sun_poly.polygon = PackedVector2Array(sun_pts)
 		sun_poly.color   = sc
 		sun_poly.z_index = -117
-		_world.add_child(sun_poly)
+		_add_to_level(sun_poly)
 
 	# ── God rays / light shafts from sun ──────────────────────────────────────
 	for ri in 7:
@@ -479,7 +493,7 @@ func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 		ray.polygon  = PackedVector2Array([rbase_l, rbase_r, rtip])
 		ray.color    = Color(1.0, 0.92, 0.60, 0.035)
 		ray.z_index  = -116
-		_world.add_child(ray)
+		_add_to_level(ray)
 
 	# ── Clouds — each cloud is 4–6 overlapping ellipse polygons ──────────────
 	var cloud_data: Array = []
@@ -650,7 +664,7 @@ func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 		amb.position = Vector2(-10000, 590.0 + di * 38.0)
 		amb.z_index  = -10
 		amb.color    = Color(0.0, 0.0, 0.0, 0.10 + di * 0.04)
-		_world.add_child(amb)
+		_add_to_level(amb)
 
 func _start_stage(stage_num: int, is_respawn: bool = false) -> void:
 	current_stage = stage_num
@@ -696,22 +710,30 @@ func _show_stage_intro(num: int) -> void:
 		tw.tween_property(stage_label, "modulate:a", 0.0, 1.0)
 
 func _cleanup_level() -> void:
-	if is_instance_valid(_level_node):
-		_level_node.queue_free()
+	# Aggressively clear EVERYTHING in world and parallax to prevent leaks between stages
+	if is_instance_valid(_parallax_bg):
+		_parallax_bg.queue_free()
 	
+	if is_instance_valid(_level_node):
+		_level_node.name = "DELETING"
+		_level_node.queue_free()
+
+	# Clear any direct children (leaked bamboo, mountains, etc.)
+	if is_instance_valid(_world):
+		for n in _world.get_children():
+			if n != _level_node and n != _parallax_bg:
+				n.queue_free()
+	
+	# Re-setup the clean containers
+	_parallax_bg = Node2D.new(); _parallax_bg.name = "Parallax"; _world.add_child(_parallax_bg)
 	_level_node = Node2D.new(); _level_node.name = "LevelNode"; _world.add_child(_level_node)
 	
-	var tree = get_tree()
-	if tree:
-		for n in tree.get_nodes_in_group("enemy"): n.queue_free()
-		for n in tree.get_nodes_in_group("ally_army"): n.queue_free()  # FIX: was leaking old soldiers
-		for n in tree.get_nodes_in_group("player_bullet"): n.queue_free()  # FIX: clear stale bullets
-		for n in tree.get_nodes_in_group("enemy_bullet"): n.queue_free()
 	_stage_terrain.clear()
 	# Reset all timers
 	_bomber_timer = 5.0
 	_enemy_spawn_timer = 2.0
-	_army_spawn_timer = 1.0  # FIX: was never reset, causing spawn delay bug on respawn
+	_army_spawn_timer = 1.0
+	_allied_tank_timer = 5.0
 	_checkpoint_positions.clear()
 	# Remove old checkpoint markers
 	if progress_bar:
@@ -1022,7 +1044,7 @@ func _create_hanging_vine_detailed(x: float) -> void:
 	for i in 6:
 		var lp = pts[i+2]
 		var leaf = ColorRect.new(); leaf.size = Vector2(6, 4); leaf.position = lp; leaf.color = Color(0.2, 0.5, 0.1); leaf.rotation = randf()
-		_world.add_child(leaf); leaf.z_index = -5 # Less intrusive vines
+		_add_to_level(leaf); leaf.z_index = -10 # Pushed back behind soldiers
 
 
 func _create_ground_segment(x1: float, x2: float, y: float) -> void:
@@ -1037,7 +1059,7 @@ func _create_ground_segment(x1: float, x2: float, y: float) -> void:
 	col.shape  = shape
 	body.add_child(col)
 	body.position = Vector2(x1 + w / 2.0, y + 200)
-	_world.add_child(body)
+	_add_to_level(body)
 
 	# ── 1. Deep bedrock fill ──────────────────────────────────────────────────
 	var bedrock := ColorRect.new()
@@ -1171,7 +1193,7 @@ func _create_ground_segment(x1: float, x2: float, y: float) -> void:
 
 
 func _create_burning_wreckage(pos: Vector2) -> void:
-	var wreckage = Node2D.new(); wreckage.position = pos; _world.add_child(wreckage); wreckage.z_index = -5
+	var wreckage = Node2D.new(); wreckage.position = pos; _add_to_level(wreckage); wreckage.z_index = -5
 	var base = ColorRect.new(); base.size = Vector2(40, 15); base.position = Vector2(-20, -15); base.color = Color(0.1, 0.1, 0.1); wreckage.add_child(base)
 	
 	for i in 3: # Smoke plumes
@@ -1183,7 +1205,7 @@ func _create_burning_wreckage(pos: Vector2) -> void:
 		tw.tween_property(s, "position:y", -20, 0.01); tw.tween_property(s, "modulate:a", 0.6, 0.01)
 
 func _create_aa_gun_bg(pos: Vector2) -> void:
-	var aa = Node2D.new(); aa.position = pos; _world.add_child(aa); aa.z_index = -8
+	var aa = Node2D.new(); aa.position = pos; _add_to_level(aa); aa.z_index = -8
 	var base = ColorRect.new(); base.size = Vector2(30, 10); base.position = Vector2(-15, -10); base.color = Color(0.15, 0.2, 0.12); aa.add_child(base)
 	var gun = ColorRect.new(); gun.size = Vector2(4, 35); gun.position = Vector2(-2, -45); gun.color = Color(0.1, 0.1, 0.1); aa.add_child(gun); gun.rotation = -0.4
 	
@@ -1199,14 +1221,14 @@ func _create_aa_gun_bg(pos: Vector2) -> void:
 	)
 
 func _create_wooden_log_bridge(pos: Vector2) -> void:
-	var bridge = Node2D.new(); bridge.position = pos; _world.add_child(bridge); bridge.z_index = 0
+	var bridge = Node2D.new(); bridge.position = pos; _add_to_level(bridge); bridge.z_index = -10
 	for idx_log in 6:
 		var w_log_obj = ColorRect.new(); w_log_obj.size = Vector2(25, 10); w_log_obj.position = Vector2(idx_log*26 - 75, -10)
 		w_log_obj.color = Color(0.4, 0.25, 0.15).darkened(randf()*0.2); bridge.add_child(w_log_obj)
 		var moss = ColorRect.new(); moss.size = Vector2(25, 3); moss.position = Vector2(idx_log*26 - 75, -12); moss.color = Color(0.2, 0.4, 0.1); bridge.add_child(moss)
 
 func _create_gaz_truck_bg(pos: Vector2) -> void:
-	var truck = Node2D.new(); truck.position = pos; _world.add_child(truck); truck.z_index = -15
+	var truck = Node2D.new(); truck.position = pos; _add_to_level(truck); truck.z_index = -15
 	truck.modulate = Color(0.6, 0.7, 0.6, 0.8) # Blended into background
 	var body = ColorRect.new(); body.size = Vector2(60, 25); body.position = Vector2(-30, -35); body.color = Color(0.15, 0.25, 0.15)
 	var cabin = ColorRect.new(); cabin.size = Vector2(25, 18); cabin.position = Vector2(5, -45); cabin.color = Color(0.12, 0.22, 0.12)
@@ -1216,7 +1238,7 @@ func _create_gaz_truck_bg(pos: Vector2) -> void:
 
 func _create_bicycle_convoy_bg(pos: Vector2) -> void:
 	for i in 3:
-		var b = Node2D.new(); b.position = pos + Vector2(i*60, 0); _world.add_child(b); b.z_index = -15
+		var b = Node2D.new(); b.position = pos + Vector2(i*60, 0); _add_to_level(b); b.z_index = -15
 		var frame = ColorRect.new(); frame.size = Vector2(25, 2); frame.position = Vector2(-12, -18); frame.color = Color(0.1, 0.1, 0.1); b.add_child(frame)
 		var goods = ColorRect.new(); goods.size = Vector2(30, 20); goods.position = Vector2(-15, -35); goods.color = Color(0.4, 0.3, 0.2); b.add_child(goods)
 		var wheels = [ColorRect.new(), ColorRect.new()]
@@ -1228,7 +1250,7 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 	# FIX: start terrain at -700 so camera at min x=576 (screen left=0) always has ground
 	var cur_x = -700.0
 	var cur_y = 560.0
-	var total_len = STAGE_LENGTH + 400.0
+	var total_len = STAGE_LENGTH + 1000.0
 	
 	# Flat safe zone: no height change in first 800px past spawn point (x=576+200=776)
 	var flat_zone_end = 900.0
@@ -1361,13 +1383,13 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 		# ── Grass blades along surface ─────────────────────────────────────────
 		var blades_node := Node2D.new()
 		blades_node.z_index = -24
-		_world.add_child(blades_node)
+		_add_to_level(blades_node)
 		var seg_count := surface_pts.size()
 		for bi in range(seg_count - 1):
 			var bp1: Vector2 = surface_pts[bi]
 			var bp2: Vector2 = surface_pts[bi + 1]
 			var seg_len: float = bp2.x - bp1.x
-			var n_blades := int(seg_len / 25.0) # Reduced density from 10.0 to 25.0
+			var n_blades := int(seg_len / 70.0) # optimized density from 25.0 to 70.0
 			for bj in n_blades:
 				var t   := float(bj) / float(max(n_blades, 1))
 				var bx  := bp1.x + t * seg_len + randf_range(-3.0, 3.0)
@@ -1389,8 +1411,8 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 				).lightened(randf_range(-0.05, 0.22))
 				blades_node.add_child(blade)
 
-			# Small wildflowers every ~500px (reduced from ~200px)
-			if randf() < 0.015:
+			# Small wildflowers every ~2000px
+			if randf() < 0.005: 
 				var t   := randf()
 				var fbx := bp1.x + t * seg_len
 				var fby: float = lerp(bp1.y, bp2.y, t) - 18.0
@@ -1402,7 +1424,7 @@ func _generate_hilly_terrain(soil_color: Color, grass_color: Color, has_gaps: bo
 				flower.polygon = PackedVector2Array(f_pts2)
 				flower.color   = [Color(0.9, 0.9, 0.3, 0.85), Color(1.0, 0.5, 0.2, 0.85), Color(0.9, 0.9, 0.95, 0.85)][randi() % 3]
 				flower.z_index = -23
-				_world.add_child(flower)
+				_add_to_level(flower)
 
 		# ── Pebble scatter along surface ───────────────────────────────────────
 		for pi in range(surface_pts.size() - 1):
@@ -1539,32 +1561,33 @@ func _spawn_boss(x, y) -> void:
 	# Cổng Dinh Độc Lập / Independence Palace Gates
 	
 	# Palace Yard (Green grass behind the gate)
-	var yard = ColorRect.new(); yard.size = Vector2(800, 150); yard.position = Vector2(x, y-150); yard.color = Color(0.15, 0.4, 0.15); yard.z_index = -35; _world.add_child(yard)
-	var palace_bg = ColorRect.new(); palace_bg.size = Vector2(800, 300); palace_bg.position = Vector2(x, y-450); palace_bg.color = Color(0.85, 0.85, 0.8); palace_bg.z_index = -36; _world.add_child(palace_bg)
+	var yard = ColorRect.new(); yard.size = Vector2(800, 150); yard.position = Vector2(x, y-150); yard.color = Color(0.15, 0.4, 0.15); yard.z_index = -35; _add_to_level(yard)
+	var palace_bg = ColorRect.new(); palace_bg.size = Vector2(800, 300); palace_bg.position = Vector2(x, y-450); palace_bg.color = Color(0.85, 0.85, 0.8); palace_bg.z_index = -36; _add_to_level(palace_bg)
 	
 	# Tropical Palm Trees in the palace yard
 	for i in 4:
 		_create_palm_tree(Vector2(x + 100 + i*150, y))
-		var last_tree = _world.get_child(_world.get_child_count()-1)
-		last_tree.z_index = -34
+		# Palms are already in the level node, but we need to find the latest
+		var tree_node = _level_node.get_child(_level_node.get_child_count()-1)
+		tree_node.z_index = -34
 	
 	# Iron fences (Broken in the middle)
 	for i in 22:
 		# Create a gap in the middle where the tank crashed
 		if i > 7 and i < 15: continue 
-		var bar = ColorRect.new(); bar.size = Vector2(8, 450); bar.position = Vector2(x-80 + i*35, y-450); bar.color = Color(0.2, 0.2, 0.2); bar.z_index = -15; _world.add_child(bar)
-		var spike = Polygon2D.new(); spike.polygon = PackedVector2Array([Vector2(0,0), Vector2(4, -15), Vector2(8, 0)]); spike.color = Color(0.8, 0.7, 0.2); spike.position = Vector2(x-80 + i*35, y-450); spike.z_index = -15; _world.add_child(spike)
+		var bar = ColorRect.new(); bar.size = Vector2(8, 450); bar.position = Vector2(x-80 + i*35, y-450); bar.color = Color(0.2, 0.2, 0.2); bar.z_index = -15; _add_to_level(bar)
+		var spike = Polygon2D.new(); spike.polygon = PackedVector2Array([Vector2(0,0), Vector2(4, -15), Vector2(8, 0)]); spike.color = Color(0.8, 0.7, 0.2); spike.position = Vector2(x-80 + i*35, y-450); spike.z_index = -15; _add_to_level(spike)
 
 	# Concrete Pillars
 	for idx_gate in 4:
 		var px_pos = x - 100 + idx_gate * 260
 		# Destroyed central pillars
 		var pillar_h = 500.0 if (idx_gate == 0 or idx_gate == 3) else randf_range(100.0, 200.0)
-		var pillar = ColorRect.new(); pillar.size = Vector2(60, pillar_h); pillar.position = Vector2(px_pos, y-pillar_h); pillar.color = Color(0.8, 0.8, 0.75); pillar.z_index = -10; _world.add_child(pillar)
+		var pillar = ColorRect.new(); pillar.size = Vector2(60, pillar_h); pillar.position = Vector2(px_pos, y-pillar_h); pillar.color = Color(0.8, 0.8, 0.75); pillar.z_index = -10; _add_to_level(pillar)
 		var base = ColorRect.new(); base.size = Vector2(80, 40); base.position = Vector2(px_pos-10, y-40); base.color = Color(0.6, 0.6, 0.55); pillar.add_child(base)
 
 	# Banner above the gate
-	var banner = ColorRect.new(); banner.size = Vector2(500, 60); banner.position = Vector2(x-100, y-550); banner.color = Color(0.8, 0.1, 0.1); banner.z_index = -9; _world.add_child(banner)
+	var banner = ColorRect.new(); banner.size = Vector2(500, 60); banner.position = Vector2(x-100, y-550); banner.color = Color(0.8, 0.1, 0.1); banner.z_index = -9; _add_to_level(banner)
 	
 	# Iconic T-54 Tank husk that rammed the center gate
 	var tank_husk = StaticBody2D.new(); tank_husk.position = Vector2(x + 100, y); _add_to_level(tank_husk)
@@ -1610,10 +1633,11 @@ func _spawn_enemy_wave(count: int, officer_p: float) -> void:
 		if current_stage == 2:
 			ey = 550 # Only spawn on surface ground
 		
-		# Ensure they are not stacked exactly on top of other enemies (increased spacing)
+		# Ensure they are not stacked exactly on top of other active enemies
 		for e in get_tree().get_nodes_in_group("enemy"):
+			if not is_instance_valid(e) or e.is_queued_for_deletion(): continue
 			if abs(e.position.x - x) < 200: 
-				x += 300 # Push much further if too close
+				x += 300 # Push further if too close
 				ey = _get_ground_y(x) - 20.0
 		
 		if x > STAGE_LENGTH - 400: continue
@@ -2082,6 +2106,218 @@ func _create_platform_detailed(pos: Vector2, width: float) -> void:
 		vine.color = Color(0.12, 0.35, 0.1)
 		plat.add_child(vine)
 
+func _create_tunnel_rat(pos: Vector2) -> void:
+	var rat = Node2D.new()
+	rat.position = pos
+	rat.z_index = -5
+	_add_to_level(rat)
+	
+	var body = ColorRect.new()
+	body.size = Vector2(8, 4)
+	body.position = Vector2(-4, -4)
+	body.color = Color(0.3, 0.25, 0.2)
+	rat.add_child(body)
+	
+	var tail = Line2D.new()
+	tail.points = PackedVector2Array([Vector2(-4, -2), Vector2(-10, -1), Vector2(-12, -3)])
+	tail.width = 1.0
+	tail.default_color = Color(0.4, 0.35, 0.3)
+	rat.add_child(tail)
+	
+	var head = ColorRect.new()
+	head.size = Vector2(3, 3)
+	head.position = Vector2(4, -4)
+	head.color = Color(0.35, 0.3, 0.25)
+	rat.add_child(head)
+	
+	# Scuttle animation
+	var tw = create_tween().set_loops().bind_node(rat)
+	var next_x = pos.x + (100 if randf() > 0.5 else -100)
+	tw.tween_property(rat, "position:x", next_x, randf_range(1.5, 3.0)).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func(): if is_instance_valid(rat): rat.scale.x *= -1)
+	tw.set_parallel(false)
+	tw.tween_interval(randf_range(0.5, 1.5))
+	tw.tween_property(rat, "position:x", pos.x, randf_range(1.5, 3.0)).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func(): if is_instance_valid(rat): rat.scale.x *= -1)
+	tw.tween_interval(randf_range(0.5, 1.5))
+
+func _create_war_bulldozer(pos: Vector2) -> void:
+	# Design: Rome Plow D7 (Vietnam War era)
+	var dozer = StaticBody2D.new()
+	dozer.position = pos
+	dozer.z_index = -5
+	_add_to_level(dozer)
+	
+	# Primary collision (for jumping on)
+	var col = CollisionShape2D.new()
+	var shp = RectangleShape2D.new()
+	shp.size = Vector2(180, 80)
+	col.shape = shp
+	col.position = Vector2(0, -40)
+	col.one_way_collision = true
+	dozer.add_child(col)
+	
+	# Secondary collision for the front blade (hard wall or step)
+	var b_col = CollisionShape2D.new()
+	var b_shp = RectangleShape2D.new()
+	b_shp.size = Vector2(40, 100)
+	b_col.shape = b_shp
+	b_col.position = Vector2(110, -50)
+	dozer.add_child(b_col)
+	
+	# --- Visuals ---
+	# Tracks
+	var tracks = ColorRect.new()
+	tracks.size = Vector2(160, 25)
+	tracks.position = Vector2(-80, -25)
+	tracks.color = Color(0.1, 0.1, 0.15)
+	dozer.add_child(tracks)
+	
+	# Track details/links
+	for i in 8:
+		var link = ColorRect.new()
+		link.size = Vector2(12, 10)
+		link.position = Vector2(-75 + i*20, -20)
+		link.color = Color(0.2, 0.2, 0.2)
+		dozer.add_child(link)
+
+	# Main Body (Olive Drab)
+	var body = Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(-80, -25), Vector2(-80, -70), 
+		Vector2(20, -70), Vector2(20, -25)
+	])
+	body.color = Color(0.28, 0.32, 0.18)
+	dozer.add_child(body)
+	
+	# Engine Hood
+	var engine = ColorRect.new()
+	engine.size = Vector2(70, 45)
+	engine.position = Vector2(20, -70)
+	engine.color = Color(0.25, 0.3, 0.15)
+	dozer.add_child(engine)
+	
+	# Rome Plow Blade (Large, slanted, heavy)
+	var blade = Polygon2D.new()
+	blade.polygon = PackedVector2Array([
+		Vector2(90, -10), Vector2(130, -100), 
+		Vector2(145, -100), Vector2(105, -10)
+	])
+	blade.color = Color(0.35, 0.35, 0.35)
+	dozer.add_child(blade)
+	
+	# Sharp vertical splitter on the blade (The 'Rome' part)
+	var splitter = ColorRect.new()
+	splitter.size = Vector2(6, 60)
+	splitter.position = Vector2(135, -100)
+	splitter.color = Color(0.5, 0.1, 0.1)
+	dozer.add_child(splitter)
+	
+	# Protective Roll Cage (ROPS)
+	var cage = Line2D.new()
+	cage.points = PackedVector2Array([
+		Vector2(-70, -70), Vector2(-70, -110), 
+		Vector2(30, -110), Vector2(30, -70)
+	])
+	cage.width = 4.0
+	cage.default_color = Color(0.15, 0.15, 0.1)
+	dozer.add_child(cage)
+	
+	# Exhaust pipe & Smoke
+	var exhaust = ColorRect.new()
+	exhaust.size = Vector2(5, 40)
+	exhaust.position = Vector2(40, -105)
+	exhaust.color = Color(0.2, 0.2, 0.2)
+	dozer.add_child(exhaust)
+	
+	var smoke = ColorRect.new()
+	smoke.size = Vector2(10, 10)
+	smoke.position = Vector2(38, -115)
+	smoke.color = Color(1, 1, 1, 0.4)
+	dozer.add_child(smoke)
+	var stw = create_tween().set_loops().bind_node(smoke)
+	stw.tween_property(smoke, "position:y", -140, 0.8)
+	stw.parallel().tween_property(smoke, "modulate:a", 0.0, 0.8)
+	stw.tween_callback(func(): if is_instance_valid(smoke): smoke.position.y = -115; smoke.modulate.a = 0.4)
+
+func _create_highland_truck(pos: Vector2) -> void:
+	# Design: ZIL-131 style transport truck (Vietnam War era)
+	var truck = StaticBody2D.new()
+	truck.position = pos
+	truck.z_index = -15
+	_add_to_level(truck)
+	
+	# Platform collision (Top bed and cabin)
+	var col = CollisionShape2D.new()
+	var shp = RectangleShape2D.new()
+	shp.size = Vector2(240, 90)
+	col.shape = shp
+	col.position = Vector2(0, -45)
+	col.one_way_collision = true
+	truck.add_child(col)
+	
+	# --- Visuals ---
+	# Massive wheels
+	for wpos in [Vector2(-80, -18), Vector2(-40, -18), Vector2(70, -18)]:
+		var wheel = ColorRect.new()
+		wheel.size = Vector2(44, 44)
+		wheel.position = wpos - Vector2(22, 22)
+		wheel.color = Color(0.1, 0.1, 0.12)
+		truck.add_child(wheel)
+		var hub = ColorRect.new(); hub.size = Vector2(14, 14); hub.position = wpos - Vector2(7, 7); hub.color = Color(0.25, 0.25, 0.25); truck.add_child(hub)
+
+	# Main Chassis frame
+	var frame = ColorRect.new()
+	frame.size = Vector2(230, 12)
+	frame.position = Vector2(-115, -35)
+	frame.color = Color(0.12, 0.12, 0.12)
+	truck.add_child(frame)
+	
+	# Cabin (Angular Soviet style)
+	var cabin = Polygon2D.new()
+	cabin.polygon = PackedVector2Array([
+		Vector2(20, -35), Vector2(20, -105), 
+		Vector2(100, -105), Vector2(115, -75), Vector2(115, -35)
+	])
+	cabin.color = Color(0.22, 0.28, 0.16)
+	truck.add_child(cabin)
+	
+	# Windshield
+	var glass = ColorRect.new()
+	glass.size = Vector2(40, 35)
+	glass.position = Vector2(65, -95)
+	glass.color = Color(0.4, 0.6, 0.7, 0.5)
+	truck.add_child(glass)
+	
+	# Cargo Bed (Wooden planks texture)
+	var bed = ColorRect.new()
+	bed.size = Vector2(150, 45)
+	bed.position = Vector2(-120, -80)
+	bed.color = Color(0.3, 0.2, 0.12)
+	truck.add_child(bed)
+	
+	# Canvas canopy (Camouflage/Green)
+	var canopy = Polygon2D.new()
+	canopy.polygon = PackedVector2Array([
+		Vector2(-120, -80), Vector2(-120, -125), 
+		Vector2(-40, -140), Vector2(20, -125), Vector2(20, -80)
+	])
+	canopy.color = Color(0.18, 0.32, 0.14)
+	truck.add_child(canopy)
+	
+	# Detailed camo splotches on canopy
+	for i in 3:
+		var splotch = Polygon2D.new()
+		var sp_pos = Vector2(-100 + i*40, -110)
+		splotch.polygon = PackedVector2Array([Vector2(-15, -10), Vector2(15, -5), Vector2(10, 15), Vector2(-10, 10)])
+		splotch.color = Color(0.1, 0.2, 0.05, 0.4)
+		splotch.position = sp_pos
+		truck.add_child(splotch)
+
+	# Front Bumper & Headlights
+	var bumper = ColorRect.new(); bumper.size = Vector2(10, 30); bumper.position = Vector2(115, -55); bumper.color = Color(0.2, 0.2, 0.18); truck.add_child(bumper)
+	var light = ColorRect.new(); light.size = Vector2(12, 12); light.position = Vector2(110, -85); light.color = Color(1, 1, 0.8, 0.9); truck.add_child(light)
+
 func _spawn_enemy(x, y, is_off: bool = false) -> void:
 	var e = ENEMY_SCENE.instantiate()
 	e.is_officer = is_off
@@ -2148,6 +2384,7 @@ func _add_individual_background_soldier(x: float, y: float = 600, is_tun: bool =
 	# Snap Y immediately so soldiers don't fall from sky
 	var snapped_y = 650.0 if is_tun else _get_ground_y(x)
 	soldier.position = Vector2(x, snapped_y)
+	soldier.z_index = 4 # Explicitly in front of props
 	soldier.add_to_group("ally_army")
 	soldier.set_meta("walk_speed", randf_range(100, 180))  # Slightly faster so they keep up
 	soldier.set_meta("on_tunnel", is_tun)
@@ -2170,7 +2407,7 @@ func _add_allied_tank(x: float, y: float) -> void:
 
 	var tank = Node2D.new()
 	tank.position = Vector2(x, y)
-	tank.z_index = -3 # Just in front of allied soldiers
+	tank.z_index = 3 # In front of props but slightly behind soldiers
 	
 	# T-54 Tank Body
 	var body = Polygon2D.new()
@@ -2259,8 +2496,9 @@ func _process_background_army(delta: float) -> void:
 		var is_tunnel_soldier = soldier.has_meta("on_tunnel") and soldier.get_meta("on_tunnel")
 		if not is_tunnel_soldier:
 			var tx = soldier.position.x
+			var current_ground_y = _get_ground_y(tx)
 			leg_h = 0.0 if is_tank else 16.0
-			var target_y = _get_ground_y(tx) - leg_h
+			var target_y = current_ground_y - leg_h
 			
 			var jump_time = soldier.get_meta("jump_time", 0.0)
 			var jump_offset = 0.0
@@ -2269,6 +2507,7 @@ func _process_background_army(delta: float) -> void:
 				jump_offset = sin((1.0 - jump_time) * PI) * 60.0
 				if jump_time <= 0: jump_time = 0
 			else:
+				# Check ahead for jumping up ledges
 				if _get_ground_y(tx + 80.0) < target_y - 25.0:
 					jump_time = 1.0
 			
@@ -2280,12 +2519,16 @@ func _process_background_army(delta: float) -> void:
 				var follow_speed = 12.0 if soldier.position.y < target_y else 25.0
 				soldier.position.y = lerp(soldier.position.y, final_target, follow_speed * delta * 2.0)
 
-func _spawn_heavy_enemy(x, y, type: String) -> void:
+func _spawn_heavy_enemy(x, y, type: String, is_ally: bool = false, can_shoot: bool = true) -> void:
 	var e = null
 	if type == "tank":
 		e = CharacterBody2D.new()
 		e.set_script(TANK_SCENE)
+		e.is_ally = is_ally
+		e.can_shoot = can_shoot
 		e.add_to_group("tank")
+		e.z_index = 5 # Ensure tanks are visible over terrain props
+		if is_ally: e.patrol_direction = 1 # Face right
 	
 	if e:
 		_add_to_level(e)
@@ -2626,7 +2869,7 @@ func _show_history_info() -> void:
 		},
 		{
 			"title": "MÀN 5: CHIẾN DỊCH HỒ CHÍ MINH (26/04 - 30/04/1975)",
-			"desc": "Chiến dịch vĩ đại nhất trong lịch sử dân tộc. 5 cánh quân từ các hướng đồng loạt tiến công vào trung tâm Sài Gòn.\n\n- 11h30 ngày 30/04: Xe tăng 390 húc đổ cổng Dinh Độc Lập.\n- Đại diện chính quyền Sài Gòn tuyên bố đầu hàng không điều kiện.\n- Cờ đỏ sao vàng tung bay trên nóc dinh, kết thúc 21 năm kháng chiến chống Mỹ, thống nhất hoàn toàn đất nước."
+			"desc": "Chiến dịch vĩ đại nhất trong lịch sử dân tộc. 5 cánh quân từ các hướng đồng loạt tiến công vào trung tâm Sài Gòn.\n\n- 11h30 ngày 30/04: Xe tăng 390 húc đổ cổng Dinh Độc Lập.\n- Đại diện chính quyền Sài Gòn tuyên bố đầu hàng không điều kiện.\n- Lá cờ Giải phóng tung bay trên nóc dinh, kết thúc 21 năm kháng chiến chống Mỹ, thống nhất hoàn toàn đất nước."
 		}
 	]
 	

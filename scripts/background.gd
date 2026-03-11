@@ -419,10 +419,10 @@ func _draw_battlefield() -> void:
 	# 4. Cây rừng
 	for tree in _bf_trees:
 		var tx := float(tree[0]); var ty := float(tree[1])
-		var tr := float(tree[2]); var sh := float(tree[3])
-		if ty < -tr or ty > _vp.y+tr: continue
-		draw_circle(Vector2(tx,ty), tr,       Color(0.08+sh*0.10, 0.17+sh*0.15, 0.04+sh*0.06))
-		draw_circle(Vector2(tx,ty), tr*0.55,  Color(0.12+sh*0.08, 0.24+sh*0.12, 0.06+sh*0.04))
+		var rad := float(tree[2]); var sh := float(tree[3])
+		if ty < -rad or ty > _vp.y+rad: continue
+		draw_circle(Vector2(tx,ty), rad,       Color(0.08+sh*0.10, 0.17+sh*0.15, 0.04+sh*0.06))
+		draw_circle(Vector2(tx,ty), rad*0.55,  Color(0.12+sh*0.08, 0.24+sh*0.12, 0.06+sh*0.04))
 	# 5. Hố bom
 	for crater in _bf_craters:
 		var cx := float(crater[0]); var cy := float(crater[1])

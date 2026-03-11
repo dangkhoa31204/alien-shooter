@@ -10,11 +10,11 @@ func setup():
 	var moon = Polygon2D.new(); var mpts = PackedVector2Array()
 	for i in 20: mpts.append(Vector2(cos(i*TAU/20)*40, sin(i*TAU/20)*40))
 	moon.polygon = mpts; moon.color = Color(0.9, 0.9, 0.8, 0.9)
-	moon.position = Vector2(800, 150); moon.z_index = -110; _world.add_child(moon)
+	moon.position = Vector2(800, 150); moon.z_index = -110; main._add_to_level(moon)
 	
 	var moon_glow = Polygon2D.new(); var mgpts = PackedVector2Array()
 	for i in 12: mgpts.append(Vector2(cos(i*TAU/12)*120, sin(i*TAU/12)*120))
-	moon_glow.polygon = mgpts; moon_glow.color = Color(1, 1, 0.8, 0.1); moon_glow.position = moon.position; moon_glow.z_index = -111; _world.add_child(moon_glow)
+	moon_glow.polygon = mgpts; moon_glow.color = Color(1, 1, 0.8, 0.1); moon_glow.position = moon.position; moon_glow.z_index = -111; main._add_to_level(moon_glow)
 
 	# Distant Base Silhouettes (Parallax)
 	for i in 15:
@@ -38,7 +38,7 @@ func setup():
 	# Base Floor
 	var floor_node = StaticBody2D.new()
 	var col = CollisionShape2D.new(); var shape = WorldBoundaryShape2D.new(); shape.normal = Vector2.UP; col.shape = shape
-	floor_node.add_child(col); floor_node.position.y = 600; _world.add_child(floor_node)
+	floor_node.add_child(col); floor_node.position.y = 600; main._add_to_level(floor_node)
 	var dirt = ColorRect.new(); dirt.color = Color(0.12, 0.12, 0.15); dirt.size = Vector2(STAGE_LENGTH+2000, 400); dirt.position = Vector2(-1000, 0); floor_node.add_child(dirt)
 	var highlight = ColorRect.new(); highlight.color = Color(0.2, 0.2, 0.25); highlight.size = Vector2(STAGE_LENGTH+2000, 10); highlight.position = Vector2(-1000, -5); floor_node.add_child(highlight)
 
@@ -48,21 +48,21 @@ func setup():
 	# Wire Fences (Mid-ground)
 	for i in range(int(STAGE_LENGTH / 400)):
 		var fx = i * 400
-		var post = ColorRect.new(); post.size = Vector2(4, 60); post.position = Vector2(fx, 540); post.color = Color(0.2, 0.2, 0.2); post.z_index = -10; _world.add_child(post)
-		var wire1 = ColorRect.new(); wire1.size = Vector2(400, 1); wire1.position = Vector2(fx, 550); wire1.color = Color(0.4, 0.4, 0.4, 0.5); wire1.z_index = -11; _world.add_child(wire1)
-		var wire2 = ColorRect.new(); wire2.size = Vector2(400, 1); wire2.position = Vector2(fx, 570); wire2.color = Color(0.4, 0.4, 0.4, 0.5); wire2.z_index = -11; _world.add_child(wire2)
+		var post = ColorRect.new(); post.size = Vector2(4, 60); post.position = Vector2(fx, 540); post.color = Color(0.2, 0.2, 0.2); post.z_index = -10; main._add_to_level(post)
+		var wire1 = ColorRect.new(); wire1.size = Vector2(400, 1); wire1.position = Vector2(fx, 550); wire1.color = Color(0.4, 0.4, 0.4, 0.5); wire1.z_index = -11; main._add_to_level(wire1)
+		var wire2 = ColorRect.new(); wire2.size = Vector2(400, 1); wire2.position = Vector2(fx, 570); wire2.color = Color(0.4, 0.4, 0.4, 0.5); wire2.z_index = -11; main._add_to_level(wire2)
 
 	# Military Infrastructure: Buildings, Bunkers, Watchtowers
 	for i in range(int(STAGE_LENGTH/800)):
 		var tx = 600 + i * 800 + randf_range(-100, 100)
 		if randf() < 0.4: # Watchtower
-			var tower = Node2D.new(); tower.position = Vector2(tx, 600); _world.add_child(tower); tower.z_index = -15
+			var tower = Node2D.new(); tower.position = Vector2(tx, 600); main._add_to_level(tower); tower.z_index = -15
 			var legs = ColorRect.new(); legs.size = Vector2(40, 250); legs.position = Vector2(-20, -250); legs.color = Color(0.15, 0.15, 0.18); tower.add_child(legs)
 			var cabin = ColorRect.new(); cabin.size = Vector2(80, 60); cabin.position = Vector2(-40, -310); cabin.color = Color(0.25, 0.25, 0.3)
 			var window = ColorRect.new(); window.size = Vector2(60, 20); window.position = Vector2(10, 10); window.color = Color(1, 1, 0.5, 0.3); cabin.add_child(window); tower.add_child(cabin)
 			main._spawn_turret(tx, 340)
 		else: # Bunker
-			var bunker = Node2D.new(); bunker.position = Vector2(tx, 600); _world.add_child(bunker); bunker.z_index = -5
+			var bunker = Node2D.new(); bunker.position = Vector2(tx, 600); main._add_to_level(bunker); bunker.z_index = -5
 			var b_body = ColorRect.new(); b_body.size = Vector2(180, 100); b_body.position = Vector2(-90, -100); b_body.color = Color(0.28, 0.3, 0.3)
 			var slit = ColorRect.new(); slit.size = Vector2(120, 15); slit.position = Vector2(30, 30); slit.color = Color(0.05, 0.05, 0.05); b_body.add_child(slit); bunker.add_child(b_body)
 			# Sandbags around bunker

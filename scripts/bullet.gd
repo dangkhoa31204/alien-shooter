@@ -94,6 +94,15 @@ func _physics_process(delta: float) -> void:
 	position += direction * speed * delta
 	queue_redraw()
 
+	# Contra Mode: Ground collision fallback for hilly terrain
+	var main = get_tree().current_scene
+	if main and main.name == "ContraMain" and main.has_method("_get_ground_y") and main.current_stage != 2:
+		var gy = main._get_ground_y(global_position.x)
+		if global_position.y >= gy - 5.0:
+			_spawn_hit_effect(global_position)
+			queue_free()
+			return
+
 	if bullet_type == BulletType.RICOCHET and (_bounce_count < 4 or is_max_power):
 		var bounced := false
 		if position.x < 0.0:
@@ -156,9 +165,10 @@ func _on_body_entered(body: Node) -> void:
 			body.take_damage(damage)
 			queue_free()
 	else:
-		if body.is_in_group("enemy"):
+		if body.is_in_group("enemy") or body is StaticBody2D:
 			if body not in _pierced:
-				body.take_damage(damage)
+				if body.has_method("take_damage"):
+					body.take_damage(damage)
 				_apply_special(body)
 				_spawn_hit_effect(global_position)
 			if is_max_power and bullet_type == BulletType.NORMAL:
@@ -235,7 +245,7 @@ func _apply_special(target: Node) -> void:
 				# MAX: mega blast — bán kính ×2.5, sát thương ×2
 				blast_radius *= 2.5
 				blast_dmg    *= 2
-				target.take_damage(blast_dmg)  # extra critical hit trực tiếp
+				if target.has_method("take_damage"): target.take_damage(blast_dmg)  # extra critical hit trực tiếp
 			for e in get_tree().get_nodes_in_group("enemy"):
 				if e == target or not is_instance_valid(e): continue
 				if (e as Node2D).global_position.distance_to(origin) < blast_radius:

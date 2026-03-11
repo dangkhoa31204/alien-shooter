@@ -27,6 +27,11 @@ func setup():
 	for i in range(int(STAGE_LENGTH / 1500)):
 		var bx = 1000 + i * 1500
 		main._create_wooden_log_bridge(Vector2(bx, main._get_ground_y(bx)))
+		
+		# Functional transport trucks
+		var tx_dec = bx + 600 + randf_range(-150, 150)
+		main._create_highland_truck(Vector2(tx_dec, main._get_ground_y(tx_dec)))
+		
 		main._create_gaz_truck_bg(Vector2(bx - 300, main._get_ground_y(bx-300)))
 	
 	main._spawn_background_soldiers(3)

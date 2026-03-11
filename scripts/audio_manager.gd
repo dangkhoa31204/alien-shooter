@@ -57,13 +57,13 @@ func _deferred_build_mp3_sfx() -> void:
 	_mp3_sfx_loaded = true
 
 # ── PUBLIC API ───────────────────────────────────────────────────────────────
-func play(name: String, vol_db: float = 0.0) -> void:
+func play(sound_name: String, vol_db: float = 0.0) -> void:
 	if not PlayerData.sound_enabled: return
 	# Lần đầu gọi sau khi scene chính load xong — thử nạp MP3 nếu chưa có
-	if not _mp3_sfx_loaded and name in MP3_SFX_DEFS:
+	if not _mp3_sfx_loaded and sound_name in MP3_SFX_DEFS:
 		_build_mp3_sfx_library()
 		_mp3_sfx_loaded = true
-	var arr: Array = _sfx.get(name, [])
+	var arr: Array = _sfx.get(sound_name, [])
 	if arr.is_empty(): return
 	for p: AudioStreamPlayer in arr:
 		if not p.playing:

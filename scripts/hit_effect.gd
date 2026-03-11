@@ -32,7 +32,7 @@ func _draw_electric(p: float) -> void:
 	var ray_count := 6
 	for i in range(ray_count):
 		var base_ang: float = TAU * float(i) / float(ray_count)
-		var len: float = (28.0 + float(i % 3) * 10.0) * (1.0 - _t * 0.4)
+		var ray_len: float = (28.0 + float(i % 3) * 10.0) * (1.0 - _t * 0.4)
 		var pts: PackedVector2Array = PackedVector2Array()
 		pts.append(Vector2.ZERO)
 		var seg := 4
@@ -40,7 +40,7 @@ func _draw_electric(p: float) -> void:
 			var frac := float(s) / float(seg)
 			var jitter: float = sin(float(s) * 7.3 + float(i) * 2.1 + _t * 30.0) * 7.0 * (1.0 - frac)
 			var ang: float = base_ang + jitter * 0.08
-			pts.append(Vector2(cos(ang), sin(ang)) * len * frac + Vector2(sin(float(s) * 3.1 + float(i)), cos(float(s) * 2.7)) * jitter)
+			pts.append(Vector2(cos(ang), sin(ang)) * ray_len * frac + Vector2(sin(float(s) * 3.1 + float(i)), cos(float(s) * 2.7)) * jitter)
 		draw_polyline(pts, col2 if i % 2 == 0 else col, 2.0)
 	# glow trung tâm
 	draw_circle(Vector2.ZERO, 6.0 * p, Color(0.7, 0.8, 1.0, p * 0.6))

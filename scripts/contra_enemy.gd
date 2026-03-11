@@ -232,6 +232,7 @@ func _shoot(player: Node2D) -> void:
 	b.is_enemy_bullet = true
 	b.damage = 1
 	b.add_to_group("enemy_bullet")
+	Audio.play("gun_fire")
 	
 	# Shell ejection effect
 	var shell = ColorRect.new(); shell.size = Vector2(2, 1); shell.color = Color.GOLD; shell.global_position = global_position + Vector2(0, -10); get_parent().add_child(shell)

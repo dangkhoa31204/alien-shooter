@@ -50,6 +50,14 @@ func _physics_process(delta: float) -> void:
 	position += direction * speed * delta
 	rotation = direction.angle()
 	
+	# Fallback ground check (for hilly terrain where physics might miss)
+	var main = _get_main_scene()
+	if main and main.has_method("_get_ground_y"):
+		var gy = main._get_ground_y(global_position.x)
+		if global_position.y >= gy - 5.0:
+			_explode()
+			return
+
 	life_time -= delta
 	if life_time <= 0: _explode()
 

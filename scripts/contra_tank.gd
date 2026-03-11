@@ -11,6 +11,7 @@ const GRAVITY: float = 1400.0
 var hp: int = 15
 var patrol_direction: int = -1
 var is_ally: bool = false
+var can_shoot: bool = true
 
 var sprite: Node2D
 var shoot_timer: Timer
@@ -110,8 +111,15 @@ func _physics_process(delta: float) -> void:
 	var player = _find_player()
 	if player:
 		var dist = global_position.x - player.global_position.x
-		if dist != 0:
-			patrol_direction = -sign(dist)
+		# Enemies face player; Allies follow/face enemies but don't turn back if decorative
+		if not is_ally:
+			if dist != 0: patrol_direction = -sign(dist)
+		else:
+			# Decorative allied tanks just keep pushing forward
+			if not can_shoot:
+				patrol_direction = 1 # Always advance
+			else:
+				if dist != 0: patrol_direction = -sign(dist)
 		
 		if abs(dist) > 380:
 			velocity.x = patrol_direction * SPEED
@@ -170,6 +178,8 @@ func _aim_at_player(player: Node2D) -> void:
 	_turret.rotation = lerp_angle(_turret.rotation, clamp(angle, -PI/4, PI/4), 0.1)
 
 func _on_shoot_timer_timeout() -> void:
+	if not can_shoot: return
+	
 	var p = _find_player()
 	if p and global_position.distance_to(p.global_position) < 500:
 		# Play launch sound (High volume as requested)
