@@ -194,6 +194,7 @@ func _build_sfx_library() -> void:
 		["boss_shoot",    180.0,    80.0,   0.12,  "noise", 0.70],
 		["asteroid_hit",  250.0,   100.0,   0.10,  "noise", 0.55],
 		["special_collect",900.0, 1800.0,   0.25,  "sine",  0.65],
+		["b40",            85.0,    40.0,   0.60,  "noise", 0.88], # Procedural fallback for B40
 	]
 	for d in defs:
 		var stream := _make_wav(float(d[1]), float(d[2]), float(d[3]), String(d[4]), float(d[5]))
@@ -251,16 +252,32 @@ func _make_wav(freq_start: float, freq_end: float, duration: float,
 func _build_mp3_sfx_library() -> void:
 	for sfx_name: String in MP3_SFX_DEFS:
 		var path: String = MP3_SFX_DEFS[sfx_name]
-		var stream := load(path) as AudioStreamMP3
-		if stream == null: continue
-		var arr: Array = []
-		for _i in range(POOL_SIZE):
-			var p := AudioStreamPlayer.new()
-			p.stream = stream
-			p.bus = "Master"
-			add_child(p)
-			arr.append(p)
-		_sfx[sfx_name] = arr
+		# Robust check: try with and without the 's' in assets
+		if not ResourceLoader.exists(path):
+			var alt_path = path.replace("res://assets/", "res://asset/")
+			if ResourceLoader.exists(alt_path):
+				path = alt_path
+		
+		var stream := load(path) as AudioStream
+		if stream == null: 
+			push_warning("Audio: Failed to load SFX at path: " + path)
+			continue
+		
+		# If it's a new sound (not procedural), create a new pool
+		# If it already exists (procedural), replace existing stream in pool
+		if not _sfx.has(sfx_name):
+			var arr: Array = []
+			for _i in range(POOL_SIZE):
+				var p := AudioStreamPlayer.new()
+				p.stream = stream
+				p.bus = "Master"
+				add_child(p)
+				arr.append(p)
+			_sfx[sfx_name] = arr
+		else:
+			# Replace procedural dummy with real audio asset if loaded
+			for p: AudioStreamPlayer in _sfx[sfx_name]:
+				p.stream = stream
 
 # ── MENU MUSIC SETUP ─────────────────────────────────────────────────────────
 func _setup_menu_music() -> void:

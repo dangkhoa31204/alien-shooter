@@ -301,14 +301,41 @@ func _process_bombs(delta: float) -> void:
 				b.queue_free()
 
 func _explode_bomb(pos: Vector2) -> void:
-	screen_shake(3.5, 0.25) # Reduced from 8.0, 0.4 for better visibility
-	Audio.play("b40", 12.0) # Play b40 sound effect, +12dB for clarity
+	screen_shake(12.0, 0.4) # Increased from 3.5, 0.25 for B40-like impact
+	Audio.play("b40", 12.0)
 	
+	# Massive Fire Blast Visual (B40 style)
+	var blast = Polygon2D.new()
+	var res = 16; var radius = 90.0
+	var pts = []
+	for i in res:
+		var a = i * TAU / res
+		pts.append(Vector2(cos(a)*radius, sin(a)*radius))
+	blast.polygon = PackedVector2Array(pts)
+	blast.color = Color(1.0, 0.45, 0.1, 0.9)
+	blast.global_position = pos
+	_world.add_child(blast)
+	
+	var tw = blast.create_tween().set_parallel(true)
+	tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(blast, "scale", Vector2(1.8, 1.8), 0.25)
+	tw.tween_property(blast, "modulate:a", 0.0, 0.45).set_delay(0.15)
+	tw.finished.connect(blast.queue_free)
+	
+	# Light flash on screen
+	var flash = ColorRect.new()
+	flash.color = Color(1, 0.9, 0.7, 0.45) # Warmer flash
+	flash.size = Vector2(2500, 2000); flash.position = Vector2(-1000, -1000)
+	$UI.add_child(flash) # Added to UI to cover everything
+	var f_tw = create_tween()
+	f_tw.tween_property(flash, "modulate:a", 0.0, 0.12)
+	f_tw.finished.connect(flash.queue_free)
+
 	# Create a visual crater (a dark pit in the ground)
 	_create_crater(pos)
 	
-	# Damage player if nearby
-	if is_instance_valid(player) and player.global_position.distance_to(pos) < 80.0:
+	# Damage player if nearby (increased radius to 110)
+	if is_instance_valid(player) and player.global_position.distance_to(pos) < 110.0:
 		player.take_damage(2)
 
 func _create_crater(pos: Vector2) -> void:

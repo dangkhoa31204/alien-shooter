@@ -172,6 +172,8 @@ func _aim_at_player(player: Node2D) -> void:
 func _on_shoot_timer_timeout() -> void:
 	var p = _find_player()
 	if p and global_position.distance_to(p.global_position) < 500:
+		# Play launch sound (High volume as requested)
+		Audio.play("b40", 15.0) # Tank firing sound
 		_fire_cannon()
 
 func _fire_cannon() -> void:
@@ -221,6 +223,7 @@ func _die() -> void:
 	var main = _get_main_scene()
 	if main and main.has_method("screen_shake"):
 		main.screen_shake(12.0, 0.5)
+		Audio.play("b40", 12.0) # Exploding tank sound
 	
 	# Spawn wreckage/smoke
 	for i in 8:

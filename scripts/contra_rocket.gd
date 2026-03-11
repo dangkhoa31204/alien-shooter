@@ -76,7 +76,9 @@ func _explode() -> void:
 	
 	# Flash & Shake
 	var main = _get_main_scene()
-	if main: main.screen_shake(15.0, 0.4)
+	if main:
+		main.screen_shake(15.0, 0.4)
+		Audio.play("b40", 12.0)
 	
 	# Damage everything in radius
 	var tree = get_tree()

@@ -81,5 +81,52 @@ func take_damage(amount: int) -> void:
 	var tw = create_tween()
 	tw.tween_property(sprite, "modulate", Color.WHITE, 0.05).from(Color.RED)
 	if hp <= 0:
-		if "screen_shake" in get_parent(): get_parent().screen_shake(5.0, 0.3)
-		queue_free()
+		_die()
+
+func _die() -> void:
+	var main = _get_main_scene()
+	if main:
+		main.screen_shake(18.0, 0.6)
+		# Mid-air Explosion Visual (B40 style)
+		var blast = Polygon2D.new()
+		var res = 20; var radius = 180.0
+		var pts = []
+		for i in res:
+			var a = i * TAU / res
+			pts.append(Vector2(cos(a)*radius, sin(a)*radius))
+		blast.polygon = PackedVector2Array(pts)
+		blast.color = Color(1.0, 0.35, 0.1, 0.95)
+		blast.global_position = global_position
+		main._world.add_child(blast)
+		
+		Audio.play("b40", 15.0) # Massive plane explosion sound
+
+		var tw = blast.create_tween().set_parallel(true)
+		tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(blast, "scale", Vector2(2.2, 2.2), 0.35)
+		tw.tween_property(blast, "modulate:a", 0.0, 0.6).set_delay(0.2)
+		tw.finished.connect(blast.queue_free)
+		
+		# Falling Plane Debris
+		for i in 12:
+			var debris = ColorRect.new()
+			debris.size = Vector2(10, 8)
+			debris.color = Color(0.18, 0.2, 0.22) # Dark metal
+			debris.position = global_position + Vector2(randf_range(-50, 50), randf_range(-20, 20))
+			main._world.add_child(debris)
+			
+			var d_tw = create_tween().set_parallel(true)
+			var land_y = global_position.y + 450
+			d_tw.tween_property(debris, "position", debris.position + Vector2(randf_range(-200, 200), 500), 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			d_tw.parallel().tween_property(debris, "rotation", randf_range(-PI*4, PI*4), 1.0)
+			d_tw.tween_property(debris, "modulate:a", 0.0, 0.5).set_delay(0.8)
+			d_tw.finished.connect(debris.queue_free)
+	
+	queue_free()
+
+func _get_main_scene() -> Node:
+	var curr = get_parent()
+	while curr != null:
+		if "ContraMain" in curr.name: return curr
+		curr = curr.get_parent()
+	return null

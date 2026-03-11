@@ -336,6 +336,9 @@ func _fire_rpg() -> void:
 		
 		rocket.direction = fire_dir
 		
+		# Play launch sound (High volume as requested)
+		Audio.play("b40", 15.0)
+		
 		# Recoil animation
 		var r_tw = create_tween()
 		r_tw.tween_property(_heavy_weapon_node, "position:x", _heavy_weapon_node.position.x - 15, 0.05)
