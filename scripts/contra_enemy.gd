@@ -264,7 +264,12 @@ func take_damage(amount: int) -> void:
 func _die() -> void:
 	set_physics_process(false)
 	collision_layer = 0; collision_mask = 0
-	
+
+	# Báo điểm và kill cho main
+	var main_node = get_tree().current_scene
+	if main_node and main_node.has_method("add_kill"):
+		main_node.add_kill(100)
+
 	# Reaction: Fall backwards based on movement
 	var fall_dir = -patrol_direction
 	

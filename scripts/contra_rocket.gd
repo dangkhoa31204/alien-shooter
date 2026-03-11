@@ -46,10 +46,18 @@ func _setup_visuals() -> void:
 	trail.size = Vector2(30, 2); trail.position = Vector2(-40, -1); trail.color = Color(0.8, 0.8, 0.8, 0.4)
 	add_child(trail)
 
+var _smoke_timer: float = 0.0
+
 func _physics_process(delta: float) -> void:
 	position += direction * speed * delta
 	rotation = direction.angle()
-	
+
+	# Per-frame smoke trail puff
+	_smoke_timer -= delta
+	if _smoke_timer <= 0.0:
+		_smoke_timer = 0.04
+		_spawn_smoke_puff()
+
 	# Fallback ground check (for hilly terrain where physics might miss)
 	var main = _get_main_scene()
 	if main and main.has_method("_get_ground_y"):
@@ -60,6 +68,26 @@ func _physics_process(delta: float) -> void:
 
 	life_time -= delta
 	if life_time <= 0: _explode()
+
+func _spawn_smoke_puff() -> void:
+	var puff := Polygon2D.new()
+	var pts: Array = []
+	var r := randf_range(4.0, 9.0)
+	for i in 7:
+		var a := i * TAU / 7.0
+		pts.append(Vector2(cos(a) * r, sin(a) * r))
+	puff.polygon = PackedVector2Array(pts)
+	puff.color = Color(0.75, 0.72, 0.68, 0.6)
+	# Emit behind the rocket
+	puff.global_position = global_position - direction * 12.0
+	puff.z_index = 2
+	var parent := get_parent()
+	if parent: parent.add_child(puff)
+	var tw: Tween = puff.create_tween()
+	tw.tween_property(puff, "scale", Vector2(2.5, 2.5), 0.5)
+	tw.parallel().tween_property(puff, "position:y", puff.position.y - 12.0, 0.5)
+	tw.parallel().tween_property(puff, "modulate:a", 0.0, 0.5)
+	tw.finished.connect(puff.queue_free)
 
 func _on_body_entered(body: Node2D) -> void:
 	if body.is_in_group("enemy") or body.is_in_group("tank") or body is StaticBody2D:

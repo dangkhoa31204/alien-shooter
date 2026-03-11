@@ -156,6 +156,67 @@ func setup():
 	main._stage_terrain.append(Vector2(-200, surface_y))
 	main._stage_terrain.append(Vector2(STAGE_LENGTH + 400, surface_y))
 
+	# --- Tunnel torches: every 400px along tunnel ceiling ---
+	for i in range(int(STAGE_LENGTH / 400)):
+		var tx3 := i * 400.0 + 200.0
+		var torch_root := Node2D.new()
+		torch_root.position = Vector2(tx3, soil_top_y + 8.0)
+		torch_root.z_index = 2
+		main._add_to_level(torch_root)
+		# Stick
+		var stick := ColorRect.new()
+		stick.size = Vector2(4, 14); stick.position = Vector2(-2, 0)
+		stick.color = Color(0.4, 0.22, 0.08); torch_root.add_child(stick)
+		# Flame polygon
+		var flame := Polygon2D.new()
+		flame.polygon = PackedVector2Array([
+			Vector2(-5, 0), Vector2(5, 0), Vector2(3, -16), Vector2(0, -20), Vector2(-3, -16)
+		])
+		flame.color = Color(1.0, 0.65, 0.1, 0.9)
+		flame.position = Vector2(0, 0); torch_root.add_child(flame)
+		# Flicker tween
+		var ftw: Tween = flame.create_tween().set_loops()
+		ftw.tween_property(flame, "modulate:a", 0.6, randf_range(0.08, 0.18))
+		ftw.tween_property(flame, "modulate:a", 1.0, randf_range(0.08, 0.18))
+		ftw.tween_property(flame, "scale:x", 1.3, randf_range(0.1, 0.2)).set_trans(Tween.TRANS_SINE)
+		ftw.tween_property(flame, "scale:x", 0.8, randf_range(0.1, 0.2)).set_trans(Tween.TRANS_SINE)
+		# Orange floor glow
+		var glow := ColorRect.new()
+		glow.size = Vector2(30, 8); glow.position = Vector2(-15, 14)
+		glow.color = Color(1.0, 0.5, 0.1, 0.18); torch_root.add_child(glow)
+
+	# --- Water drips: random positions aligned to tunnel ceiling ---
+	for _di in 20:
+		var dripx := randf_range(50.0, STAGE_LENGTH - 50.0)
+		var drip := ColorRect.new()
+		drip.size = Vector2(2, 6)
+		drip.color = Color(0.4, 0.55, 0.7, 0.7)
+		drip.position = Vector2(dripx, soil_top_y + 4.0)
+		drip.z_index = 3
+		main._add_to_level(drip)
+		var dtw: Tween = drip.create_tween().set_loops()
+		dtw.tween_interval(randf_range(0.8, 3.5))
+		dtw.tween_property(drip, "position:y", soil_top_y + 80.0, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		dtw.tween_callback(func(): drip.position.y = soil_top_y + 4.0)
+
+	# --- Entrance frames: dark arch around each hole ---
+	var hole_x2: float = 0.0 - hole_gap
+	while hole_x2 < STAGE_LENGTH:
+		hole_x2 += hole_gap
+		if hole_x2 < 0 or hole_x2 > STAGE_LENGTH: continue
+		# Left jamb
+		var lj := ColorRect.new()
+		lj.size = Vector2(10, soil_top_y - surface_y + 14)
+		lj.position = Vector2(hole_x2 - 10, surface_y - 7)
+		lj.color = Color(0.02, 0.01, 0.005, 0.85); lj.z_index = -8
+		main._add_to_level(lj)
+		# Right jamb
+		var rj := ColorRect.new()
+		rj.size = Vector2(10, soil_top_y - surface_y + 14)
+		rj.position = Vector2(hole_x2 + hole_width, surface_y - 7)
+		rj.color = Color(0.02, 0.01, 0.005, 0.85); rj.z_index = -8
+		main._add_to_level(rj)
+
 	main._spawn_background_soldiers(4)
 	main._spawn_enemy_wave(15, 0.25)
 	main._spawn_enemy(400, surface_y - 50)
