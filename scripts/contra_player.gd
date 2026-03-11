@@ -545,7 +545,7 @@ func _shoot() -> void:
 		ammo -= 1
 		_sync_hp()
 	
-	Audio.play("gun_fire")
+	Audio.play("ak47_fire")
 	var b = BULLET_SCENE.instantiate()
 	if "direction" in b: b.direction = aim_direction
 	b.is_enemy_bullet = false

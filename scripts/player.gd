@@ -1287,7 +1287,7 @@ func _notify_special() -> void:
 
 func _shoot() -> void:
 	can_shoot = false
-	Audio.play("shoot", -12.0)
+	Audio.play("ak47_fire", -12.0)
 	var container := _get_bullet_container()
 	if container == null:
 		shoot_timer.start()

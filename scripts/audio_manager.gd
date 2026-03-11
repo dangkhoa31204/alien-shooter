@@ -16,6 +16,8 @@ const MENU_MUSIC_PATH := "res://assets/audio/lac_troi.mp3"
 # MP3 SFX: tên → đường dẫn
 const MP3_SFX_DEFS: Dictionary = {
 	"gun_fire":       "res://assets/audio/gun_fire.mp3",
+	"ak47_fire":  		"res://assets/audio/ak47_fire.mp3",
+	"m4_fire": "res://assets/audio/m4_fire.wav",
 	"collected_item": "res://assets/audio/collected_item.mp3",
 	"b40":           "res://assets/audio/b40.mp3",
 	"reload_ak47":   "res://assets/audio/reload_ak47.mp3",
@@ -208,7 +210,7 @@ func _build_sfx_library() -> void:
 		_sfx[String(d[0])] = arr
 
 func _make_wav(freq_start: float, freq_end: float, duration: float,
-               wave: String, vol: float) -> AudioStreamWAV:
+			   wave: String, vol: float) -> AudioStreamWAV:
 	var samples := int(SAMPLE_RATE * duration)
 	var data    := PackedByteArray()
 	data.resize(samples * 2)

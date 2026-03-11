@@ -1,30 +1,29 @@
 [gd_scene format=3 uid="uid://heart001"]
 
-[ext_resource type="Script" path="res://scripts/heart.gd" id="1_heart"]
+[ext_resource type="Script" uid="uid://ys4nqhmtp1fn" path="res://scripts/heart.gd" id="1_heart"]
 
 [sub_resource type="RectangleShape2D" id="RectShape_heart"]
 size = Vector2(18, 18)
 
-[node name="Heart" type="Area2D"]
-monitoring = true
+[node name="Heart" type="Area2D" unique_id=253735812]
 monitorable = false
 script = ExtResource("1_heart")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=134360039]
 shape = SubResource("RectShape_heart")
 
-[node name="Sprite" type="ColorRect" parent="."]
+[node name="Sprite" type="ColorRect" parent="." unique_id=1043241229]
 offset_left = -9.0
 offset_top = -9.0
 offset_right = 9.0
 offset_bottom = 9.0
 color = Color(1, 0.2, 0.3, 1)
 
-[node name="Label" type="Label" parent="."]
+[node name="Label" type="Label" parent="." unique_id=1745494071]
 offset_left = -16.0
 offset_top = -24.0
 offset_right = 16.0
 offset_bottom = -12.0
+theme_override_font_sizes/font_size = 14
 text = "♥"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 14
