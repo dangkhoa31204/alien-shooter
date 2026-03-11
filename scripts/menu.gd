@@ -50,6 +50,7 @@ func _ready() -> void:
 	_add_quit_button()
 	_add_how_to_play_button()
 	_add_how_to_play_popup()
+	_add_settings_popup()
 	_style_coin_label()
 	_add_version_label()
 	_refresh_coins()
@@ -289,8 +290,194 @@ func _on_highscore_pressed() -> void:
 
 func _on_settings_pressed() -> void:
 	Audio.play("button_click")
-	get_tree().change_scene_to_file("res://scenes/settings.tscn")
-
+	var popup = get_node_or_null("UI/SettingsPopup")
+	if popup:
+		var ui = get_node_or_null("UI")
+		if ui: ui.move_child(popup, -1)
+		popup.show()
+		
 func _on_themes_pressed() -> void:
 	Audio.play("button_click")
 	get_tree().change_scene_to_file("res://scenes/themes.tscn")
+
+func _add_settings_popup() -> void:
+	var ui = get_node_or_null("UI")
+	if not ui: return
+	
+	var popup = Control.new()
+	popup.name = "SettingsPopup"
+	popup.visible = false
+	popup.size = Vector2(1152, 720)
+	ui.add_child(popup)
+	
+	# Ensure it's on top of other siblings
+	ui.move_child(popup, -1)
+	
+	# Dim background
+	var dim = ColorRect.new()
+	dim.size = popup.size
+	dim.color = Color(0, 0, 0, 0.75)
+	popup.add_child(dim)
+	
+	# Panel
+	var bg_panel = Panel.new()
+	bg_panel.size = Vector2(500, 370)
+	bg_panel.position = (popup.size - bg_panel.size) * 0.5
+	var sbox = StyleBoxFlat.new()
+	sbox.bg_color = Color(0.1, 0.15, 0.08, 0.98) # Dark military green
+	sbox.border_color = Color(0.84, 0.72, 0.22) # Gold
+	sbox.border_width_left = 2; sbox.border_width_right = 2
+	sbox.border_width_top = 2; sbox.border_width_bottom = 2
+	sbox.set_corner_radius_all(10)
+	bg_panel.add_theme_stylebox_override("panel", sbox)
+	popup.add_child(bg_panel)
+	
+	# Title
+	var title = Label.new()
+	title.text = "⚙  CÀI ĐẶT"
+	title.position = Vector2(20, 20)
+	title.size = Vector2(460, 40)
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(0.84, 0.72, 0.22))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bg_panel.add_child(title)
+	
+	# Separator
+	var sep = ColorRect.new()
+	sep.position = Vector2(40, 70)
+	sep.size = Vector2(420, 2)
+	sep.color = Color(0.84, 0.72, 0.22, 0.5)
+	bg_panel.add_child(sep)
+	
+	# Content Container
+	var content_vbox = VBoxContainer.new()
+	content_vbox.position = Vector2(40, 90)
+	content_vbox.size = Vector2(420, 200)
+	content_vbox.add_theme_constant_override("separation", 20)
+	bg_panel.add_child(content_vbox)
+	
+	# --- Sound Toggle Row ---
+	var sound_row = HBoxContainer.new()
+	
+	var sound_lbl = Label.new()
+	sound_lbl.text = "Âm thanh game"
+	sound_lbl.add_theme_color_override("font_color", Color(0.88, 0.88, 0.88))
+	sound_lbl.add_theme_font_size_override("font_size", 20)
+	sound_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	
+	var sound_btn = Button.new()
+	sound_btn.name = "SoundBtn"
+	sound_btn.custom_minimum_size = Vector2(130, 38)
+	sound_btn.add_theme_font_size_override("font_size", 18)
+	
+	sound_row.add_child(sound_lbl)
+	sound_row.add_child(sound_btn)
+	content_vbox.add_child(sound_row)
+	
+	# --- Volume Row ---
+	var vol_row = HBoxContainer.new()
+	
+	var vol_lbl = Label.new()
+	vol_lbl.text = "Âm lượng"
+	vol_lbl.add_theme_color_override("font_color", Color(0.88, 0.88, 0.88))
+	vol_lbl.add_theme_font_size_override("font_size", 20)
+	vol_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	
+	var vol_slider = HSlider.new()
+	vol_slider.name = "VolumeSlider"
+	vol_slider.custom_minimum_size = Vector2(160, 32)
+	vol_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	vol_slider.min_value = 0.0
+	vol_slider.max_value = 100.0
+	vol_slider.value = PlayerData.volume * 100.0
+	
+	var vol_val_lbl = Label.new()
+	vol_val_lbl.name = "VolumeValueLabel"
+	vol_val_lbl.custom_minimum_size = Vector2(52, 0)
+	vol_val_lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0))
+	vol_val_lbl.add_theme_font_size_override("font_size", 18)
+	vol_val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vol_val_lbl.text = "%d%%" % int(vol_slider.value)
+	
+	vol_row.add_child(vol_lbl)
+	vol_row.add_child(vol_slider)
+	vol_row.add_child(vol_val_lbl)
+	content_vbox.add_child(vol_row)
+	
+	var reset_btn = Button.new()
+	reset_btn.name = "ResetBtn"
+	reset_btn.custom_minimum_size = Vector2(220, 42)
+	reset_btn.add_theme_font_size_override("font_size", 18)
+	reset_btn.text = "🗑  XÓA DỮ LIỆU / CHƠI LẠI"
+	reset_btn.add_theme_color_override("font_color",       Color(1.0, 0.45, 0.35))
+	reset_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.6, 0.5))
+	reset_btn.add_theme_stylebox_override("normal",  _make_btn_style(Color(0.22,0.06,0.04), Color(0.65,0.18,0.14)))
+	reset_btn.add_theme_stylebox_override("hover",   _make_btn_style(Color(0.32,0.08,0.06), Color(0.85,0.25,0.20)))
+	reset_btn.add_theme_stylebox_override("pressed", _make_btn_style(Color(0.14,0.04,0.03), Color(0.65,0.18,0.14)))
+	content_vbox.add_child(reset_btn)
+	
+	reset_btn.pressed.connect(func():
+		Audio.play("button_click")
+		PlayerData.reset_data()
+		HighScore.reset_scores()
+		sound_btn.text = "🔇  TẮT"
+		sound_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
+		sound_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
+		sound_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
+		AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), true)
+		Audio.refresh_music()
+		Audio.refresh_menu_music()
+		vol_slider.value = 100.0
+		vol_val_lbl.text = "100%"
+		_refresh_coins()
+		var title_prev = title.text
+		title.text = "✔ Đã xóa dữ liệu!"
+		title.add_theme_color_override("font_color", Color(0.2, 1.0, 0.45))
+		await get_tree().create_timer(1.5).timeout
+		title.text = title_prev
+		title.add_theme_color_override("font_color", Color(0.84, 0.72, 0.22))
+	)
+	
+	# --- Signals and Styling ---
+	var update_sound_btn = func(on: bool):
+		sound_btn.text = "🔊  BẬT" if on else "🔇  TẮT"
+		if on:
+			sound_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
+			sound_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.06,0.20,0.08), Color(0.25,0.75,0.35)))
+			sound_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.10,0.28,0.12), Color(0.35,0.90,0.45)))
+		else:
+			sound_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
+			sound_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
+			sound_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
+			
+	update_sound_btn.call(PlayerData.sound_enabled)
+	
+	sound_btn.pressed.connect(func():
+		Audio.play("button_click")
+		PlayerData.sound_enabled = not PlayerData.sound_enabled
+		PlayerData.save_data()
+		update_sound_btn.call(PlayerData.sound_enabled)
+		AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), not PlayerData.sound_enabled)
+		Audio.refresh_music()
+		Audio.refresh_menu_music()
+	)
+	
+	vol_slider.value_changed.connect(func(val: float):
+		PlayerData.volume = val / 100.0
+		PlayerData.apply_volume()
+		PlayerData.save_data()
+		vol_val_lbl.text = "%d%%" % int(val)
+	)
+	
+	# Close Button
+	var close_btn = Button.new()
+	close_btn.text = "ĐÓNG"
+	close_btn.size = Vector2(160, 40)
+	close_btn.position = Vector2(170, 310)
+	_apply_btn_style(close_btn, C_OLIVE, C_GOLD)
+	close_btn.pressed.connect(func(): 
+		Audio.play("button_click")
+		popup.hide()
+	)
+	bg_panel.add_child(close_btn)
+
