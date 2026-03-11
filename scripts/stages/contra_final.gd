@@ -108,9 +108,9 @@ func setup():
 	_create_victory_arch(500)
 	_create_victory_arch(8000)
 
-	_create_tank_843(13800)
 	_create_independence_palace_entrance(14500)
-	_create_historical_moment_panel(12000)
+	_create_independence_palace_building(15300)
+	_create_historical_moment_panel(13800)
 
 	# === EXTRA BUILDINGS & TREES ===
 	# Bưu điện Sài Gòn + Ministry buildings in mid-bg layer
@@ -871,65 +871,199 @@ func _create_tank_843(x: float) -> void:
 		fstar_pts.append(Vector2(cos(j*TAU/10-PI/2)*fr - 18, sin(j*TAU/10-PI/2)*fr - 135))
 	var fstar = Polygon2D.new(); fstar.polygon = fstar_pts; fstar.color = Color.YELLOW; tank.add_child(fstar)
 
-# --- 1. Independence Palace entrance gate ---
+# --- 1. Independence Palace entrance gate (Historical Crashing Scene) ---
 func _create_independence_palace_entrance(x: float) -> void:
-	var gate = Node2D.new()
-	gate.position = Vector2(x, 600)
-	gate.z_index = -5
-	main._add_to_level(gate)
+	var scene = Node2D.new()
+	scene.position = Vector2(x, 600)
+	scene.z_index = -5
+	main._add_to_level(scene)
 
-	var wall_color = Color(0.88, 0.84, 0.72)
-	var trim_color = Color(0.7, 0.65, 0.5)
+	var wall_color = Color(0.9, 0.86, 0.75)
+	var trim_color = Color(0.75, 0.7, 0.55)
+	var bar_color = Color(0.15, 0.15, 0.18)
 
-	# Long stone wall
-	var wall_l = ColorRect.new(); wall_l.size = Vector2(500, 30); wall_l.position = Vector2(-750, -30)
-	wall_l.color = wall_color; gate.add_child(wall_l)
-	var wall_r = ColorRect.new(); wall_r.size = Vector2(500, 30); wall_r.position = Vector2(250, -30)
-	wall_r.color = wall_color; gate.add_child(wall_r)
+	# 1. SIDE WALLS & TOWERS
+	var wall_l = ColorRect.new(); wall_l.size = Vector2(600, 35); wall_l.position = Vector2(-850, -35)
+	wall_l.color = wall_color; scene.add_child(wall_l)
+	var wall_r = ColorRect.new(); wall_r.size = Vector2(600, 35); wall_r.position = Vector2(250, -35)
+	wall_r.color = wall_color; scene.add_child(wall_r)
 
-	# Left guard tower
+	# Guard Towers with detail
 	for side in [-1, 1]:
-		var tx = side * 210
-		var tower = ColorRect.new(); tower.size = Vector2(100, 200); tower.position = Vector2(tx - 50, -200)
-		tower.color = wall_color; gate.add_child(tower)
-		var parapet = ColorRect.new(); parapet.size = Vector2(110, 18); parapet.position = Vector2(tx - 55, -200)
-		parapet.color = trim_color; gate.add_child(parapet)
-		# Tower windows (2)
+		var tx = side * 230
+		var tower = Node2D.new(); tower.position = Vector2(tx, 0); scene.add_child(tower)
+		
+		# Tower Body
+		var body = ColorRect.new(); body.size = Vector2(110, 220); body.position = Vector2(-55, -220)
+		body.color = wall_color; tower.add_child(body)
+		
+		# Shadow side
+		var shadow = ColorRect.new(); shadow.size = Vector2(15, 220); shadow.position = Vector2(40, -220)
+		shadow.color = Color(0,0,0,0.1); tower.add_child(shadow)
+		
+		# Parapet
+		var parapet = ColorRect.new(); parapet.size = Vector2(130, 22); parapet.position = Vector2(-65, -225)
+		parapet.color = trim_color; tower.add_child(parapet)
+		
+		# Arched Windows
 		for wi in 2:
-			var win = ColorRect.new(); win.size = Vector2(22, 35); win.position = Vector2(tx - 11, -170 + wi*65)
-			win.color = Color(0.15, 0.12, 0.08); gate.add_child(win)
-			var wa = Polygon2D.new(); wa.polygon = PackedVector2Array([Vector2(0,0),Vector2(11,-12),Vector2(22,0)])
-			wa.color = win.color; wa.position = win.position; gate.add_child(wa)
-		# Fire/smoke on tower tops
-		_create_smoke_column(x + tx, 600 - 210, Color(0.5, 0.45, 0.4, 1.0))
+			var wy = -180 + wi*75
+			var win = ColorRect.new(); win.size = Vector2(26, 40); win.position = Vector2(-13, wy)
+			win.color = Color(0.12, 0.1, 0.08); tower.add_child(win)
+			var arch = Polygon2D.new(); arch.polygon = [Vector2(0,0), Vector2(13,-18), Vector2(26,0)]
+			arch.position = win.position; arch.color = win.color; tower.add_child(arch)
+		
+		# Smoke from damage
+		_create_smoke_column(x + tx, 600 - 230, Color(0.4, 0.4, 0.45, 0.8))
 
-	# Central arch gate structure
-	var arch_body = ColorRect.new(); arch_body.size = Vector2(200, 120); arch_body.position = Vector2(-100, -120)
-	arch_body.color = wall_color; gate.add_child(arch_body)
-	var arch_top = Polygon2D.new()
-	arch_top.polygon = PackedVector2Array([Vector2(-110,-120),Vector2(-110,-150),Vector2(0,-175),Vector2(110,-150),Vector2(110,-120)])
-	arch_top.color = wall_color; gate.add_child(arch_top)
-	# Ornate arch trim
-	var arch_trim = Polygon2D.new()
-	arch_trim.polygon = PackedVector2Array([Vector2(-105,-120),Vector2(-105,-148),Vector2(0,-170),Vector2(105,-148),Vector2(105,-120)])
-	arch_trim.color = trim_color; gate.add_child(arch_trim)
+	# 2. THE TANK (390/843) CRASHING IN
+	var tank_pos = Vector2(0, -10)
+	var tank = Node2D.new(); tank.position = tank_pos; tank.z_index = 5; scene.add_child(tank)
+	tank.rotation = -0.12 # Tilted as it goes over the curb/debris
+	
+	var og = Color(0.22, 0.3, 0.15) # Olive Green
+	# Tank Chassis
+	var chassis = ColorRect.new(); chassis.size = Vector2(240, 65); chassis.position = Vector2(-120, -65)
+	chassis.color = og; tank.add_child(chassis)
+	# Turret
+	var turret = Polygon2D.new()
+	turret.polygon = [Vector2(-45,0), Vector2(-40,-40), Vector2(0,-50), Vector2(40,-40), Vector2(45,0)]
+	turret.color = Color(0.25, 0.32, 0.18); turret.position = Vector2(10, -65); tank.add_child(turret)
+	# Barrel
+	var barrel = ColorRect.new(); barrel.size = Vector2(140, 10); barrel.position = Vector2(50, -95)
+	barrel.color = Color(0.18, 0.22, 0.1); tank.add_child(barrel)
+	# Star
+	var star_pts = []
+	for j in 10:
+		var sr = 12 if j%2==0 else 5
+		star_pts.append(Vector2(cos(j*TAU/10-PI/2)*sr + 100, sin(j*TAU/10-PI/2)*sr - 35))
+	var star = Polygon2D.new(); star.polygon = PackedVector2Array(star_pts); star.color = Color.RED; tank.add_child(star)
+	# NLF Flag on tank
+	var ant = ColorRect.new(); ant.size = Vector2(2, 50); ant.position = Vector2(-20, -115); ant.color = bar_color; tank.add_child(ant)
+	_add_flag_to_node(tank, Vector2(-18, -155), 0.8)
 
-	# Broken/crashed gate bars (tilted to show tank impact)
-	var angles = [-0.7, -0.3, 0.2, 0.6, 0.9]
-	for i in 5:
-		var bar = ColorRect.new(); bar.size = Vector2(8, 90); bar.position = Vector2(-90 + i * 40, -110)
-		bar.rotation = angles[i]; bar.color = Color(0.25, 0.25, 0.3); gate.add_child(bar)
+	# 3. THE MAIN ARCH & GATE BARS
+	var arch_bg = ColorRect.new(); arch_bg.size = Vector2(240, 140); arch_bg.position = Vector2(-120, -140)
+	arch_bg.color = wall_color; scene.add_child(arch_bg)
+	
+	# Broken Central Section
+	# Left bars (mostly intact)
+	for i in 3:
+		var bx = -110 + i * 25
+		var bar = ColorRect.new(); bar.size = Vector2(6, 120); bar.position = Vector2(bx, -125); bar.color = bar_color; scene.add_child(bar)
+	
+	# Right bars (mostly intact)
+	for i in 3:
+		var bx = 45 + i * 25
+		var bar = ColorRect.new(); bar.size = Vector2(6, 120); bar.position = Vector2(bx, -125); bar.color = bar_color; scene.add_child(bar)
 
-	# Flag pole + large Vietnamese flag above arch
-	var pole = ColorRect.new(); pole.size = Vector2(5, 220); pole.position = Vector2(-2, -340)
-	pole.color = Color(0.25, 0.2, 0.12); gate.add_child(pole)
-	# Flag (large)
-	var flag_node = Node2D.new(); flag_node.position = Vector2(3, -330); gate.add_child(flag_node)
-	_draw_flag_shapes(flag_node, 80, 55)
+	# CRASHED BARS (Bent around the tank)
+	var crash_offsets = [-35, -15, 5, 25]
+	var crash_angles = [-1.2, -0.8, 0.9, 1.4]
+	for i in crash_offsets.size():
+		var bar = ColorRect.new(); bar.size = Vector2(8, 110); bar.position = Vector2(crash_offsets[i], -100)
+		bar.rotation = crash_angles[i]; bar.color = Color(0.1, 0.1, 0.12); bar.z_index = 6; scene.add_child(bar)
+		# Debris bits
+		var chip = ColorRect.new(); chip.size = Vector2(10, 10); chip.position = Vector2(crash_offsets[i] + randf_range(-40, 40), -10); 
+		chip.rotation = randf(); chip.color = bar_color; scene.add_child(chip)
 
-# --- 11. Historical moment popup panel ---
+	# 4. BIG VIETNAMESE FLAG (Top of Palace)
+	var main_pole = ColorRect.new(); main_pole.size = Vector2(6, 250); main_pole.position = Vector2(-3, -390)
+	main_pole.color = Color(0.2, 0.18, 0.15); scene.add_child(main_pole)
+	var big_flag = Node2D.new(); big_flag.position = Vector2(3, -380); scene.add_child(big_flag)
+	_draw_flag_shapes(big_flag, 120, 80)
+
+	# 5. EFFECTS: Dust and debris clouds
+	for i in 8:
+		var dust = Polygon2D.new()
+		var dpts = []
+		var dr = randf_range(20, 45)
+		for j in 8: dpts.append(Vector2(cos(j*TAU/8)*dr, sin(j*TAU/8)*dr))
+		dust.polygon = PackedVector2Array(dpts)
+		dust.color = Color(0.8, 0.75, 0.65, 0.35)
+		dust.position = Vector2(randf_range(-150, 150), randf_range(-40, 10))
+		scene.add_child(dust)
+
+# --- 12. Detailed Independence Palace Building (Modernist Icon) ---
+func _create_independence_palace_building(x: float) -> void:
+	var building = Node2D.new()
+	building.position = Vector2(x, 600)
+	building.z_index = -15 # Behind the gate
+	main._add_to_level(building)
+
+	var palace_white = Color(0.92, 0.92, 0.95)
+	var shadow_grey = Color(0.75, 0.75, 0.8)
+	var glass_blue = Color(0.2, 0.25, 0.35)
+
+	# 1. CENTRAL GREEN LAWN (Perspective)
+	var lawn = Polygon2D.new()
+	lawn.polygon = [Vector2(-600, 0), Vector2(-400, -80), Vector2(400, -80), Vector2(600, 0)]
+	lawn.color = Color(0.15, 0.45, 0.15)
+	building.add_child(lawn)
+
+	# 2. MAIN BUILDING STRUCTURE
+	# Ground floor (dark/recessed)
+	var ground = ColorRect.new(); ground.size = Vector2(700, 60); ground.position = Vector2(-350, -140)
+	ground.color = Color(0.3, 0.3, 0.35); building.add_child(ground)
+
+	# Main upper block
+	var upper = ColorRect.new(); upper.size = Vector2(740, 180); upper.position = Vector2(-370, -320)
+	upper.color = palace_white; building.add_child(upper)
+
+	# 3. ICONIC VERTICAL FINS (Facade)
+	# Left side fins
+	for i in 12:
+		var fx = -350 + i * 22
+		var fin = ColorRect.new(); fin.size = Vector2(4, 150); fin.position = Vector2(fx, -305)
+		fin.color = Color(0.6, 0.6, 0.65); building.add_child(fin)
+	
+	# Right side fins
+	for i in 12:
+		var fx = 100 + i * 22
+		var fin = ColorRect.new(); fin.size = Vector2(4, 150); fin.position = Vector2(fx, -305)
+		fin.color = Color(0.6, 0.6, 0.65); building.add_child(fin)
+
+	# 4. CENTRAL BALCONY / ENTRANCE
+	var center = ColorRect.new(); center.size = Vector2(160, 200); center.position = Vector2(-80, -340)
+	center.color = palace_white; building.add_child(center)
+	# Shadow/recess behind balcony
+	var recess = ColorRect.new(); recess.size = Vector2(140, 140); recess.position = Vector2(-70, -300)
+	recess.color = shadow_grey; building.add_child(recess)
+
+	# 5. ROOF FEATURES
+	var roof_trim = ColorRect.new(); roof_trim.size = Vector2(760, 15); roof_trim.position = Vector2(-380, -335)
+	roof_trim.color = Color(0.8, 0.82, 0.85); building.add_child(roof_trim)
+
+	# The Round Hall / Pavilion on top
+	var hall = ColorRect.new(); hall.size = Vector2(80, 40); hall.position = Vector2(-40, -375)
+	hall.color = palace_white; building.add_child(hall)
+	var hall_roof = ColorRect.new(); hall_roof.size = Vector2(100, 10); hall_roof.position = Vector2(-50, -385)
+	hall_roof.color = shadow_grey; building.add_child(hall_roof)
+
+	# CENTRAL FLAGPOLE (The one where the flag was raised)
+	var pole = ColorRect.new(); pole.size = Vector2(4, 100); pole.position = Vector2(-2, -485)
+	pole.color = Color(0.2, 0.2, 0.22); building.add_child(pole)
+	var big_flag = Node2D.new(); big_flag.position = Vector2(2, -475); building.add_child(big_flag)
+	_draw_flag_shapes(big_flag, 140, 95)
+
+	# 6. SURROUNDING TREES (Boulevard style)
+	for i in 4:
+		var side = -1 if i < 2 else 1
+		var tx = side * (450 + (i%2) * 100)
+		_create_tamarind_tree_simple(building, Vector2(tx, 0))
+
+func _create_tamarind_tree_simple(parent: Node, pos: Vector2):
+	var tree = Node2D.new(); tree.position = pos; parent.add_child(tree)
+	var trunk = ColorRect.new(); trunk.size = Vector2(10, 80); trunk.position = Vector2(-5, -80); trunk.color = Color(0.3, 0.2, 0.1)
+	tree.add_child(trunk)
+	var canopy = Polygon2D.new()
+	var pts = []
+	for j in 12: pts.append(Vector2(cos(j*TAU/12)*60, sin(j*TAU/12)*45))
+	canopy.polygon = PackedVector2Array(pts); canopy.position = Vector2(0, -90)
+	canopy.color = Color(0.1, 0.35, 0.1); tree.add_child(canopy)
+
+# --- 13. Historical moment popup panel ---
 func _create_historical_moment_panel(stage_x: float) -> void:
-	# Panel is created lazily when player reaches stage_x (checked in a watcher node)
 	var watcher_script = GDScript.new()
 	watcher_script.source_code = """
 extends Node
@@ -961,7 +1095,7 @@ func _show_panel():
 
 	var lbl = RichTextLabel.new()
 	lbl.bbcode_enabled = true
-	lbl.text = "[center][b][color=gold]11:30, ngày 30/4/1975[/color][/b]\\nXe tăng 843 húc đổ cổng Dinh Độc Lập.\\n[color=yellow]Miền Nam hoàn toàn giải phóng![/color][/center]"
+	lbl.text = "[center][b][color=gold]11:30, ngày 30/4/1975[/color][/b]\\\\nXe tăng 843 húc đổ cổng Dinh Độc Lập.\\\\n[color=yellow]Miền Nam hoàn toàn giải phóng![/color][/center]"
 	lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
 	lbl.offset_left = 8; lbl.offset_top = 8; lbl.offset_right = -8; lbl.offset_bottom = -8
 	lbl.add_theme_font_size_override("normal_font_size", 15)
