@@ -26,6 +26,7 @@ var _mp3_sfx_loaded := false
 
 # ── MUSIC ─────────────────────────────────────────────────────────────────────
 var _music_player:  AudioStreamPlayer = null
+const INGAME_MUSIC_PATH := "res://assets/audio/game_background_music1.mp3"
 var _music_pb:      AudioStreamGeneratorPlayback = null
 var _music_t:       float = 0.0
 var _chord_beat:    float = 0.0
@@ -116,6 +117,9 @@ func play_menu_music() -> void:
 func stop_menu_music() -> void:
 	if _menu_music_player != null:
 		_menu_music_player.stop()
+	if PlayerData.sound_enabled and _music_player != null and not _music_player.playing:
+		_music_player.play()
+		call_deferred("_grab_music_playback")
 
 ## Gọi sau khi toggle sound để cập nhật nhạc menu đang phát
 func refresh_menu_music() -> void:
@@ -290,17 +294,26 @@ func _setup_menu_music() -> void:
 
 # ── MUSIC SETUP ───────────────────────────────────────────────────────────────
 func _setup_music() -> void:
-	var gen := AudioStreamGenerator.new()
-	gen.mix_rate      = MUSIC_RATE
-	gen.buffer_length = 0.15
 	_music_player = AudioStreamPlayer.new()
-	_music_player.stream    = gen
 	_music_player.volume_db = MUSIC_VOL_DB
 	_music_player.bus       = "Master"
+	
+	var stream: AudioStreamMP3 = null
+	if ResourceLoader.exists(INGAME_MUSIC_PATH):
+		stream = load(INGAME_MUSIC_PATH) as AudioStreamMP3
+		
+	if stream != null:
+		stream.loop = true
+		_music_player.stream = stream
+	else:
+		var gen := AudioStreamGenerator.new()
+		gen.mix_rate      = MUSIC_RATE
+		gen.buffer_length = 0.15
+		_music_player.stream = gen
+
 	add_child(_music_player)
 	if PlayerData.sound_enabled:
 		_music_player.play()
-		# Lấy playback sau 1 frame để AudioStreamGenerator kịp khởi tạo
 		call_deferred("_grab_music_playback")
 
 func _grab_music_playback() -> void:
