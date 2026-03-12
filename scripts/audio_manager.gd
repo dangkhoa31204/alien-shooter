@@ -52,6 +52,8 @@ const _CHORDS: Array = [
 # ────────────────────────────────────────────────────────────────────────────
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Load saved settings early so music_enabled/sfx_enabled are correct
+	PlayerData.load_data()
 	_build_sfx_library()
 	_setup_music()
 	_setup_menu_music()
@@ -168,14 +170,22 @@ func stop_menu_music() -> void:
 func refresh_menu_music() -> void:
 	if _menu_music_player == null: return
 	if PlayerData.music_enabled:
-		if not _menu_music_player.playing and _menu_music_player.stream != null:
-			# Ensure procedural in-game music is stopped before playing menu MP3
-			if _music_player != null and _music_player.playing:
-				_music_player.stop()
-				_music_pb = null
-			_menu_music_player.play()
+		if not _menu_music_player.playing:
+			# Load stream if not yet loaded
+			if _menu_music_player.stream == null:
+				if ResourceLoader.exists(MENU_MUSIC_PATH):
+					var stream = load(MENU_MUSIC_PATH) as AudioStreamMP3
+					if stream != null:
+						stream.loop = true
+						_menu_music_player.stream = stream
+			if _menu_music_player.stream != null:
+				# Ensure in-game music is stopped before playing menu MP3
+				if _music_player != null and _music_player.playing:
+					_music_player.stop()
+					_music_pb = null
+				_menu_music_player.play()
 	else:
-			_menu_music_player.stop()
+		_menu_music_player.stop()
 
 # ── MUSIC PROCESS ─────────────────────────────────────────────────────────────
 func _process(_delta: float) -> void:

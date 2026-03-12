@@ -55,6 +55,7 @@ var _perf_frame: int = 0
 var _flash_rect: ColorRect = null # Persistent flash for explosions
 var _level_node: Node2D = null # Container for all stage-specific objects (for fast cleanup)
 var _history_panel: Control = null # Historical info panel
+var _showing_stage_history: bool = false # True when history popup shown at stage start
 var _damage_vignette: ColorRect = null # Red flash on damage
 var _alert_panel: Panel = null          # Animated alert panel
 
@@ -156,13 +157,15 @@ func _ready() -> void:
 	
 	_setup_cheat_menu()
 	_setup_pause_menu()
+	_setup_pause_button()
 	_start_stage(PlayerData.current_selected_stage)
 	
 	# Đảm bảo các đối tượng con của root (world, objects) sẽ pause khi tree paused
+	# Self must be ALWAYS so _input() receives ESC/F1 while paused
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_world.process_mode = Node.PROCESS_MODE_PAUSABLE
 	if camera: camera.process_mode = Node.PROCESS_MODE_PAUSABLE
 	if bullet_container: bullet_container.process_mode = Node.PROCESS_MODE_PAUSABLE
-	$UI.process_mode = Node.PROCESS_MODE_PAUSABLE
 	
 	_level_node = Node2D.new(); _level_node.name = "LevelNode"; _world.add_child(_level_node)
 	
@@ -1016,8 +1019,9 @@ func _spawn_player_at_start() -> void:
 	for idx_army in 6:
 		var sx_army = camera.position.x + 100 + idx_army * 140
 		_add_individual_background_soldier(sx_army, _get_ground_y(sx_army))
-		
+	
 	_show_stage_intro(current_stage)
+	_show_stage_history_on_start()
 
 func _spawn_player() -> void:
 	if is_instance_valid(player): player.queue_free()
@@ -1041,6 +1045,12 @@ func _show_stage_intro(num: int) -> void:
 		var tw = create_tween()
 		tw.tween_interval(3.0)
 		tw.tween_property(stage_label, "modulate:a", 0.0, 1.0)
+
+func _show_stage_history_on_start() -> void:
+	if _history_panel == null: return
+	_showing_stage_history = true
+	_show_history_info()
+	get_tree().paused = true
 
 func _cleanup_level() -> void:
 	# Aggressively clear EVERYTHING in world and parallax to prevent leaks between stages
@@ -3202,6 +3212,36 @@ func _setup_cheat_menu() -> void:
 	_cheat_menu.process_mode = Node.PROCESS_MODE_ALWAYS
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
+func _setup_pause_button() -> void:
+	var btn := Button.new()
+	btn.name = "PauseBtn"
+	btn.text = "⏸"
+	btn.position = Vector2(1094, 8)
+	btn.size = Vector2(50, 50)
+	btn.z_index = 100
+	btn.process_mode = PROCESS_MODE_ALWAYS
+	btn.add_theme_font_size_override("font_size", 28)
+	btn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.30))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 0.4))
+	btn.add_theme_color_override("font_pressed_color", Color(1.0, 1.0, 1.0))
+	var sn := StyleBoxFlat.new()
+	sn.bg_color = Color(0.06, 0.12, 0.05, 0.7)
+	sn.border_color = Color(0.82, 0.70, 0.18, 0.8)
+	sn.border_width_left = 2; sn.border_width_right = 2
+	sn.border_width_top = 2; sn.border_width_bottom = 2
+	sn.set_corner_radius_all(8)
+	var sh := sn.duplicate() as StyleBoxFlat
+	sh.bg_color = Color(0.12, 0.22, 0.08, 0.9)
+	sh.border_color = Color(1.0, 0.9, 0.3)
+	btn.add_theme_stylebox_override("normal", sn)
+	btn.add_theme_stylebox_override("hover", sh)
+	btn.add_theme_stylebox_override("pressed", sn)
+	btn.pressed.connect(func():
+		if not _is_cheat_visible:
+			_toggle_pause_menu()
+	)
+	$UI.add_child(btn)
+
 func _setup_pause_menu() -> void:
 	_pause_menu = Control.new()
 	_pause_menu.name = "PauseMenu"
@@ -3428,6 +3468,8 @@ func _show_settings_from_pause() -> void:
 	var popup = Control.new()
 	popup.name = "SettingsPopup"
 	popup.visible = true
+	# Ensure popup receives input while the game is paused
+	popup.process_mode = PROCESS_MODE_ALWAYS
 	popup.size = Vector2(1152, 720)
 	ui.add_child(popup)
 	ui.move_child(popup, -1)
@@ -3505,7 +3547,6 @@ func _show_settings_from_pause() -> void:
 		PlayerData.save_data()
 		vol_val_btn.text = ("🔊" if PlayerData.music_enabled else "🔇")
 		Audio.refresh_music()
-		Audio.refresh_menu_music()
 	)
 	vol_slider.value_changed.connect(func(val: float):
 		PlayerData.volume = val / 100.0
@@ -3532,7 +3573,6 @@ func _show_settings_from_pause() -> void:
 		PlayerData.music_enabled = false
 		PlayerData.save_data()
 		Audio.refresh_music()
-		Audio.refresh_menu_music()
 		vol_slider.value = 100.0
 	)
 
@@ -3542,8 +3582,13 @@ func _show_settings_from_pause() -> void:
 
 func _close_history() -> void:
 	_history_panel.visible = false
+	# Always restore MainPanel visibility
 	var p_main = _pause_menu.get_node_or_null("MainPanel")
 	if p_main: p_main.visible = true
+	# If this was the stage-start history, unpause the game
+	if _showing_stage_history:
+		_showing_stage_history = false
+		get_tree().paused = false
 
 func _close_settings_popup() -> void:
 	Audio.play("button_click")
