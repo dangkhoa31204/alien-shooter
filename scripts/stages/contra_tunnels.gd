@@ -7,13 +7,22 @@ func setup():
 	var STAGE_LENGTH = main.STAGE_LENGTH
 	var _world = main._world
 	
-	# Background Mountains
-	for i in 6:
-		var mt = Polygon2D.new(); var mx = i * 2000; var mw = 2500
+	# Background Mountains — increased to 16 for denser skyline
+	for i in 16:
+		var mt = Polygon2D.new(); var mx = i * 800 - 200; var mw = 2200
 		mt.polygon = PackedVector2Array([Vector2(0, 600), Vector2(mw/2, 100), Vector2(mw, 600)])
 		mt.color = Color(0.1, 0.25, 0.35, 0.4); mt.position = Vector2(mx, 100); mt.z_index = -90
 		main._add_to_level(mt)
-	
+
+	# Mid-distance jungle ridges (second hill layer)
+	for i in 20:
+		var mx2 = i * 650 - 150
+		var mw2 = randf_range(600, 1000); var mh2 = randf_range(80, 180)
+		var mt2 = Polygon2D.new()
+		mt2.polygon = PackedVector2Array([Vector2(-mw2*0.5, 0), Vector2(0, -mh2), Vector2(mw2*0.5, 0)])
+		mt2.color = Color(0.06, 0.18, 0.06, 0.60); mt2.position = Vector2(mx2, 520); mt2.z_index = -70
+		main._add_to_level(mt2)
+
 	# Mid-ground decorative hills
 	for i in 25:
 		var hill = Polygon2D.new()
@@ -217,15 +226,81 @@ func setup():
 		rj.color = Color(0.02, 0.01, 0.005, 0.85); rj.z_index = -8
 		main._add_to_level(rj)
 
-	main._spawn_background_soldiers(4)
-	main._spawn_enemy_wave(15, 0.25)
+	main._spawn_background_soldiers(6)
+	main._spawn_enemy_wave(18, 0.30)
 	main._spawn_enemy(400, surface_y - 50)
 	main._bomber_timer = 4.0
-	
+
+	# --- AA gun emplacements covering the tunnels from above ---
+	for i in 3:
+		var aax := 1400.0 + i * 3000.0 + randf_range(-300.0, 300.0)
+		main._create_aa_gun_bg(Vector2(aax, surface_y))
+
+	# --- Gaz supply trucks (enemy logistics) ---
+	for i in 3:
+		var gtx := 2000.0 + i * 3200.0 + randf_range(-250.0, 250.0)
+		main._create_gaz_truck_bg(Vector2(gtx, surface_y))
+
+	# --- Bicycle convoys on the surface path ---
+	for i in 3:
+		var bcx := 1600.0 + i * 3500.0 + randf_range(-300.0, 300.0)
+		main._create_bicycle_convoy_bg(Vector2(bcx, surface_y))
+
+	# --- Bomb craters from US air strikes on the surface ---
+	for i in 10:
+		var crx := randf_range(500.0, STAGE_LENGTH - 500.0)
+		main._create_crater(Vector2(crx, surface_y))
+
+	# --- Rocky outcrops scattered on the surface as cover ---
+	for i in 5:
+		var rrx := randf_range(400.0, STAGE_LENGTH - 400.0)
+		main._create_rocky_outcrop(Vector2(rrx, surface_y))
+
+	# --- Hanging vines over the tunnel entrance holes ---
+	for i in 8:
+		var vvx := randf_range(300.0, STAGE_LENGTH - 300.0)
+		main._create_hanging_vine_detailed(vvx)
+
+	# --- Burning wreckage from previous raids ---
+	for i in 8:
+		var bwx := randf_range(600.0, STAGE_LENGTH - 600.0)
+		main._create_burning_wreckage(Vector2(bwx, surface_y))
+
+	# --- Sandbag fortifications at key tunnel approaches ---
+	for i in 4:
+		var sfx := 1200.0 + i * 2500.0 + randf_range(-200.0, 200.0)
+		main._create_sandbag_fort(Vector2(sfx, surface_y), 45.0)
+
+	# --- Extra jungle ferns and shrubs on surface ---
+	for i in 14:
+		var jfx := randf_range(300.0, STAGE_LENGTH - 300.0)
+		main._create_jungle_fern(Vector2(jfx, surface_y))
+	for i in 10:
+		var dsx := randf_range(300.0, STAGE_LENGTH - 300.0)
+		main._create_dense_shrub(Vector2(dsx, surface_y))
+
+	# --- Additional rocky outcrops as cover on surface ---
+	for i in 8:
+		var rrx2 := randf_range(400.0, STAGE_LENGTH - 400.0)
+		main._create_rocky_outcrop(Vector2(rrx2, surface_y))
+
+	# --- Palm trees lining the surface edge (start to end) ---
+	for i in range(int(STAGE_LENGTH / 1500) + 1):
+		var ptx := 200.0 + i * 1500.0 + randf_range(-200.0, 200.0)
+		main._create_palm_tree(Vector2(ptx, surface_y))
+
+	# --- Giant ancient trees from start to end ---
+	for i in range(int(STAGE_LENGTH / 1700) + 1):
+		var atx := 300.0 + i * 1700.0 + randf_range(-300.0, 300.0)
+		main._create_giant_ancient_tree(Vector2(atx, surface_y))
+
 	# Health and Checkpoints
 	main._create_health_kit(Vector2(2500, surface_y - 40))
+	main._create_health_kit(Vector2(4500, surface_y - 40))
 	main._create_health_kit(Vector2(5500, tunnel_y - 40)) # One in the tunnel
-	main._create_health_kit(Vector2(8500, surface_y - 40))
-	
-	main._create_checkpoint(Vector2(STAGE_LENGTH * 0.35, surface_y))
-	main._create_checkpoint(Vector2(STAGE_LENGTH * 0.7, surface_y))
+	main._create_health_kit(Vector2(7500, surface_y - 40))
+	main._create_health_kit(Vector2(9500, surface_y - 40))
+
+	main._create_checkpoint(Vector2(STAGE_LENGTH * 0.25, surface_y))
+	main._create_checkpoint(Vector2(STAGE_LENGTH * 0.50, surface_y))
+	main._create_checkpoint(Vector2(STAGE_LENGTH * 0.75, surface_y))

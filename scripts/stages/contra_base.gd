@@ -114,16 +114,152 @@ func setup():
 	for i in range(int(STAGE_LENGTH / 2000)):
 		main._create_sandbag_fort(Vector2(1500 + i * 2000, 600), 45)
 
-	main._spawn_enemy_wave(18, 0.4) 
-	for i in 4:
-		var t_tx = 2000 + i * 3000 + randf_range(-200, 200); main._spawn_heavy_enemy(t_tx, 595, "tank")
+	main._spawn_enemy_wave(22, 0.4) 
+	for i in 5:
+		var t_tx = 2000 + i * 2200 + randf_range(-200, 200); main._spawn_heavy_enemy(t_tx, 595, "tank")
 	
 	main._bomber_timer = 3.0
-	main._spawn_background_soldiers(4)
-	
+	main._spawn_background_soldiers(6)
+
+	# --- Bomb craters from prior artillery barrages ---
+	for i in 14:
+		var crx := randf_range(400.0, STAGE_LENGTH - 400.0)
+		main._create_crater(Vector2(crx, 600.0))
+
+	# --- Burning wreckage: base facilities hit by allied fire ---
+	for i in 12:
+		var bwx := randf_range(500.0, STAGE_LENGTH - 500.0)
+		main._create_burning_wreckage(Vector2(bwx, 600.0))
+
+	# --- Destroyed truck husks blocking the base road ---
+	for i in 6:
+		var thx := 1000.0 + i * 1800.0 + randf_range(-200.0, 200.0)
+		main._create_truck_husk(Vector2(thx, 600.0))
+
+	# --- Additional wire fence sections with spotlights ---
+	for i in 4:
+		var wfx := 800.0 + i * 2800.0 + randf_range(-150.0, 150.0)
+		# Extra spotlight towers between main fortifications
+		var sl := Node2D.new()
+		sl.position = Vector2(wfx, 600.0)
+		_parallax_bg.add_child(sl); sl.z_index = -95
+		var beam := Polygon2D.new()
+		beam.polygon = [Vector2(0,0), Vector2(-100, -900), Vector2(100, -900)]
+		beam.color = Color(1.0, 1.0, 0.7, 0.06); sl.add_child(beam)
+		var stw: Tween = sl.create_tween().set_loops()
+		stw.tween_property(beam, "rotation", deg_to_rad(25), 3.5).set_trans(Tween.TRANS_SINE)
+		stw.tween_property(beam, "rotation", deg_to_rad(-25), 3.5).set_trans(Tween.TRANS_SINE)
+
+	# --- Ammunition crates and supply dumps ---
+	for i in 8:
+		var aox := randf_range(300.0, STAGE_LENGTH - 300.0)
+		var crate := Node2D.new()
+		crate.position = Vector2(aox, 600.0)
+		crate.z_index = -6
+		main._add_to_level(crate)
+		for ci in 3:
+			var box := ColorRect.new()
+			box.size = Vector2(22, 18)
+			box.position = Vector2(ci * 24 - 24, -18)
+			box.color = Color(0.28, 0.32, 0.22)
+			var stripe := ColorRect.new()
+			stripe.size = Vector2(22, 3)
+			stripe.position = Vector2(0, 6)
+			stripe.color = Color(0.55, 0.5, 0.2)
+			box.add_child(stripe)
+			crate.add_child(box)
+
+	# --- Rolls of barbed wire (extra obstacle field) ---
+	for i in 6:
+		var bwrx := 700.0 + i * 1900.0 + randf_range(-150.0, 150.0)
+		for wr in 3:
+			var roll := Polygon2D.new()
+			var rpts: Array = []
+			for rpi in 16:
+				var ra := rpi * TAU / 16.0
+				rpts.append(Vector2(bwrx + wr * 30 + cos(ra) * 12, 595 + sin(ra) * 8))
+			roll.polygon = PackedVector2Array(rpts)
+			roll.color = Color(0.45, 0.42, 0.38, 0.9)
+			main._add_to_level(roll)
+
+	# --- Communications towers (enemy HQ radar/radio) ---
+	for i in 3:
+		var ctx := 1800.0 + i * 4000.0 + randf_range(-300.0, 300.0)
+		var tower := Node2D.new()
+		tower.position = Vector2(ctx, 600.0)
+		tower.z_index = -12
+		main._add_to_level(tower)
+		# Lattice tower legs
+		var leg_l := ColorRect.new(); leg_l.size = Vector2(5, 300); leg_l.position = Vector2(-30, -300); leg_l.color = Color(0.2, 0.2, 0.25); tower.add_child(leg_l)
+		var leg_r := ColorRect.new(); leg_r.size = Vector2(5, 300); leg_r.position = Vector2(30, -300); leg_r.color = Color(0.2, 0.2, 0.25); tower.add_child(leg_r)
+		# Cross braces
+		for bri in 4:
+			var brace := ColorRect.new(); brace.size = Vector2(65, 3); brace.position = Vector2(-30, -60 - bri * 60); brace.color = Color(0.18, 0.18, 0.22); tower.add_child(brace)
+		# Dish/antenna at top
+		var dish := Polygon2D.new()
+		dish.polygon = PackedVector2Array([Vector2(-20, 0), Vector2(20, 0), Vector2(12, -18), Vector2(-12, -18)])
+		dish.color = Color(0.35, 0.35, 0.38); dish.position = Vector2(-4, -302); tower.add_child(dish)
+		# Blinking warning light
+		var blink := ColorRect.new(); blink.size = Vector2(6, 6); blink.position = Vector2(-3, -316); blink.color = Color.RED; tower.add_child(blink)
+		var btw: Tween = blink.create_tween().set_loops()
+		btw.tween_property(blink, "modulate:a", 0.0, 0.4).set_delay(randf_range(0.3, 1.2))
+		btw.tween_property(blink, "modulate:a", 1.0, 0.2)
+
+	# --- Fuel storage tanks (large cylinders — start to end) ---
+	for i in range(int(STAGE_LENGTH / 1500) + 1):
+		var ftx := 200.0 + i * 1500.0 + randf_range(-200.0, 200.0)
+		var tank_node := Node2D.new()
+		tank_node.position = Vector2(ftx, 600.0); tank_node.z_index = -8
+		main._add_to_level(tank_node)
+		# Cylinder body
+		var cyl := ColorRect.new(); cyl.size = Vector2(60, 70); cyl.position = Vector2(-30, -70); cyl.color = Color(0.32, 0.32, 0.28); tank_node.add_child(cyl)
+		# Top dome cap
+		var dome_pts: Array = []
+		for di in 7: dome_pts.append(Vector2(cos(di * PI / 6.0 - PI) * 32, sin(di * PI / 6.0 - PI) * 14 - 70))
+		var dome := Polygon2D.new(); dome.polygon = PackedVector2Array(dome_pts); dome.color = Color(0.40, 0.38, 0.32); tank_node.add_child(dome)
+		# Warning stripe
+		var stripe := ColorRect.new(); stripe.size = Vector2(60, 8); stripe.position = Vector2(-30, -40); stripe.color = Color(0.9, 0.5, 0.1); tank_node.add_child(stripe)
+
+	# --- Radar dishes on raised platforms (start to end) ---
+	for i in range(int(STAGE_LENGTH / 2000) + 1):
+		var rdx := 200.0 + i * 2000.0 + randf_range(-300.0, 300.0)
+		var radar := Node2D.new()
+		radar.position = Vector2(rdx, 600.0); radar.z_index = -10
+		main._add_to_level(radar)
+		# Platform
+		var plat := ColorRect.new(); plat.size = Vector2(80, 20); plat.position = Vector2(-40, -20); plat.color = Color(0.22, 0.22, 0.26); radar.add_child(plat)
+		# Support leg
+		var sleg := ColorRect.new(); sleg.size = Vector2(8, 80); sleg.position = Vector2(-4, -100); sleg.color = Color(0.18, 0.18, 0.22); radar.add_child(sleg)
+		# Dish
+		var rd_dish := Polygon2D.new()
+		rd_dish.polygon = PackedVector2Array([Vector2(-30, 0), Vector2(30, 0), Vector2(24, -22), Vector2(-24, -22)])
+		rd_dish.color = Color(0.40, 0.40, 0.45); rd_dish.position = Vector2(0, -102); radar.add_child(rd_dish)
+		# Rotation tween
+		var rtw_r: Tween = rd_dish.create_tween().set_loops()
+		rtw_r.tween_property(rd_dish, "rotation", deg_to_rad(20), 2.0).set_trans(Tween.TRANS_SINE)
+		rtw_r.tween_property(rd_dish, "rotation", deg_to_rad(-20), 2.0).set_trans(Tween.TRANS_SINE)
+
+	# --- Extra supply crates in depot areas ---
+	for i in 10:
+		var scx := randf_range(300.0, STAGE_LENGTH - 300.0)
+		var depot := Node2D.new(); depot.position = Vector2(scx, 600.0); depot.z_index = -7
+		main._add_to_level(depot)
+		for ci2 in 4:
+			var box2 := ColorRect.new(); box2.size = Vector2(20, 16); box2.position = Vector2(ci2 * 22 - 30, -16)
+			box2.color = Color(0.25, 0.30, 0.20); depot.add_child(box2)
+			var lid2 := ColorRect.new(); lid2.size = Vector2(20, 3); lid2.position = Vector2(0, 0); lid2.color = Color(0.18, 0.22, 0.15); box2.add_child(lid2)
+
+	# --- Concrete barrier blocks (Hesco / Jersey barriers) ---
+	for i in 14:
+		var cbx := randf_range(600.0, STAGE_LENGTH - 600.0)
+		for bi in 3:
+			var barrier := ColorRect.new(); barrier.size = Vector2(28, 22); barrier.position = Vector2(cbx + bi * 30, 578)
+			barrier.color = Color(0.45, 0.42, 0.38); barrier.z_index = -4
+			main._add_to_level(barrier)
+
 	# Health and Checkpoints
-	for i in range(1, 3):
-		var x = i * (STAGE_LENGTH / 3.0)
+	for i in range(1, 4):
+		var x = i * (STAGE_LENGTH / 4.0)
 		main._create_health_kit(Vector2(x + randf_range(-100, 100), 570))
 		main._create_checkpoint(Vector2(x, 600))
 

@@ -440,16 +440,7 @@ func _process(delta: float) -> void:
 			target_y = 550.0 # Shift down to see the tunnel path clearly
 		camera.position.y = lerp(camera.position.y, target_y, 4.0 * delta)
 		
-		# Per-depth parallax using z_index bands
-		for child in _parallax_bg.get_children():
-			var n: Node2D = child as Node2D
-			if not n: continue
-			var coeff: float
-			if n.z_index <= -110:    coeff = 0.15
-			elif n.z_index <= -90:   coeff = 0.25
-			elif n.z_index <= -50:   coeff = 0.38
-			else:                    coeff = 0.55
-			n.position.x = camera.position.x * coeff
+		# Background is static in world space — no parallax movement applied
 		
 		# Update Progress Bar
 		progress_bar.value = player.position.x
