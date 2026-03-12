@@ -22,6 +22,9 @@ const MP3_SFX_DEFS: Dictionary = {
 	"collected_item": "res://assets/audio/collected_item.mp3",
 	"b40":           "res://assets/audio/b40.mp3",
 	"reload_ak47":   "res://assets/audio/reload_ak47.mp3",
+	"footstep_grass_1": "res://assets/audio/walk-on-grass-1.mp3",
+	"footstep_grass_2": "res://assets/audio/walk-on-grass-2.mp3",
+	"footstep_grass_3": "res://assets/audio/walk-on-grass-3.mp3",
 }
 var _mp3_sfx_loaded := false
 
@@ -81,6 +84,38 @@ func play(sound_name: String, vol_db: float = 0.0) -> void:
 	(arr[0] as AudioStreamPlayer).stop()
 	var sfx_db := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
 	(arr[0] as AudioStreamPlayer).volume_db = vol_db + sfx_db
+	(arr[0] as AudioStreamPlayer).play()
+
+## Play a random footstep SFX for a given surface (default: "grass").
+## Chooses one of the configured footstep files, applies a small random pitch
+## variation and plays it using the existing SFX pools. Respects PlayerData.sfx_enabled.
+func play_footstep(surface: String = "grass", vol_db: float = 0.0) -> void:
+	if not PlayerData.sfx_enabled: return
+	var variants := {
+		"grass": ["footstep_grass_1", "footstep_grass_2", "footstep_grass_3"],
+	}
+	var list: Array = variants.get(surface, variants["grass"])
+	if list.size() == 0: return
+	var name: String = list[randi() % list.size()]
+	# ensure MP3 SFX loaded
+	if not _mp3_sfx_loaded and name in MP3_SFX_DEFS:
+		_build_mp3_sfx_library()
+		_mp3_sfx_loaded = true
+	var arr: Array = _sfx.get(name, [])
+	if arr.is_empty(): return
+	var pitch := 0.95 + randf() * 0.1 # 0.95..1.05
+	for p in arr:
+		if not p.playing:
+			p.pitch_scale = pitch
+			var sfx_db := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
+			p.volume_db = vol_db + sfx_db
+			p.play()
+			return
+	# all busy -> reuse first
+	(arr[0] as AudioStreamPlayer).stop()
+	(arr[0] as AudioStreamPlayer).pitch_scale = pitch
+	var sfx_db2 := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
+	(arr[0] as AudioStreamPlayer).volume_db = vol_db + sfx_db2
 	(arr[0] as AudioStreamPlayer).play()
 
 ## Gọi sau khi toggle sound trong settings để cập nhật trạng thái nhạc
