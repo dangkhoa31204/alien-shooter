@@ -113,41 +113,60 @@ func setup():
 	_create_historical_moment_panel(13800)
 
 	# === EXTRA BUILDINGS & TREES ===
-	# Bưu điện Sài Gòn + Ministry buildings in mid-bg layer
+	# Bưu điện Sài Gòn — thêm 2 (tổng 4)
 	_create_saigon_post_office_bg(3500)
+	_create_saigon_post_office_bg(7200)
 	_create_saigon_post_office_bg(12000)
+	_create_saigon_post_office_bg(15000)
+	# Tòa nhà Bộ — thêm 3 (tổng 7)
 	_create_ministry_building_bg(1200)
+	_create_ministry_building_bg(3000)
 	_create_ministry_building_bg(5800)
+	_create_ministry_building_bg(7800)
 	_create_ministry_building_bg(10400)
+	_create_ministry_building_bg(12600)
 	_create_ministry_building_bg(14000)
 
-	# Shophouse rows (nhà phố mặt tiền)
-	for i in range(int(STAGE_LENGTH / 1200)):
-		_create_shophouse_row(600 + i * 1200)
+	# Shophouse rows (nhà phố mặt tiền) — doubled density
+	for i in range(int(STAGE_LENGTH / 640)):
+		_create_shophouse_row(320 + i * 640)
 
 	# === NHÀ PHỐ SÀI GÒN 1975: kiến trúc đa dạng ===
 	# Khách sạn Rex — Nguyễn Huệ / Lê Lợi
+	# Khách sạn Rex — tổng 6
 	_create_rex_hotel_bg(1800)
+	_create_rex_hotel_bg(5000)
+	_create_rex_hotel_bg(7600)
 	_create_rex_hotel_bg(9200)
+	_create_rex_hotel_bg(11800)
 	_create_rex_hotel_bg(14800)
 
-	# Khách sạn Continental / Caravelle style
+	# Khách sạn Continental / Caravelle style — tổng 6
+	_create_continental_hotel_bg(2400)
 	_create_continental_hotel_bg(3800)
+	_create_continental_hotel_bg(6400)
 	_create_continental_hotel_bg(8600)
+	_create_continental_hotel_bg(10400)
 	_create_continental_hotel_bg(13400)
 
-	# Nhà ống Sài Gòn — mỗi 1800px
-	for i in range(int(STAGE_LENGTH / 1800)):
-		_create_saigon_tube_house_row(900 + i * 1800 + randf_range(-120, 120))
+	# Nhà ống Sài Gòn — mỗi 950px (doubled density)
+	for i in range(int(STAGE_LENGTH / 950)):
+		_create_saigon_tube_house_row(480 + i * 950 + randf_range(-120, 120))
 
-	# Biệt thự Pháp thuộc chi tiết cao
+	# Biệt thự Pháp thuộc chi tiết cao — thêm 4 để tổng 8
 	_create_french_villa_elaborate(2600)
+	_create_french_villa_elaborate(4400)
 	_create_french_villa_elaborate(6500)
+	_create_french_villa_elaborate(8200)
 	_create_french_villa_elaborate(10800)
+	_create_french_villa_elaborate(12400)
+	_create_french_villa_elaborate(14100)
 	_create_french_villa_elaborate(15200)
 
-	# Chùa / đền thờ Sài Gòn
+	# Chùa / đền thờ Sài Gòn — thêm 2 (tổng 4)
+	_create_saigon_pagoda_bg(2800)
 	_create_saigon_pagoda_bg(4200)
+	_create_saigon_pagoda_bg(8800)
 	_create_saigon_pagoda_bg(11500)
 
 	# Dinh Độc Lập — toàn cảnh chi tiết phía cuối màn chơi
