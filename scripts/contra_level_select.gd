@@ -77,6 +77,7 @@ func _build_ui() -> void:
 	_make_title_area(vp)
 	_make_cards(vp)
 	# _make_controls_panel(vp) # Moved to Main Menu
+	_make_equip_button(vp)
 	_make_back_button(vp)
 
 # ── Background ───────────────────────────────────────────────────────────────
@@ -392,10 +393,43 @@ func _make_controls_panel(vp: Vector2) -> void:
 		_lbl(row[1], Vector2(px + 112, ky), Vector2(PW - 120, 18), 10, C_TEXT_DIM)
 
 # ── Back button (bottom-right) ───────────────────────────────────────────────
+func _make_equip_button(vp: Vector2) -> void:
+	const BW := 170.0
+	const BH := 38.0
+	var   bx := vp.x - BW - 14.0
+	var   by := vp.y - BH - 12.0
+
+	var btn := Button.new()
+	btn.position                  = Vector2(bx, by)
+	btn.size                      = Vector2(BW, BH)
+	btn.text                      = "TRANG BI"
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+	var bs_n := StyleBoxFlat.new()
+	bs_n.bg_color     = Color(0.10, 0.14, 0.08, 0.94)
+	bs_n.border_color = C_GOLD_DIM
+	bs_n.border_width_left = 1; bs_n.border_width_right  = 1
+	bs_n.border_width_top  = 1; bs_n.border_width_bottom = 1
+	bs_n.set_corner_radius_all(5)
+	btn.add_theme_stylebox_override("normal", bs_n)
+
+	var bs_h := bs_n.duplicate()
+	bs_h.bg_color     = C_GOLD
+	bs_h.border_color = C_GOLD
+	btn.add_theme_stylebox_override("hover",   bs_h)
+	btn.add_theme_stylebox_override("pressed", bs_h)
+
+	btn.add_theme_font_size_override("font_size",       12)
+	btn.add_theme_color_override("font_color",          C_PARCHMENT)
+	btn.add_theme_color_override("font_hover_color",    C_BG_DEEP)
+	btn.add_theme_color_override("font_pressed_color",  C_BG_DEEP)
+	# UI only: intentionally no pressed handler
+	add_child(btn)
+
 func _make_back_button(vp: Vector2) -> void:
 	const BW := 210.0
 	const BH := 38.0
-	var   bx := vp.x - BW - 14.0
+	var   bx := 14.0
 	var   by := vp.y - BH - 12.0
 
 	var btn := Button.new()
