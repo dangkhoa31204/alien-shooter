@@ -9,9 +9,6 @@ const C_RED       := Color(1.0,  0.4,  0.35)
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	PlayerData.load_data()
-	var bus := AudioServer.get_bus_index("Master")
-	if bus >= 0:
-		AudioServer.set_bus_mute(bus, not PlayerData.music_enabled)
 
 	var play_btn:     Node = get_node_or_null("UI/PlayBtn")
 	var shop_btn:     Node = get_node_or_null("UI/ShopBtn")
@@ -409,8 +406,6 @@ func _add_settings_popup() -> void:
 		# Stop music via Audio manager instead of muting Master bus
 		Audio.refresh_music()
 		Audio.refresh_menu_music()
-		Audio.refresh_music()
-		Audio.refresh_menu_music()
 		vol_slider.value = 100.0
 		_refresh_coins()
 		var title_prev = title.text
@@ -441,8 +436,6 @@ func _add_settings_popup() -> void:
 		PlayerData.save_data()
 		update_sound_btn.call(PlayerData.music_enabled)
 		# Control music via Audio manager to avoid muting Master (which would affect SFX)
-		Audio.refresh_music()
-		Audio.refresh_menu_music()
 		Audio.refresh_music()
 		Audio.refresh_menu_music()
 	)

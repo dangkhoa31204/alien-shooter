@@ -55,6 +55,7 @@ var _perf_frame: int = 0
 var _flash_rect: ColorRect = null # Persistent flash for explosions
 var _level_node: Node2D = null # Container for all stage-specific objects (for fast cleanup)
 var _history_panel: Control = null # Historical info panel
+var _showing_stage_history: bool = false # True when history popup shown at stage start
 var _damage_vignette: ColorRect = null # Red flash on damage
 var _alert_panel: Panel = null          # Animated alert panel
 
@@ -156,13 +157,15 @@ func _ready() -> void:
 	
 	_setup_cheat_menu()
 	_setup_pause_menu()
+	_setup_pause_button()
 	_start_stage(PlayerData.current_selected_stage)
 	
 	# Đảm bảo các đối tượng con của root (world, objects) sẽ pause khi tree paused
+	# Self must be ALWAYS so _input() receives ESC/F1 while paused
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_world.process_mode = Node.PROCESS_MODE_PAUSABLE
 	if camera: camera.process_mode = Node.PROCESS_MODE_PAUSABLE
 	if bullet_container: bullet_container.process_mode = Node.PROCESS_MODE_PAUSABLE
-	$UI.process_mode = Node.PROCESS_MODE_PAUSABLE
 	
 	_level_node = Node2D.new(); _level_node.name = "LevelNode"; _world.add_child(_level_node)
 	
@@ -1016,8 +1019,9 @@ func _spawn_player_at_start() -> void:
 	for idx_army in 6:
 		var sx_army = camera.position.x + 100 + idx_army * 140
 		_add_individual_background_soldier(sx_army, _get_ground_y(sx_army))
-		
+	
 	_show_stage_intro(current_stage)
+	_show_stage_history_on_start()
 
 func _spawn_player() -> void:
 	if is_instance_valid(player): player.queue_free()
@@ -1041,6 +1045,12 @@ func _show_stage_intro(num: int) -> void:
 		var tw = create_tween()
 		tw.tween_interval(3.0)
 		tw.tween_property(stage_label, "modulate:a", 0.0, 1.0)
+
+func _show_stage_history_on_start() -> void:
+	if _history_panel == null: return
+	_showing_stage_history = true
+	_show_history_info()
+	get_tree().paused = true
 
 func _cleanup_level() -> void:
 	# Aggressively clear EVERYTHING in world and parallax to prevent leaks between stages
@@ -3202,6 +3212,36 @@ func _setup_cheat_menu() -> void:
 	_cheat_menu.process_mode = Node.PROCESS_MODE_ALWAYS
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
+func _setup_pause_button() -> void:
+	var btn := Button.new()
+	btn.name = "PauseBtn"
+	btn.text = "⏸"
+	btn.position = Vector2(1094, 8)
+	btn.size = Vector2(50, 50)
+	btn.z_index = 100
+	btn.process_mode = PROCESS_MODE_ALWAYS
+	btn.add_theme_font_size_override("font_size", 28)
+	btn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.30))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 0.4))
+	btn.add_theme_color_override("font_pressed_color", Color(1.0, 1.0, 1.0))
+	var sn := StyleBoxFlat.new()
+	sn.bg_color = Color(0.06, 0.12, 0.05, 0.7)
+	sn.border_color = Color(0.82, 0.70, 0.18, 0.8)
+	sn.border_width_left = 2; sn.border_width_right = 2
+	sn.border_width_top = 2; sn.border_width_bottom = 2
+	sn.set_corner_radius_all(8)
+	var sh := sn.duplicate() as StyleBoxFlat
+	sh.bg_color = Color(0.12, 0.22, 0.08, 0.9)
+	sh.border_color = Color(1.0, 0.9, 0.3)
+	btn.add_theme_stylebox_override("normal", sn)
+	btn.add_theme_stylebox_override("hover", sh)
+	btn.add_theme_stylebox_override("pressed", sn)
+	btn.pressed.connect(func():
+		if not _is_cheat_visible:
+			_toggle_pause_menu()
+	)
+	$UI.add_child(btn)
+
 func _setup_pause_menu() -> void:
 	_pause_menu = Control.new()
 	_pause_menu.name = "PauseMenu"
@@ -3303,6 +3343,11 @@ func _setup_pause_menu() -> void:
 	btn_history.process_mode = PROCESS_MODE_ALWAYS
 	btn_history.pressed.connect(func(): _show_history_info())
 	btn_v.add_child(btn_history)
+
+	var btn_settings: Button = _mk_pbtn.call("⚙  CÀI ĐẶT")
+	btn_settings.process_mode = PROCESS_MODE_ALWAYS
+	btn_settings.pressed.connect(func(): _show_settings_from_pause())
+	btn_v.add_child(btn_settings)
 
 	var btn_exit: Button = _mk_pbtn.call("✖  THOÁT RA MENU")
 	btn_exit.process_mode = PROCESS_MODE_ALWAYS
@@ -3407,10 +3452,156 @@ func _show_history_info() -> void:
 	var p_main = _pause_menu.get_node_or_null("MainPanel")
 	if p_main: p_main.visible = false
 
+func _show_settings_from_pause() -> void:
+	# Build a lightweight settings popup similar to menu's SettingsPopup
+	var ui = get_node_or_null("UI")
+	if not ui: return
+	# If popup already exists, bring to front
+	var existing = ui.get_node_or_null("SettingsPopup")
+	if existing:
+		ui.move_child(existing, -1)
+		existing.show()
+		var p_main2 = _pause_menu.get_node_or_null("MainPanel")
+		if p_main2: p_main2.visible = false
+		return
+
+	var popup = Control.new()
+	popup.name = "SettingsPopup"
+	popup.visible = true
+	# Ensure popup receives input while the game is paused
+	popup.process_mode = PROCESS_MODE_ALWAYS
+	popup.size = Vector2(1152, 720)
+	ui.add_child(popup)
+	ui.move_child(popup, -1)
+
+	var dim = ColorRect.new()
+	dim.size = popup.size
+	dim.color = Color(0, 0, 0, 0.75)
+	popup.add_child(dim)
+
+	var bg_panel = Panel.new()
+	bg_panel.size = Vector2(500, 370)
+	bg_panel.position = (popup.size - bg_panel.size) * 0.5
+	var sbox = StyleBoxFlat.new()
+	sbox.bg_color = Color(0.1, 0.15, 0.08, 0.98)
+	sbox.border_color = Color(0.84, 0.72, 0.22)
+	sbox.border_width_left = 2; sbox.border_width_right = 2
+	sbox.border_width_top = 2; sbox.border_width_bottom = 2
+	sbox.set_corner_radius_all(10)
+	bg_panel.add_theme_stylebox_override("panel", sbox)
+	popup.add_child(bg_panel)
+
+	var title = Label.new()
+	title.text = "⚙  CÀI ĐẶT"
+	title.position = Vector2(20, 20)
+	title.size = Vector2(460, 40)
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(0.84, 0.72, 0.22))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bg_panel.add_child(title)
+
+	var sep = ColorRect.new()
+	sep.position = Vector2(40, 70)
+	sep.size = Vector2(420, 2)
+	sep.color = Color(0.84, 0.72, 0.22, 0.5)
+	bg_panel.add_child(sep)
+
+	var content_vbox = VBoxContainer.new()
+	content_vbox.position = Vector2(40, 90)
+	content_vbox.size = Vector2(420, 200)
+	content_vbox.add_theme_constant_override("separation", 20)
+	bg_panel.add_child(content_vbox)
+
+	# Volume Row
+	var vol_row = HBoxContainer.new()
+	var vol_lbl = Label.new(); vol_lbl.text = "Nhạc nền "; vol_lbl.add_theme_color_override("font_color", Color(0.88, 0.88, 0.88)); vol_lbl.add_theme_font_size_override("font_size", 20); vol_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var vol_slider = HSlider.new(); vol_slider.name = "VolumeSlider"; vol_slider.custom_minimum_size = Vector2(160, 32); vol_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER; vol_slider.min_value = 0.0; vol_slider.max_value = 100.0; vol_slider.value = PlayerData.volume * 100.0
+	var vol_val_btn = Button.new(); vol_val_btn.name = "VolumeValueLabel"; vol_val_btn.custom_minimum_size = Vector2(52, 0); vol_val_btn.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0)); vol_val_btn.add_theme_font_size_override("font_size", 18); vol_val_btn.text = ("🔊" if PlayerData.music_enabled else "🔇")
+	vol_row.add_child(vol_lbl); vol_row.add_child(vol_slider); vol_row.add_child(vol_val_btn)
+	content_vbox.add_child(vol_row)
+
+	# SFX Row
+	var sfx_row = HBoxContainer.new()
+	var sfx_lbl = Label.new(); sfx_lbl.text = "Hiệu ứng âm thanh"; sfx_lbl.add_theme_color_override("font_color", Color(0.88, 0.88, 0.88)); sfx_lbl.add_theme_font_size_override("font_size", 20); sfx_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var sfx_slider = HSlider.new(); sfx_slider.name = "SfxSlider"; sfx_slider.custom_minimum_size = Vector2(160, 32); sfx_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER; sfx_slider.min_value = 0.0; sfx_slider.max_value = 100.0; sfx_slider.value = PlayerData.sfx_volume * 100.0
+	var sfx_val_btn = Button.new(); sfx_val_btn.name = "SfxValueLabel"; sfx_val_btn.custom_minimum_size = Vector2(52, 0); sfx_val_btn.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0)); sfx_val_btn.add_theme_font_size_override("font_size", 18); sfx_val_btn.text = ("🔊" if PlayerData.sfx_enabled else "🔇")
+	sfx_row.add_child(sfx_lbl); sfx_row.add_child(sfx_slider); sfx_row.add_child(sfx_val_btn)
+	content_vbox.add_child(sfx_row)
+
+	# add reset button
+	var reset_btn = Button.new(); reset_btn.name = "ResetBtn"; reset_btn.custom_minimum_size = Vector2(220, 42); reset_btn.add_theme_font_size_override("font_size", 18); reset_btn.text = "🗑  XÓA DỮ LIỆU / CHƠI LẠI"; reset_btn.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35))
+	content_vbox.add_child(reset_btn)
+
+	# Close Button
+	var close_btn = Button.new()
+	close_btn.text = "ĐÓNG"
+	close_btn.size = Vector2(160, 40)
+	close_btn.position = Vector2(170, 310)
+	close_btn.pressed.connect(_close_settings_popup)
+	bg_panel.add_child(close_btn)
+
+	# Handlers
+	vol_val_btn.pressed.connect(func():
+		Audio.play("button_click")
+		PlayerData.music_enabled = not PlayerData.music_enabled
+		PlayerData.save_data()
+		vol_val_btn.text = ("🔊" if PlayerData.music_enabled else "🔇")
+		Audio.refresh_music()
+	)
+	vol_slider.value_changed.connect(func(val: float):
+		PlayerData.volume = val / 100.0
+		PlayerData.apply_volume()
+		PlayerData.save_data()
+	)
+
+	sfx_val_btn.pressed.connect(func():
+		Audio.play("button_click")
+		PlayerData.sfx_enabled = not PlayerData.sfx_enabled
+		PlayerData.save_data()
+		sfx_val_btn.text = ("🔊" if PlayerData.sfx_enabled else "🔇")
+	)
+	sfx_slider.value_changed.connect(func(val: float):
+		PlayerData.sfx_volume = val / 100.0
+		PlayerData.apply_volume()
+		PlayerData.save_data()
+	)
+
+	reset_btn.pressed.connect(func():
+		Audio.play("button_click")
+		PlayerData.reset_data()
+		HighScore.reset_scores()
+		PlayerData.music_enabled = false
+		PlayerData.save_data()
+		Audio.refresh_music()
+		vol_slider.value = 100.0
+	)
+
+	# Hide main pause buttons while settings is visible
+	var p_main4 = _pause_menu.get_node_or_null("MainPanel")
+	if p_main4: p_main4.visible = false
+
 func _close_history() -> void:
 	_history_panel.visible = false
+	# Always restore MainPanel visibility
 	var p_main = _pause_menu.get_node_or_null("MainPanel")
 	if p_main: p_main.visible = true
+	# If this was the stage-start history, unpause the game
+	if _showing_stage_history:
+		_showing_stage_history = false
+		get_tree().paused = false
+
+func _close_settings_popup() -> void:
+	Audio.play("button_click")
+	var ui = get_node_or_null("UI")
+	if not ui: return
+	var sp = ui.get_node_or_null("SettingsPopup")
+	if sp:
+		sp.hide()
+	var p_main = _pause_menu.get_node_or_null("MainPanel")
+	if p_main: p_main.visible = true
+	# ensure pause state is preserved
+	_is_paused = true
+	_update_pause_state()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
@@ -3419,6 +3610,18 @@ func _input(event: InputEvent) -> void:
 				_toggle_cheat_menu()
 		elif event.keycode == KEY_ESCAPE:
 			if not _is_cheat_visible: # Don't open pause menu if cheat menu is open
+				# If settings popup is open, close it and resume play
+				var ui = get_node_or_null("UI")
+				if ui:
+					var sp = ui.get_node_or_null("SettingsPopup")
+					if sp and sp.visible:
+						sp.hide()
+						var p_main_sp = _pause_menu.get_node_or_null("MainPanel")
+						if p_main_sp: p_main_sp.visible = true
+						# keep _is_paused as true so game remains paused; just return to pause menu
+						_update_pause_state()
+						return
+				# otherwise toggle pause menu as before
 				_toggle_pause_menu()
 
 func _toggle_cheat_menu() -> void:
