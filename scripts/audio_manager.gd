@@ -25,6 +25,9 @@ const MP3_SFX_DEFS: Dictionary = {
 	"footstep_grass_1": "res://assets/audio/walk-on-grass-1.mp3",
 	"footstep_grass_2": "res://assets/audio/walk-on-grass-2.mp3",
 	"footstep_grass_3": "res://assets/audio/walk-on-grass-3.mp3",
+	"footstep_road_1": "res://assets/audio/step-1.mp3",
+	"footstep_road_2": "res://assets/audio/step-2.mp3",
+	"footstep_road_3": "res://assets/audio/step-3.mp3",
 }
 var _mp3_sfx_loaded := false
 
@@ -95,6 +98,7 @@ func play_footstep(surface: String = "grass", vol_db: float = 0.0) -> void:
 	if not PlayerData.sfx_enabled: return
 	var variants := {
 		"grass": ["footstep_grass_1", "footstep_grass_2", "footstep_grass_3"],
+		"road": ["footstep_road_1", "footstep_road_2", "footstep_road_3"],
 	}
 	var list: Array = variants.get(surface, variants["grass"])
 	if list.size() == 0: return

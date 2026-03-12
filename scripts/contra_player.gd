@@ -310,7 +310,9 @@ func _physics_process(delta: float) -> void:
 
 	if is_on_floor() and abs(velocity.x) > 10 and int(_walk_time * 2.0) % 5 == 0:
 		_spawn_dust()
-		Audio.play_footstep()
+		var _main := _get_main_scene()
+		var _surface := "road" if (_main and _main.current_stage in [4, 5]) else "grass"
+		Audio.play_footstep(_surface)
 
 func _fire_rpg() -> void:
 	_is_firing_rpg = true
@@ -483,7 +485,9 @@ func _animate(delta: float) -> void:
 		# Emit footstep dust on each leg strike (sign change in step)
 		if prev_step * step < 0.0:
 			_spawn_footstep_dust()
-			Audio.play_footstep()
+			var _main2 := _get_main_scene()
+			var _surface2 := "road" if (_main2 and _main2.current_stage in [4, 5]) else "grass"
+			Audio.play_footstep(_surface2)
 		_leg_l.position.x = -4 + step * 9; _leg_r.position.x = 4 - step * 9
 		_leg_l.rotation = step * 0.25; _leg_r.rotation = -step * 0.25
 		_body_node.position.y = abs(step) * -5 + 2 # Adds "lean" bounce
