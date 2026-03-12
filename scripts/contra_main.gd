@@ -237,7 +237,7 @@ func _setup_progress_ui() -> void:
 	var hud_panel := Panel.new()
 	hud_panel.name = "HUDPanel"
 	hud_panel.position = Vector2(8, 8)
-	hud_panel.size = Vector2(310, 150)
+	hud_panel.size = Vector2(310, 148)
 	hud_panel.add_theme_stylebox_override("panel", _make_sbox.call(C_OLIVE, C_GOLD, 2, 6))
 	$UI.add_child(hud_panel)
 
@@ -247,21 +247,21 @@ func _setup_progress_ui() -> void:
 	hud_header.color = C_GOLD
 	hud_panel.add_child(hud_header)
 
-	# ── 2a. SINH LỰC ──────────────────────────────────────────────────────────
+	# ── 2a. HP ───────────────────────────────────────────────────────────────
 	var hp_lbl_icon := Label.new()
-	hp_lbl_icon.text = "❤  SINH LỰC"
-	hp_lbl_icon.add_theme_font_size_override("font_size", 13)
+	hp_lbl_icon.text = "HP"
+	hp_lbl_icon.add_theme_font_size_override("font_size", 12)
 	hp_lbl_icon.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
 	hp_lbl_icon.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
 	hp_lbl_icon.add_theme_constant_override("shadow_offset_x", 1)
 	hp_lbl_icon.add_theme_constant_override("shadow_offset_y", 1)
-	hp_lbl_icon.position = Vector2(10, 10)
+	hp_lbl_icon.position = Vector2(10, 8)
 	hud_panel.add_child(hp_lbl_icon)
 
 	hp_bar = ProgressBar.new()
 	hp_bar.name = "HPBar"
-	hp_bar.size = Vector2(200, 14)
-	hp_bar.position = Vector2(10, 28)
+	hp_bar.size = Vector2(205, 14)
+	hp_bar.position = Vector2(40, 10)
 	hp_bar.max_value = 3
 	hp_bar.value = 3
 	hp_bar.show_percentage = false
@@ -270,57 +270,57 @@ func _setup_progress_ui() -> void:
 	hp_bar.add_theme_stylebox_override("fill", hp_fg)
 	hud_panel.add_child(hp_bar)
 
-	# Nhãn số HP bên phải thanh
 	var hp_num_lbl := Label.new()
 	hp_num_lbl.name = "HPNumLabel"
 	hp_num_lbl.text = "3 / 3"
 	hp_num_lbl.add_theme_font_size_override("font_size", 12)
 	hp_num_lbl.add_theme_color_override("font_color", C_TEXT)
-	hp_num_lbl.position = Vector2(218, 27)
+	hp_num_lbl.position = Vector2(252, 8)
 	hud_panel.add_child(hp_num_lbl)
 
-	# ── 2b. ĐẠN (luôn hiển thị từ đầu) ─────────────────────────────────────
+	# ── 2b. ĐẠN ──────────────────────────────────────────────────────────────
 	var ammo_icon_lbl := Label.new()
-	ammo_icon_lbl.text = "⊕  ĐẠN"
-	ammo_icon_lbl.add_theme_font_size_override("font_size", 13)
+	ammo_icon_lbl.text = "ĐẠN"
+	ammo_icon_lbl.add_theme_font_size_override("font_size", 12)
 	ammo_icon_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	ammo_icon_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
 	ammo_icon_lbl.add_theme_constant_override("shadow_offset_x", 1)
 	ammo_icon_lbl.add_theme_constant_override("shadow_offset_y", 1)
-	ammo_icon_lbl.position = Vector2(10, 50)
+	ammo_icon_lbl.position = Vector2(10, 30)
 	hud_panel.add_child(ammo_icon_lbl)
 
 	var ammo_lbl := Label.new()
 	ammo_lbl.name = "AmmoLabel"
 	ammo_lbl.text = "30 / 30"
-	ammo_lbl.add_theme_font_size_override("font_size", 16)
+	ammo_lbl.add_theme_font_size_override("font_size", 14)
 	ammo_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.35))
 	ammo_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.9))
 	ammo_lbl.add_theme_constant_override("shadow_offset_x", 1)
 	ammo_lbl.add_theme_constant_override("shadow_offset_y", 1)
-	ammo_lbl.position = Vector2(65, 47)
+	ammo_lbl.position = Vector2(48, 28)
 	hud_panel.add_child(ammo_lbl)
 
-	# ── 2c. B40 / VŨ KHÍ HẠNG NẶNG ─────────────────────────────────────────
+	# ── Separator ─────────────────────────────────────────────────────────────
 	var b40_sep := ColorRect.new()
-	b40_sep.size = Vector2(290, 1); b40_sep.position = Vector2(10, 74)
+	b40_sep.size = Vector2(290, 1); b40_sep.position = Vector2(10, 52)
 	b40_sep.color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.35)
 	hud_panel.add_child(b40_sep)
 
+	# ── 2c. B40 ───────────────────────────────────────────────────────────────
 	var b40_icon := Label.new()
-	b40_icon.text = "💥  B40"
-	b40_icon.add_theme_font_size_override("font_size", 13)
+	b40_icon.text = "💥 B40"
+	b40_icon.add_theme_font_size_override("font_size", 12)
 	b40_icon.add_theme_color_override("font_color", Color(1.0, 0.5, 0.1))
 	b40_icon.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
 	b40_icon.add_theme_constant_override("shadow_offset_x", 1)
 	b40_icon.add_theme_constant_override("shadow_offset_y", 1)
-	b40_icon.position = Vector2(10, 80)
+	b40_icon.position = Vector2(10, 58)
 	hud_panel.add_child(b40_icon)
 
 	var b40_cd_bar := ProgressBar.new()
 	b40_cd_bar.name = "B40CoolBar"
-	b40_cd_bar.size = Vector2(160, 10)
-	b40_cd_bar.position = Vector2(70, 83)
+	b40_cd_bar.size = Vector2(125, 10)
+	b40_cd_bar.position = Vector2(72, 61)
 	b40_cd_bar.max_value = RPG_MAX_COOLDOWN
 	b40_cd_bar.value = RPG_MAX_COOLDOWN
 	b40_cd_bar.show_percentage = false
@@ -334,34 +334,66 @@ func _setup_progress_ui() -> void:
 	b40_cd_lbl.text = "SẴN SÀNG"
 	b40_cd_lbl.add_theme_font_size_override("font_size", 11)
 	b40_cd_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
-	b40_cd_lbl.position = Vector2(236, 79)
+	b40_cd_lbl.position = Vector2(203, 57)
 	hud_panel.add_child(b40_cd_lbl)
 
-	# ── 2d. SỐ ĐIỂM ─────────────────────────────────────────────────────────
+	# ── 2d. AA MISSILE [X] ───────────────────────────────────────────────────
+	var aa_icon := Label.new()
+	aa_icon.text = "🚀 AA [X]"
+	aa_icon.add_theme_font_size_override("font_size", 12)
+	aa_icon.add_theme_color_override("font_color", Color(0.4, 0.85, 1.0))
+	aa_icon.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
+	aa_icon.add_theme_constant_override("shadow_offset_x", 1)
+	aa_icon.add_theme_constant_override("shadow_offset_y", 1)
+	aa_icon.position = Vector2(10, 82)
+	hud_panel.add_child(aa_icon)
+
+	var aa_cd_bar := ProgressBar.new()
+	aa_cd_bar.name = "AACoolBar"
+	aa_cd_bar.size = Vector2(100, 10)
+	aa_cd_bar.position = Vector2(105, 85)
+	aa_cd_bar.max_value = 10.0
+	aa_cd_bar.value = 10.0
+	aa_cd_bar.show_percentage = false
+	aa_cd_bar.add_theme_stylebox_override("background", _make_sbox.call(Color(0.04,0.06,0.15,0.8), Color(0.2,0.3,0.6,0.5), 1, 2))
+	var aa_fg := StyleBoxFlat.new(); aa_fg.bg_color = Color(0.3, 0.8, 1.0); aa_fg.set_corner_radius_all(2)
+	aa_cd_bar.add_theme_stylebox_override("fill", aa_fg)
+	hud_panel.add_child(aa_cd_bar)
+
+	var aa_cd_lbl := Label.new()
+	aa_cd_lbl.name = "AACDLabel"
+	aa_cd_lbl.text = "SẴN SÀNG"
+	aa_cd_lbl.add_theme_font_size_override("font_size", 11)
+	aa_cd_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+	aa_cd_lbl.position = Vector2(211, 81)
+	hud_panel.add_child(aa_cd_lbl)
+
+	# ── Separator ─────────────────────────────────────────────────────────────
 	var score_sep := ColorRect.new()
-	score_sep.size = Vector2(290, 1); score_sep.position = Vector2(10, 100)
+	score_sep.size = Vector2(290, 1); score_sep.position = Vector2(10, 104)
 	score_sep.color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.35)
 	hud_panel.add_child(score_sep)
 
+	# ── 2e. SỐ ĐIỂM ──────────────────────────────────────────────────────────
 	var score_icon := Label.new()
-	score_icon.text = "★  ĐIỂM"
-	score_icon.add_theme_font_size_override("font_size", 13)
+	score_icon.text = "★ ĐIỂM"
+	score_icon.add_theme_font_size_override("font_size", 12)
 	score_icon.add_theme_color_override("font_color", C_GOLD)
 	score_icon.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
 	score_icon.add_theme_constant_override("shadow_offset_x", 1)
 	score_icon.add_theme_constant_override("shadow_offset_y", 1)
-	score_icon.position = Vector2(10, 106)
+	score_icon.position = Vector2(10, 109)
 	hud_panel.add_child(score_icon)
 
 	var score_val_lbl := Label.new()
 	score_val_lbl.name = "ScoreLabel"
 	score_val_lbl.text = "0"
-	score_val_lbl.add_theme_font_size_override("font_size", 15)
+	score_val_lbl.add_theme_font_size_override("font_size", 14)
 	score_val_lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.5))
 	score_val_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.9))
 	score_val_lbl.add_theme_constant_override("shadow_offset_x", 1)
 	score_val_lbl.add_theme_constant_override("shadow_offset_y", 1)
-	score_val_lbl.position = Vector2(65, 104)
+	score_val_lbl.position = Vector2(70, 107)
 	hud_panel.add_child(score_val_lbl)
 
 	var kill_lbl := Label.new()
@@ -369,7 +401,7 @@ func _setup_progress_ui() -> void:
 	kill_lbl.text = "⚔ 0 tiêu diệt"
 	kill_lbl.add_theme_font_size_override("font_size", 11)
 	kill_lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 0.55))
-	kill_lbl.position = Vector2(10, 128)
+	kill_lbl.position = Vector2(10, 129)
 	hud_panel.add_child(kill_lbl)
 
 func refresh_hp(val: int, max_val: int) -> void:
@@ -378,10 +410,7 @@ func refresh_hp(val: int, max_val: int) -> void:
 		hp_bar.value = val
 	var num_lbl = get_node_or_null("UI/HUDPanel/HPNumLabel")
 	if num_lbl:
-		var hearts := ""
-		for i in max_val:
-			hearts += "♥" if i < val else "♡"
-		num_lbl.text = hearts
+		num_lbl.text = "%d / %d" % [val, max_val]
 	# Persistent low-HP vignette pulse when 1 HP left
 	if is_instance_valid(_damage_vignette):
 		if val == 1:
@@ -636,7 +665,7 @@ func _explode_bomb(pos: Vector2) -> void:
 	_create_crater(pos)
 
 	if is_instance_valid(player) and player.global_position.distance_to(pos) < 110.0:
-		player.take_damage(2)
+		player.take_damage(1)
 
 func _create_crater(pos: Vector2) -> void:
 	var floor_y := _get_ground_y(pos.x)

@@ -10,8 +10,8 @@ var SPEED: float = 240.0
 const JUMP_VELOCITY: float = -500.0
 const GRAVITY: float = 1400.0
 
-var hp: int = 5
-var max_hp: int = 5
+var hp: int = 8
+var max_hp: int = 8
 var is_dead: bool = false
 var ammo: int = 30
 var is_reloading: bool = false
@@ -34,6 +34,12 @@ const MAX_JUMPS: int = 2
 # Anti-tank Weapon (RPG/B40)
 var rpg_cooldown: float = 0.0
 const RPG_MAX_COOLDOWN: float = 10.0
+
+# Anti-aircraft Missile (phím X)
+var aa_cooldown: float = 0.0
+const AA_MAX_COOLDOWN: float = 10.0
+var _aa_cool_bar = null
+var _aa_cool_lbl: Label = null
 
 # Melee attack
 var melee_cooldown: float = 0.0
@@ -271,6 +277,10 @@ func _physics_process(delta: float) -> void:
 		rpg_cooldown -= delta
 		_sync_hp()
 
+	if aa_cooldown > 0:
+		aa_cooldown -= delta
+		_update_aa_hud()
+
 	if melee_cooldown > 0:
 		melee_cooldown -= delta
 
@@ -307,6 +317,9 @@ func _physics_process(delta: float) -> void:
 
 	if Input.is_action_just_pressed("melee") and melee_cooldown <= 0 and not is_dead:
 		_melee_attack()
+
+	if Input.is_action_just_pressed("aa_missile") and aa_cooldown <= 0 and not is_dead:
+		_fire_aa_missile()
 
 	if is_on_floor() and abs(velocity.x) > 10 and int(_walk_time * 2.0) % 5 == 0:
 		_spawn_dust()
@@ -610,6 +623,176 @@ func _spawn_falling_mag() -> void:
 	tw.parallel().tween_property(mag, "rotation", randf_range(-PI, PI), 1.0)
 	tw.tween_property(mag, "modulate:a", 0.0, 0.5)
 	tw.finished.connect(mag.queue_free)
+
+# ── ANTI-AIRCRAFT MISSILE ────────────────────────────────────────────────────
+func _fire_aa_missile() -> void:
+	# Find nearest bomber in scene
+	var target: Node2D = null
+	var best_dist := 9999.0
+	for b in get_tree().get_nodes_in_group("enemy"):
+		if not is_instance_valid(b): continue
+		if not ("contra_bomber" in b.get_script().resource_path.to_lower()): continue
+		var d := global_position.distance_to((b as Node2D).global_position)
+		if d < best_dist:
+			best_dist = d
+			target = b as Node2D
+
+	if target == null:
+		# No bomber — show brief "NO TARGET" flash
+		_aa_flash_no_target()
+		return
+
+	aa_cooldown = AA_MAX_COOLDOWN
+	_update_aa_hud()
+	Audio.play("b40", 8.0)
+
+	var main := _get_main_scene()
+
+	# --- Missile node ---
+	var missile := Node2D.new()
+	missile.global_position = global_position + Vector2(sprite.scale.x * 20.0, -30.0)
+	missile.z_index = 8
+	if main: main._world.add_child(missile)
+	else: get_parent().add_child(missile)
+
+	# Missile body (thin white rect)
+	var body := ColorRect.new()
+	body.size = Vector2(18, 5); body.position = Vector2(-9, -2)
+	body.color = Color(0.9, 0.88, 0.82)
+	missile.add_child(body)
+	# Nose cone (orange tip)
+	var nose := Polygon2D.new()
+	nose.polygon = PackedVector2Array([Vector2(9, -3), Vector2(9, 3), Vector2(18, 0)])
+	nose.color = Color(1.0, 0.45, 0.05)
+	missile.add_child(nose)
+	# Exhaust flame
+	var flame := Polygon2D.new()
+	flame.polygon = PackedVector2Array([Vector2(-9, -3), Vector2(-9, 3), Vector2(-22, 0)])
+	flame.color = Color(1.0, 0.8, 0.2, 0.9)
+	missile.add_child(flame)
+	# Flame flicker
+	var ftw: Tween = flame.create_tween().set_loops()
+	ftw.tween_property(flame, "modulate:a", 0.4, 0.05)
+	ftw.tween_property(flame, "modulate:a", 1.0, 0.05)
+
+	# Smoke trail Line2D (grows as missile travels)
+	var trail := Line2D.new()
+	trail.width = 3.0
+	trail.default_color = Color(0.7, 0.68, 0.65, 0.55)
+	trail.z_index = 7
+	if main: main._world.add_child(trail)
+	else: get_parent().add_child(trail)
+
+	# Animate missile toward target using Tween + per-frame callback
+	var start_pos := missile.global_position
+	var travel_time := clampf(best_dist / 900.0, 0.25, 1.2)
+	var mtw: Tween = missile.create_tween()
+	mtw.tween_method(
+		func(t: float):
+			if not is_instance_valid(missile): return
+			if not is_instance_valid(target):
+				# Target already dead — still travel forward
+				missile.global_position = start_pos.lerp(
+					start_pos + Vector2(sprite.scale.x * best_dist, -60.0), t)
+			else:
+				var cur_target := target.global_position + Vector2(0, -20)
+				# Slight arc: peak upward at mid-flight
+				var arc_offset := Vector2(0, -80.0 * sin(t * PI))
+				missile.global_position = start_pos.lerp(cur_target, t) + arc_offset
+			# Rotate missile toward velocity direction
+			if t > 0.01:
+				var prev := start_pos.lerp(
+					(target.global_position if is_instance_valid(target) else start_pos + Vector2(sprite.scale.x * best_dist, 0)),
+					maxf(t - 0.02, 0.0))
+				var vel_dir := (missile.global_position - prev).normalized()
+				missile.rotation = vel_dir.angle()
+			# Append trail point
+			if is_instance_valid(trail):
+				trail.add_point(missile.global_position)
+				if trail.get_point_count() > 30:
+					trail.remove_point(0),
+		0.0, 1.0, travel_time)
+
+	# On arrival — explode
+	mtw.tween_callback(func():
+		var hit_pos := missile.global_position if is_instance_valid(missile) else start_pos
+		# Damage target
+		if is_instance_valid(target) and target.has_method("take_damage"):
+			target.take_damage(3)
+		# Explosion
+		_spawn_aa_explosion(hit_pos, main)
+		if main and main.has_method("screen_shake"): main.screen_shake(16.0, 0.5)
+		if is_instance_valid(missile): missile.queue_free()
+		# Fade trail
+		if is_instance_valid(trail):
+			var ttw: Tween = trail.create_tween()
+			ttw.tween_property(trail, "modulate:a", 0.0, 0.6)
+			ttw.finished.connect(trail.queue_free)
+	)
+
+func _spawn_aa_explosion(pos: Vector2, main: Node) -> void:
+	if not main: return
+	Audio.play("b40", 14.0)
+	for ring in 3:
+		var blast := Polygon2D.new()
+		var pts: Array = []
+		var rad := 50.0 + ring * 45.0
+		for i in 12:
+			var a := i * TAU / 12.0
+			pts.append(Vector2(cos(a) * rad, sin(a) * rad))
+		blast.polygon = PackedVector2Array(pts)
+		blast.color = Color(1.0, 0.6 - ring * 0.12, 0.05, 0.9)
+		blast.global_position = pos
+		blast.z_index = 9
+		main._world.add_child(blast)
+		var btw: Tween = blast.create_tween().set_parallel(true)
+		btw.tween_property(blast, "scale",      Vector2(3.0, 3.0), 0.5 + ring * 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		btw.tween_property(blast, "modulate:a", 0.0,               0.5 + ring * 0.1).set_delay(0.05 * ring)
+		btw.finished.connect(blast.queue_free)
+	# Debris sparks
+	for _i in 8:
+		var sp := ColorRect.new()
+		sp.size = Vector2(4, 4)
+		sp.color = Color(1.0, randf_range(0.3, 0.8), 0.0)
+		sp.global_position = pos + Vector2(randf_range(-20.0, 20.0), randf_range(-10.0, 10.0))
+		sp.z_index = 10
+		main._world.add_child(sp)
+		var stw: Tween = sp.create_tween().set_parallel(true)
+		stw.tween_property(sp, "position", sp.global_position + Vector2(randf_range(-120.0, 120.0), randf_range(-80.0, 80.0)), 0.7).set_trans(Tween.TRANS_QUAD)
+		stw.tween_property(sp, "modulate:a", 0.0, 0.5).set_delay(0.2)
+		stw.finished.connect(sp.queue_free)
+
+func _aa_flash_no_target() -> void:
+	if not _aa_cool_lbl: _setup_aa_hud()
+	if not _aa_cool_lbl: return
+	_aa_cool_lbl.text = "KHÔNG CÓ MỤC TIÊU"
+	_aa_cool_lbl.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	var tw: Tween = _aa_cool_lbl.create_tween()
+	tw.tween_interval(1.2)
+	tw.tween_callback(func(): _update_aa_hud())
+
+func _update_aa_hud() -> void:
+	if not _aa_cool_bar: _setup_aa_hud()
+	if not _aa_cool_bar: return
+	_aa_cool_bar.max_value = AA_MAX_COOLDOWN
+	if aa_cooldown > 0.05:
+		_aa_cool_bar.value = AA_MAX_COOLDOWN - aa_cooldown
+		if _aa_cool_lbl:
+			_aa_cool_lbl.text = "%.1fs" % aa_cooldown
+			_aa_cool_lbl.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
+	else:
+		_aa_cool_bar.value = AA_MAX_COOLDOWN
+		if _aa_cool_lbl:
+			_aa_cool_lbl.text = "SẴN SÀNG"
+			_aa_cool_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+
+func _setup_aa_hud() -> void:
+	var main := _get_main_scene()
+	if not main: return
+	_aa_cool_bar = main.get_node_or_null("UI/HUDPanel/AACoolBar")
+	_aa_cool_lbl = main.get_node_or_null("UI/HUDPanel/AACDLabel")
+	if _aa_cool_bar:
+		_aa_cool_bar.max_value = AA_MAX_COOLDOWN
 
 func _get_main_scene() -> Node:
 	var curr = get_parent()
