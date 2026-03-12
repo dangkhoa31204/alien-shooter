@@ -83,6 +83,36 @@ theme_override_colors/font_color = Color(0.4, 0.9, 1, 1)
 theme_override_font_sizes/font_size = 18
 text = "🔊"
 
+[node name="SfxTitle" type="Label" parent="UI/Panel/VBox" unique_id=555555001]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.75, 0.85, 1)
+theme_override_font_sizes/font_size = 18
+text = "HIỆU ỨNG ÂM THANH"
+
+[node name="SfxRow" type="HBoxContainer" parent="UI/Panel/VBox" unique_id=555555002]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="SfxLabel" type="Label" parent="UI/Panel/VBox/SfxRow" unique_id=555555003]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.88, 0.88, 1)
+theme_override_font_sizes/font_size = 20
+text = "Hiệu ứng âm thanh"
+
+[node name="SfxSlider" type="HSlider" parent="UI/Panel/VBox/SfxRow" unique_id=555555004]
+custom_minimum_size = Vector2(160, 32)
+layout_mode = 2
+size_flags_vertical = 4
+value = 80.0
+
+[node name="SfxValueLabel" type="Button" parent="UI/Panel/VBox/SfxRow" unique_id=555555005]
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.9, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "🔊"
+
 [node name="Divider" type="HSeparator" parent="UI/Panel/VBox" unique_id=1180940256]
 layout_mode = 2
 

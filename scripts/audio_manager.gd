@@ -16,6 +16,7 @@ const MENU_MUSIC_PATH := "res://assets/audio/lac_troi.mp3"
 # MP3 SFX: tên → đường dẫn
 const MP3_SFX_DEFS: Dictionary = {
 	"gun_fire":       "res://assets/audio/gun_fire.mp3",
+	"punch":          "res://assets/audio/punch_sound.mp3",
 	"ak47_fire":  		"res://assets/audio/ak47_fire.mp3",
 	"m4_fire": "res://assets/audio/m4_fire.wav",
 	"collected_item": "res://assets/audio/collected_item.mp3",
@@ -61,7 +62,8 @@ func _deferred_build_mp3_sfx() -> void:
 
 # ── PUBLIC API ───────────────────────────────────────────────────────────────
 func play(sound_name: String, vol_db: float = 0.0) -> void:
-	if not PlayerData.sound_enabled: return
+	# Only play SFX when global sound and SFX are enabled
+	if not PlayerData.sfx_enabled: return
 	# Lần đầu gọi sau khi scene chính load xong — thử nạp MP3 nếu chưa có
 	if not _mp3_sfx_loaded and sound_name in MP3_SFX_DEFS:
 		_build_mp3_sfx_library()
@@ -70,18 +72,21 @@ func play(sound_name: String, vol_db: float = 0.0) -> void:
 	if arr.is_empty(): return
 	for p: AudioStreamPlayer in arr:
 		if not p.playing:
-			p.volume_db = vol_db
+			# Combine caller volume_db with SFX master volume
+			var sfx_db := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
+			p.volume_db = vol_db + sfx_db
 			p.play()
 			return
 	# Tất cả busy → dùng đầu tiên
 	(arr[0] as AudioStreamPlayer).stop()
-	(arr[0] as AudioStreamPlayer).volume_db = vol_db
+	var sfx_db := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
+	(arr[0] as AudioStreamPlayer).volume_db = vol_db + sfx_db
 	(arr[0] as AudioStreamPlayer).play()
 
 ## Gọi sau khi toggle sound trong settings để cập nhật trạng thái nhạc
 func refresh_music() -> void:
 	if _music_player == null: return
-	if PlayerData.sound_enabled:
+	if PlayerData.music_enabled:
 		# Do not start in-game procedural music if menu MP3 is playing
 		if _menu_music_player != null and _menu_music_player.playing:
 			return
@@ -98,7 +103,7 @@ func play_menu_music() -> void:
 	if _menu_music_player == null: return
 	if _menu_music_player.playing: return  # Tránh restart khi quay lại menu
 	# Thử load MP3 — không cần ResourceLoader.exists() vì có thể trả về false khi import chưa valid
-	if PlayerData.sound_enabled:
+	if PlayerData.music_enabled:
 		var stream: AudioStreamMP3 = null
 		if ResourceLoader.exists(MENU_MUSIC_PATH):
 			stream = load(MENU_MUSIC_PATH) as AudioStreamMP3
@@ -112,7 +117,7 @@ func play_menu_music() -> void:
 			return
 	# Fallback: MP3 chưa có hoặc load lỗi → giữ nhạc procedural đang chạy
 	# Nếu procedural bị tắt vì lý do nào đó, khởi động lại
-	if PlayerData.sound_enabled and _music_player != null and not _music_player.playing:
+	if PlayerData.music_enabled and _music_player != null and not _music_player.playing:
 		_music_player.play()
 		call_deferred("_grab_music_playback")
 
@@ -120,14 +125,14 @@ func play_menu_music() -> void:
 func stop_menu_music() -> void:
 	if _menu_music_player != null:
 		_menu_music_player.stop()
-	if PlayerData.sound_enabled and _music_player != null and not _music_player.playing:
+	if PlayerData.music_enabled and _music_player != null and not _music_player.playing:
 		_music_player.play()
 		call_deferred("_grab_music_playback")
 
 ## Gọi sau khi toggle sound để cập nhật nhạc menu đang phát
 func refresh_menu_music() -> void:
 	if _menu_music_player == null: return
-	if PlayerData.sound_enabled:
+	if PlayerData.music_enabled:
 		if not _menu_music_player.playing and _menu_music_player.stream != null:
 			# Ensure procedural in-game music is stopped before playing menu MP3
 			if _music_player != null and _music_player.playing:
@@ -135,11 +140,11 @@ func refresh_menu_music() -> void:
 				_music_pb = null
 			_menu_music_player.play()
 	else:
-		_menu_music_player.stop()
+			_menu_music_player.stop()
 
 # ── MUSIC PROCESS ─────────────────────────────────────────────────────────────
 func _process(_delta: float) -> void:
-	if not PlayerData.sound_enabled: return
+	if not PlayerData.music_enabled: return
 	# Thử lấy lại playback nếu chưa có (recovery)
 	if _music_pb == null and _music_player != null and _music_player.playing:
 		_music_pb = _music_player.get_stream_playback() as AudioStreamGeneratorPlayback
@@ -215,7 +220,7 @@ func _build_sfx_library() -> void:
 		for _i in range(POOL_SIZE):
 			var p := AudioStreamPlayer.new()
 			p.stream = stream
-			p.bus = "Master"
+			p.bus = "SFX"
 			add_child(p)
 			arr.append(p)
 		_sfx[String(d[0])] = arr
@@ -283,7 +288,7 @@ func _build_mp3_sfx_library() -> void:
 			for _i in range(POOL_SIZE):
 				var p := AudioStreamPlayer.new()
 				p.stream = stream
-				p.bus = "Master"
+				p.bus = "SFX"
 				add_child(p)
 				arr.append(p)
 			_sfx[sfx_name] = arr
@@ -295,7 +300,11 @@ func _build_mp3_sfx_library() -> void:
 # ── MENU MUSIC SETUP ─────────────────────────────────────────────────────────
 func _setup_menu_music() -> void:
 	_menu_music_player = AudioStreamPlayer.new()
-	_menu_music_player.bus = "Master"
+	var music_bus_idx := AudioServer.get_bus_index("Music")
+	if music_bus_idx >= 0:
+		_menu_music_player.bus = "Music"
+	else:
+		_menu_music_player.bus = "Master"
 	_menu_music_player.volume_db = 3.0
 	add_child(_menu_music_player)
 
@@ -303,7 +312,11 @@ func _setup_menu_music() -> void:
 func _setup_music() -> void:
 	_music_player = AudioStreamPlayer.new()
 	_music_player.volume_db = MUSIC_VOL_DB
-	_music_player.bus       = "Master"
+	var music_bus_idx := AudioServer.get_bus_index("Music")
+	if music_bus_idx >= 0:
+		_music_player.bus = "Music"
+	else:
+		_music_player.bus = "Master"
 	
 	var stream: AudioStreamMP3 = null
 	if ResourceLoader.exists(INGAME_MUSIC_PATH):
@@ -319,7 +332,7 @@ func _setup_music() -> void:
 		_music_player.stream = gen
 
 	add_child(_music_player)
-	if PlayerData.sound_enabled:
+	if PlayerData.music_enabled:
 		_music_player.play()
 		call_deferred("_grab_music_playback")
 

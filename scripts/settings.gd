@@ -7,6 +7,8 @@ extends Node2D
 @onready var volume_slider:    HSlider       = $UI/Panel/VBox/VolumeRow/VolumeSlider
 # This button replaces the old percent label and acts as the sound on/off toggle
 @onready var sound_toggle_btn: Button        = $UI/Panel/VBox/VolumeRow/VolumeValueLabel
+@onready var sfx_slider:       HSlider       = $UI/Panel/VBox/SfxRow/SfxSlider
+@onready var sfx_toggle_btn:   Button        = $UI/Panel/VBox/SfxRow/SfxValueLabel
 
 const C_GOLD  := Color(0.84, 0.72, 0.22)
 const C_OLIVE := Color(0.08, 0.14, 0.06)
@@ -18,9 +20,13 @@ func _ready() -> void:
 	_style_confirm_box()
 	_style_reset_btn()
 	_refresh_sound_btn()
+	_refresh_sfx_btn()
 	volume_slider.value = PlayerData.volume * 100.0
 	volume_slider.value_changed.connect(_on_volume_changed)
 	sound_toggle_btn.pressed.connect(_on_sound_toggled)
+	sfx_slider.value = PlayerData.sfx_volume * 100.0
+	sfx_slider.value_changed.connect(_on_sfx_changed)
+	sfx_toggle_btn.pressed.connect(_on_sfx_toggled)
 
 	$UI/TopBar/BackBtn.pressed.connect(func():
 		get_tree().change_scene_to_file("res://scenes/menu.tscn"))
@@ -110,7 +116,7 @@ func _style_reset_btn() -> void:
 	reset_btn.add_theme_stylebox_override("pressed", _btn_flat(Color(0.14,0.04,0.03), Color(0.65,0.18,0.14)))
 
 func _refresh_sound_btn() -> void:
-	var on: bool = PlayerData.sound_enabled
+	var on: bool = PlayerData.music_enabled
 	sound_toggle_btn.text = "🔊" if on else "🔇"
 	if on:
 		sound_toggle_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
@@ -120,7 +126,20 @@ func _refresh_sound_btn() -> void:
 		sound_toggle_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
 		sound_toggle_btn.add_theme_stylebox_override("normal", _btn_flat(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
 		sound_toggle_btn.add_theme_stylebox_override("hover",  _btn_flat(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
-	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), not on)
+	# Do not mute Master as a fallback (would mute SFX). Music start/stop handled by Audio.refresh_music()/refresh_menu_music().
+
+func _refresh_sfx_btn() -> void:
+	var on: bool = PlayerData.sfx_enabled
+	sfx_toggle_btn.text = "🔊" if on else "🔇"
+	if on:
+		sfx_toggle_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
+		sfx_toggle_btn.add_theme_stylebox_override("normal", _btn_flat(Color(0.06,0.20,0.08), Color(0.25,0.75,0.35)))
+		sfx_toggle_btn.add_theme_stylebox_override("hover",  _btn_flat(Color(0.10,0.28,0.12), Color(0.35,0.90,0.45)))
+	else:
+		sfx_toggle_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
+		sfx_toggle_btn.add_theme_stylebox_override("normal", _btn_flat(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
+		sfx_toggle_btn.add_theme_stylebox_override("hover",  _btn_flat(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
+
 
 func _refresh_volume_lbl() -> void:
 	# percent display removed — volume numeric no longer shown in UI
@@ -131,12 +150,22 @@ func _on_volume_changed(value: float) -> void:
 	PlayerData.apply_volume()
 	PlayerData.save_data()
 
+func _on_sfx_changed(value: float) -> void:
+	PlayerData.sfx_volume = value / 100.0
+	PlayerData.apply_volume()
+	PlayerData.save_data()
+
 func _on_sound_toggled() -> void:
-	PlayerData.sound_enabled = not PlayerData.sound_enabled
+	PlayerData.music_enabled = not PlayerData.music_enabled
 	PlayerData.save_data()
 	_refresh_sound_btn()
 	Audio.refresh_music()
 	Audio.refresh_menu_music()
+
+func _on_sfx_toggled() -> void:
+	PlayerData.sfx_enabled = not PlayerData.sfx_enabled
+	PlayerData.save_data()
+	_refresh_sfx_btn()
 
 func _on_reset_pressed() -> void:
 	confirm_box.visible = true
