@@ -374,6 +374,7 @@ func trigger_game_over() -> void:
 		return
 	is_game_over = true
 	hide_boss_hp()
+	Audio.play_died_music()
 	emit_signal("game_over_signal")
 	Audio.play("game_over")
 	# Game over: ít coin hơn hoàn thành, tính theo điểm / 50 (tối thiểu 5)
@@ -440,12 +441,21 @@ func _show_game_over_popup(earned_coins: int) -> void:
 	title.add_theme_constant_override("shadow_offset_y", 2)
 	panel.add_child(title)
 
+	var thanks_lbl := Label.new()
+	thanks_lbl.text = "Tri an nguoi choi"
+	thanks_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	thanks_lbl.size = Vector2(panel_w, 22)
+	thanks_lbl.position = Vector2(0, 68)
+	thanks_lbl.add_theme_font_size_override("font_size", 14)
+	thanks_lbl.add_theme_color_override("font_color", Color(0.95, 0.82, 0.58))
+	panel.add_child(thanks_lbl)
+
 	# Thông tin điểm
 	var score_lbl := Label.new()
 	score_lbl.text = "Điểm: %d" % score
 	score_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_lbl.size = Vector2(panel_w, 30)
-	score_lbl.position = Vector2(0, 80)
+	score_lbl.position = Vector2(0, 94)
 	score_lbl.add_theme_font_size_override("font_size", 20)
 	score_lbl.add_theme_color_override("font_color", Color(0.9, 0.85, 0.6))
 	panel.add_child(score_lbl)
@@ -456,7 +466,7 @@ func _show_game_over_popup(earned_coins: int) -> void:
 	wave_info.text = "Wave: %d / %d" % [current_wave, max_w] if max_w < 999 else "Wave: %d" % current_wave
 	wave_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	wave_info.size = Vector2(panel_w, 26)
-	wave_info.position = Vector2(0, 112)
+	wave_info.position = Vector2(0, 126)
 	wave_info.add_theme_font_size_override("font_size", 16)
 	wave_info.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
 	panel.add_child(wave_info)
@@ -466,7 +476,7 @@ func _show_game_over_popup(earned_coins: int) -> void:
 	coin_lbl.text = "+%d 💰" % earned_coins
 	coin_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	coin_lbl.size = Vector2(panel_w, 26)
-	coin_lbl.position = Vector2(0, 140)
+	coin_lbl.position = Vector2(0, 154)
 	coin_lbl.add_theme_font_size_override("font_size", 16)
 	coin_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
 	panel.add_child(coin_lbl)

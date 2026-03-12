@@ -34,6 +34,7 @@ var _mp3_sfx_loaded := false
 # ── MUSIC ─────────────────────────────────────────────────────────────────────
 var _music_player:  AudioStreamPlayer = null
 const INGAME_MUSIC_PATH := "res://assets/audio/game_background_music1.mp3"
+const DIED_MUSIC_PATH := "res://assets/audio/died_music.mp3"
 var _music_pb:      AudioStreamGeneratorPlayback = null
 var _music_t:       float = 0.0
 var _chord_beat:    float = 0.0
@@ -138,6 +139,25 @@ func refresh_music() -> void:
 		_music_player.stop()
 		_music_pb = null
 
+func play_ingame_music() -> void:
+	if _music_player == null: return
+	if not PlayerData.music_enabled: return
+	_set_music_stream_from_path(INGAME_MUSIC_PATH, true)
+	if not _music_player.playing:
+		_music_player.play()
+		call_deferred("_grab_music_playback")
+
+func play_died_music() -> void:
+	if _music_player == null: return
+	if not PlayerData.music_enabled: return
+	# Ngắt nhạc menu và nhạc nền gameplay, phát nhạc thua trận
+	if _menu_music_player != null and _menu_music_player.playing:
+		_menu_music_player.stop()
+	_set_music_stream_from_path(DIED_MUSIC_PATH, false)
+	_music_player.stop()
+	_music_player.play()
+	_music_pb = null
+
 ## Phát nhạc nền menu từ file MP3 (lac_troi.mp3)
 ## Tắt nhạc procedural chỉ khi MP3 load thành công
 func play_menu_music() -> void:
@@ -166,9 +186,7 @@ func play_menu_music() -> void:
 func stop_menu_music() -> void:
 	if _menu_music_player != null:
 		_menu_music_player.stop()
-	if PlayerData.music_enabled and _music_player != null and not _music_player.playing:
-		_music_player.play()
-		call_deferred("_grab_music_playback")
+	play_ingame_music()
 
 ## Gọi sau khi toggle sound để cập nhật nhạc menu đang phát
 func refresh_menu_music() -> void:
@@ -367,14 +385,7 @@ func _setup_music() -> void:
 	else:
 		_music_player.bus = "Master"
 	
-	var stream: AudioStreamMP3 = null
-	if ResourceLoader.exists(INGAME_MUSIC_PATH):
-		stream = load(INGAME_MUSIC_PATH) as AudioStreamMP3
-		
-	if stream != null:
-		stream.loop = true
-		_music_player.stream = stream
-	else:
+	if not _set_music_stream_from_path(INGAME_MUSIC_PATH, true):
 		var gen := AudioStreamGenerator.new()
 		gen.mix_rate      = MUSIC_RATE
 		gen.buffer_length = 0.15
@@ -388,3 +399,12 @@ func _setup_music() -> void:
 func _grab_music_playback() -> void:
 	if _music_player != null and _music_player.playing:
 		_music_pb = _music_player.get_stream_playback() as AudioStreamGeneratorPlayback
+
+func _set_music_stream_from_path(path: String, looped: bool) -> bool:
+	if _music_player == null: return false
+	if not ResourceLoader.exists(path): return false
+	var stream := load(path) as AudioStreamMP3
+	if stream == null: return false
+	stream.loop = looped
+	_music_player.stream = stream
+	return true

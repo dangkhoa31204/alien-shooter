@@ -58,6 +58,7 @@ var _history_panel: Control = null # Historical info panel
 var _showing_stage_history: bool = false # True when history popup shown at stage start
 var _damage_vignette: ColorRect = null # Red flash on damage
 var _alert_panel: Panel = null          # Animated alert panel
+var _defeat_overlay: Control = null     # Game over popup in contra mode
 
 func _add_to_level(node: Node) -> void:
 	if is_instance_valid(_level_node):
@@ -2899,9 +2900,160 @@ func refresh_heavy_weapon(cooldown: float, _max_cooldown: float) -> void:
 			cd_lbl.text = "SẴN SÀNG"
 			cd_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
 
-func on_player_die():
-	# FIX: call_deferred to avoid physics state changes during collision callbacks
-	call_deferred("_start_stage", current_stage, true)
+func on_player_die() -> void:
+	if is_game_over: return
+	is_game_over = true
+	Audio.play_died_music()
+	# Dọn kẻ địch để màn hình thất bại rõ ràng hơn
+	var tree: SceneTree = get_tree()
+	if tree:
+		for n in tree.get_nodes_in_group("enemy"):
+			if is_instance_valid(n): n.queue_free()
+	# Delay ngắn để giữ nhịp chết của player trước khi bật popup
+	var t := Timer.new()
+	t.one_shot = true
+	t.wait_time = 1.0
+	t.process_mode = Node.PROCESS_MODE_ALWAYS
+	t.timeout.connect(_show_defeat_popup)
+	add_child(t)
+	t.start()
+
+func _show_defeat_popup() -> void:
+	if is_instance_valid(_defeat_overlay): return
+	if not has_node("UI"): return
+
+	_defeat_overlay = Control.new()
+	_defeat_overlay.name = "DefeatOverlay"
+	_defeat_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	_defeat_overlay.anchor_right = 1.0
+	_defeat_overlay.anchor_bottom = 1.0
+	$UI.add_child(_defeat_overlay)
+
+	var bg := ColorRect.new()
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.color = Color(0.0, 0.0, 0.0, 0.78)
+	_defeat_overlay.add_child(bg)
+
+	var panel_w: float = 420.0
+	var panel_h: float = 320.0
+	var panel := Panel.new()
+	panel.size = Vector2(panel_w, panel_h)
+	panel.position = Vector2((1152.0 - panel_w) * 0.5, (720.0 - panel_h) * 0.5)
+	var sty := StyleBoxFlat.new()
+	sty.bg_color = Color(0.12, 0.04, 0.04, 0.96)
+	sty.border_color = Color(0.92, 0.25, 0.2, 0.9)
+	sty.border_width_left = 2
+	sty.border_width_right = 2
+	sty.border_width_top = 2
+	sty.border_width_bottom = 2
+	sty.set_corner_radius_all(10)
+	panel.add_theme_stylebox_override("panel", sty)
+	_defeat_overlay.add_child(panel)
+
+	var title := Label.new()
+	title.text = "THẤT BẠI"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.size = Vector2(panel_w, 56)
+	title.position = Vector2(0, 20)
+	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_color_override("font_color", Color(1.0, 0.25, 0.2))
+	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	title.add_theme_constant_override("shadow_offset_x", 2)
+	title.add_theme_constant_override("shadow_offset_y", 2)
+	panel.add_child(title)
+
+	var thanks_lbl := Label.new()
+	thanks_lbl.text = "Tri an nguoi choi"
+	thanks_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	thanks_lbl.size = Vector2(panel_w, 24)
+	thanks_lbl.position = Vector2(0, 80)
+	thanks_lbl.add_theme_font_size_override("font_size", 15)
+	thanks_lbl.add_theme_color_override("font_color", Color(0.95, 0.82, 0.58))
+	panel.add_child(thanks_lbl)
+
+	var score_lbl := Label.new()
+	score_lbl.text = "Điểm: %d" % score
+	score_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_lbl.size = Vector2(panel_w, 30)
+	score_lbl.position = Vector2(0, 116)
+	score_lbl.add_theme_font_size_override("font_size", 22)
+	score_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.70))
+	panel.add_child(score_lbl)
+
+	var stage_lbl := Label.new()
+	stage_lbl.text = "Chiến dịch: %d" % current_stage
+	stage_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stage_lbl.size = Vector2(panel_w, 26)
+	stage_lbl.position = Vector2(0, 148)
+	stage_lbl.add_theme_font_size_override("font_size", 18)
+	stage_lbl.add_theme_color_override("font_color", Color(0.72, 0.78, 0.9))
+	panel.add_child(stage_lbl)
+
+	var btn_w: float = panel_w - 70.0
+	var replay_btn := _make_defeat_btn("Chơi lại", Vector2(35, 190), btn_w)
+	replay_btn.pressed.connect(_on_defeat_replay)
+	panel.add_child(replay_btn)
+
+	var exit_btn := _make_defeat_btn("Thoát", Vector2(35, 246), btn_w)
+	exit_btn.pressed.connect(_on_defeat_exit)
+	panel.add_child(exit_btn)
+
+	panel.modulate.a = 0.0
+	panel.scale = Vector2(0.7, 0.7)
+	panel.pivot_offset = panel.size * 0.5
+	var tw: Tween = create_tween()
+	tw.tween_property(panel, "modulate:a", 1.0, 0.22)
+	tw.parallel().tween_property(panel, "scale", Vector2(1.0, 1.0), 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+	get_tree().paused = true
+	_is_paused = true
+
+func _make_defeat_btn(txt: String, pos: Vector2, w: float) -> Button:
+	var btn := Button.new()
+	btn.text = txt
+	btn.position = pos
+	btn.size = Vector2(w, 44)
+	btn.process_mode = Node.PROCESS_MODE_ALWAYS
+	btn.add_theme_font_size_override("font_size", 18)
+	btn.add_theme_color_override("font_color", Color(0.95, 0.95, 1.0))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.62, 0.5))
+	btn.add_theme_color_override("font_pressed_color", Color(1.0, 1.0, 0.45))
+	var sty_n := StyleBoxFlat.new()
+	sty_n.bg_color = Color(0.18, 0.08, 0.08, 0.92)
+	sty_n.border_color = Color(0.72, 0.26, 0.2, 0.75)
+	sty_n.border_width_left = 1
+	sty_n.border_width_right = 1
+	sty_n.border_width_top = 1
+	sty_n.border_width_bottom = 1
+	sty_n.set_corner_radius_all(6)
+	var sty_h := sty_n.duplicate() as StyleBoxFlat
+	sty_h.bg_color = Color(0.35, 0.12, 0.12, 0.95)
+	sty_h.border_color = Color(1.0, 0.42, 0.3, 1.0)
+	var sty_p := sty_n.duplicate() as StyleBoxFlat
+	sty_p.bg_color = Color(0.1, 0.05, 0.05, 0.9)
+	btn.add_theme_stylebox_override("normal", sty_n)
+	btn.add_theme_stylebox_override("hover", sty_h)
+	btn.add_theme_stylebox_override("pressed", sty_p)
+	return btn
+
+func _on_defeat_replay() -> void:
+	if get_tree():
+		get_tree().paused = false
+	_is_paused = false
+	if is_instance_valid(_defeat_overlay):
+		_defeat_overlay.queue_free()
+		_defeat_overlay = null
+	call_deferred("_start_stage", current_stage, false)
+
+func _on_defeat_exit() -> void:
+	if get_tree():
+		get_tree().paused = false
+	_is_paused = false
+	if is_instance_valid(_defeat_overlay):
+		_defeat_overlay.queue_free()
+		_defeat_overlay = null
+	get_tree().change_scene_to_file("res://scenes/level_select.tscn")
 
 func on_stage_complete():
 	if is_game_over: return  # FIX: prevent double-firing if player lingers at boundary
