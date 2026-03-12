@@ -208,7 +208,7 @@ func _aim_and_fire(player: Node2D, delta: float) -> void:
 	_head_node.rotation = lerp_angle(_head_node.rotation, target_rot * 0.1, 0.2)
 
 	if shoot_timer.is_stopped(): 
-		var wait = (0.4 if is_officer else 1.2) + randf() * 0.3
+		var wait = (0.8 if is_officer else 2.0) + randf() * 0.5
 		shoot_timer.start(wait)
 
 func _on_shoot_timer_timeout() -> void:
