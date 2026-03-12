@@ -1,13 +1,12 @@
 extends Node2D
 # settings.gd — Cài đặt: bật/tắt âm thanh, âm lượng, reset dữ liệu game
 
-@onready var sound_btn:        Button        = $UI/Panel/VBox/SoundRow/SoundBtn
-@onready var sound_label:      Label         = $UI/Panel/VBox/SoundRow/SoundLabel
 @onready var reset_btn:        Button        = $UI/Panel/VBox/ResetBtn
 @onready var confirm_box:      VBoxContainer = $UI/ConfirmBox
 @onready var status_label:     Label         = $UI/StatusLabel
 @onready var volume_slider:    HSlider       = $UI/Panel/VBox/VolumeRow/VolumeSlider
-@onready var volume_value_lbl: Label         = $UI/Panel/VBox/VolumeRow/VolumeValueLabel
+# This button replaces the old percent label and acts as the sound on/off toggle
+@onready var sound_toggle_btn: Button        = $UI/Panel/VBox/VolumeRow/VolumeValueLabel
 
 const C_GOLD  := Color(0.84, 0.72, 0.22)
 const C_OLIVE := Color(0.08, 0.14, 0.06)
@@ -20,12 +19,11 @@ func _ready() -> void:
 	_style_reset_btn()
 	_refresh_sound_btn()
 	volume_slider.value = PlayerData.volume * 100.0
-	_refresh_volume_lbl()
 	volume_slider.value_changed.connect(_on_volume_changed)
+	sound_toggle_btn.pressed.connect(_on_sound_toggled)
 
 	$UI/TopBar/BackBtn.pressed.connect(func():
 		get_tree().change_scene_to_file("res://scenes/menu.tscn"))
-	sound_btn.pressed.connect(_on_sound_toggled)
 	reset_btn.pressed.connect(_on_reset_pressed)
 	$UI/ConfirmBox/BtnRow/YesBtn.pressed.connect(_on_confirm_yes)
 	$UI/ConfirmBox/BtnRow/NoBtn.pressed.connect(_on_confirm_no)
@@ -113,26 +111,25 @@ func _style_reset_btn() -> void:
 
 func _refresh_sound_btn() -> void:
 	var on: bool = PlayerData.sound_enabled
-	sound_btn.text = "🔊  BẬT" if on else "🔇  TẮT"
+	sound_toggle_btn.text = "🔊" if on else "🔇"
 	if on:
-		sound_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
-		sound_btn.add_theme_stylebox_override("normal", _btn_flat(Color(0.06,0.20,0.08), Color(0.25,0.75,0.35)))
-		sound_btn.add_theme_stylebox_override("hover",  _btn_flat(Color(0.10,0.28,0.12), Color(0.35,0.90,0.45)))
+		sound_toggle_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
+		sound_toggle_btn.add_theme_stylebox_override("normal", _btn_flat(Color(0.06,0.20,0.08), Color(0.25,0.75,0.35)))
+		sound_toggle_btn.add_theme_stylebox_override("hover",  _btn_flat(Color(0.10,0.28,0.12), Color(0.35,0.90,0.45)))
 	else:
-		sound_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
-		sound_btn.add_theme_stylebox_override("normal", _btn_flat(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
-		sound_btn.add_theme_stylebox_override("hover",  _btn_flat(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
+		sound_toggle_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
+		sound_toggle_btn.add_theme_stylebox_override("normal", _btn_flat(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
+		sound_toggle_btn.add_theme_stylebox_override("hover",  _btn_flat(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
 	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), not on)
 
 func _refresh_volume_lbl() -> void:
-	var pct: int = roundi(PlayerData.volume * 100.0)
-	volume_value_lbl.text = "%d%%" % pct
+	# percent display removed — volume numeric no longer shown in UI
+	pass
 
 func _on_volume_changed(value: float) -> void:
 	PlayerData.volume = value / 100.0
 	PlayerData.apply_volume()
 	PlayerData.save_data()
-	_refresh_volume_lbl()
 
 func _on_sound_toggled() -> void:
 	PlayerData.sound_enabled = not PlayerData.sound_enabled

@@ -71,7 +71,7 @@ func _shoot(p: Node2D) -> void:
 	b.direction = (p.global_position - b.global_position).normalized()
 	b.is_enemy_bullet = true
 	b.add_to_group("enemy_bullet")
-	Audio.play("gun_fire")
+	Audio.play("m4_fire")
 
 func _get_main_scene() -> Node:
 	var curr = get_parent()
