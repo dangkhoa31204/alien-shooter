@@ -1,19 +1,20 @@
-[gd_scene format=3 uid="uid://hiscore01"]
+[gd_scene format=3 uid="uid://dx2uwo4dbs8fg"]
 
 [ext_resource type="Script" path="res://scripts/highscore_screen.gd" id="1_hs"]
 
-[node name="HighScoreScreen" type="Node2D"]
+[node name="HighScoreScreen" type="Node2D" unique_id=2079234681]
 script = ExtResource("1_hs")
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="UI" type="CanvasLayer" parent="." unique_id=785959522]
 
-[node name="BG" type="ColorRect" parent="UI"]
+[node name="BG" type="ColorRect" parent="UI" unique_id=276102632]
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 color = Color(0.04, 0.04, 0.12, 1)
 
-[node name="Title" type="Label" parent="UI"]
-anchor_left = 0.0
+[node name="Title" type="Label" parent="UI" unique_id=1030448462]
+anchors_preset = 10
 anchor_right = 1.0
 offset_top = 40.0
 offset_bottom = 90.0
@@ -21,31 +22,31 @@ theme_override_font_sizes/font_size = 36
 text = "★  ĐIỂM CAO NHẤT  ★"
 horizontal_alignment = 1
 
-[node name="List" type="Label" parent="UI"]
+[node name="List" type="Label" parent="UI" unique_id=1656272897]
+anchors_preset = -1
 anchor_left = 0.1
 anchor_right = 0.9
 offset_top = 110.0
 offset_bottom = 600.0
 theme_override_font_sizes/font_size = 20
-text = ""
 autowrap_mode = 3
 
-[node name="Footer" type="Label" parent="UI"]
-anchor_left = 0.0
+[node name="Footer" type="Label" parent="UI" unique_id=2078895408]
+modulate = Color(0.7, 0.7, 0.7, 1)
+anchors_preset = 10
 anchor_right = 1.0
 offset_top = 645.0
 offset_bottom = 680.0
 theme_override_font_sizes/font_size = 18
 text = "[Enter] / [Esc]  →  MENU"
 horizontal_alignment = 1
-modulate = Color(0.7, 0.7, 0.7, 1)
 
-[node name="CoinLabel" type="Label" parent="UI"]
-anchor_left = 0.0
+[node name="CoinLabel" type="Label" parent="UI" unique_id=642037395]
+anchors_preset = 10
 anchor_right = 1.0
 offset_top = 604.0
 offset_bottom = 640.0
+theme_override_colors/font_color = Color(1, 0.88, 0.2, 1)
 theme_override_font_sizes/font_size = 20
-theme_override_colors/font_color = Color(1.0, 0.88, 0.2, 1)
 text = "💰 Tổng coins: 0"
 horizontal_alignment = 1

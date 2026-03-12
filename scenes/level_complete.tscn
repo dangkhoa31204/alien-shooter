@@ -1,31 +1,31 @@
-[gd_scene format=3 uid="uid://c44acnuqpgvlk"]
+[gd_scene format=3 uid="uid://cnw3vkqnsd7ue"]
 
 [ext_resource type="Script" path="res://scripts/level_complete.gd" id="1_lc"]
 [ext_resource type="Script" uid="uid://c8co51twf2ksw" path="res://scripts/background.gd" id="2_bg"]
 
-[node name="LevelComplete" type="Node2D"]
+[node name="LevelComplete" type="Node2D" unique_id=1866698279]
 script = ExtResource("1_lc")
 
-[node name="Background" type="Node2D" parent="." ]
+[node name="Background" type="Node2D" parent="." unique_id=1391210462]
 z_index = -10
 script = ExtResource("2_bg")
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="UI" type="CanvasLayer" parent="." unique_id=522229923]
 
-[node name="Title" type="Label" parent="UI"]
-anchor_left = 0.0
+[node name="Title" type="Label" parent="UI" unique_id=668283528]
+anchors_preset = 10
 anchor_right = 1.0
 offset_top = 36.0
 offset_bottom = 96.0
-theme_override_colors/font_color = Color(0.35, 1.0, 0.55, 1)
-theme_override_colors/font_shadow_color = Color(0.0, 0.6, 0.2, 0.85)
+theme_override_colors/font_color = Color(0.35, 1, 0.55, 1)
+theme_override_colors/font_shadow_color = Color(0, 0.6, 0.2, 0.85)
 theme_override_constants/shadow_offset_x = 3
 theme_override_constants/shadow_offset_y = 3
 theme_override_font_sizes/font_size = 48
 text = "★  HOÀN THÀNH MÀN  ★"
 horizontal_alignment = 1
 
-[node name="Card" type="PanelContainer" parent="UI"]
+[node name="Card" type="PanelContainer" parent="UI" unique_id=726698347]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -36,80 +36,79 @@ offset_top = -210.0
 offset_right = 300.0
 offset_bottom = 230.0
 
-[node name="VBox" type="VBoxContainer" parent="UI/Card"]
+[node name="VBox" type="VBoxContainer" parent="UI/Card" unique_id=449771025]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="LevelName" type="Label" parent="UI/Card/VBox"]
+[node name="LevelName" type="Label" parent="UI/Card/VBox" unique_id=469500819]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.88, 1.0, 1)
+theme_override_colors/font_color = Color(0.4, 0.88, 1, 1)
 theme_override_font_sizes/font_size = 30
-horizontal_alignment = 1
 text = "LEVEL"
+horizontal_alignment = 1
 
-[node name="Stars" type="Label" parent="UI/Card/VBox"]
+[node name="Stars" type="Label" parent="UI/Card/VBox" unique_id=227350529]
 layout_mode = 2
-theme_override_colors/font_color = Color(1.0, 0.85, 0.15, 1)
+theme_override_colors/font_color = Color(1, 0.85, 0.15, 1)
 theme_override_font_sizes/font_size = 40
-horizontal_alignment = 1
 text = "★★★"
-
-[node name="Score" type="Label" parent="UI/Card/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.9, 1.0, 1)
-theme_override_font_sizes/font_size = 26
 horizontal_alignment = 1
-text = "Điểm: 0"
 
-[node name="Waves" type="Label" parent="UI/Card/VBox"]
+[node name="Score" type="Label" parent="UI/Card/VBox" unique_id=2010699186]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 1, 1)
+theme_override_font_sizes/font_size = 26
+text = "Điểm: 0"
+horizontal_alignment = 1
+
+[node name="Waves" type="Label" parent="UI/Card/VBox" unique_id=1357898005]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.75, 0.85, 1)
 theme_override_font_sizes/font_size = 20
-horizontal_alignment = 1
 text = "Wave: 0 / 0"
-
-[node name="Coins" type="Label" parent="UI/Card/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1.0, 0.88, 0.2, 1)
-theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
-text = "+0 💰"
 
-[node name="Spacer" type="Control" parent="UI/Card/VBox"]
+[node name="Coins" type="Label" parent="UI/Card/VBox" unique_id=839072834]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 6)
+theme_override_colors/font_color = Color(1, 0.88, 0.2, 1)
+theme_override_font_sizes/font_size = 22
+text = "+0 💰"
+horizontal_alignment = 1
 
-[node name="BtnRow" type="HBoxContainer" parent="UI/Card/VBox"]
+[node name="Spacer" type="Control" parent="UI/Card/VBox" unique_id=694079606]
+custom_minimum_size = Vector2(0, 6)
+layout_mode = 2
+
+[node name="BtnRow" type="HBoxContainer" parent="UI/Card/VBox" unique_id=1322071535]
 layout_mode = 2
 theme_override_constants/separation = 18
 alignment = 1
 
-[node name="ReplayBtn" type="Button" parent="UI/Card/VBox/BtnRow"]
+[node name="ReplayBtn" type="Button" parent="UI/Card/VBox/BtnRow" unique_id=535793443]
 custom_minimum_size = Vector2(150, 48)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.3, 1.0, 0.5, 1)
+theme_override_colors/font_color = Color(0.3, 1, 0.5, 1)
 theme_override_font_sizes/font_size = 19
 text = "🔄  CHƠI LẠI"
 
-[node name="LevelsBtn" type="Button" parent="UI/Card/VBox/BtnRow"]
+[node name="LevelsBtn" type="Button" parent="UI/Card/VBox/BtnRow" unique_id=392913125]
 custom_minimum_size = Vector2(150, 48)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.85, 1.0, 1)
+theme_override_colors/font_color = Color(0.4, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 19
 text = "🗺  CHỌN MÀN"
 
-[node name="MenuBtn" type="Button" parent="UI/Card/VBox/BtnRow"]
+[node name="MenuBtn" type="Button" parent="UI/Card/VBox/BtnRow" unique_id=23937652]
 custom_minimum_size = Vector2(130, 48)
 layout_mode = 2
 theme_override_font_sizes/font_size = 19
 text = "🏠  MENU"
 
-[node name="CoinTotal" type="Label" parent="UI"]
-anchor_left = 0.0
+[node name="CoinTotal" type="Label" parent="UI" unique_id=1925078614]
+anchors_preset = 10
 anchor_right = 1.0
 offset_top = 656.0
 offset_bottom = 690.0
-theme_override_colors/font_color = Color(1.0, 0.88, 0.2, 0.7)
+theme_override_colors/font_color = Color(1, 0.88, 0.2, 0.7)
 theme_override_font_sizes/font_size = 17
 horizontal_alignment = 1
-text = ""

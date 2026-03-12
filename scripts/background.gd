@@ -18,7 +18,7 @@ var _nebulae:  Array = []
 var _planets:  Array = []
 var _shooters: Array = []
 var _shoot_cd: float = 2.2
-# Theme pack colors (set dựa theo PlayerData.active_theme trong _ready)
+# Background colors
 var _bg_top:      Color = Color(0.010, 0.008, 0.055)
 var _bg_bot:      Color = Color(0.002, 0.002, 0.022)
 var _grid_col:    Color = Color(0.12, 0.40, 0.88)
@@ -72,25 +72,7 @@ func _ready() -> void:
 		_gen_planets()
 
 func _load_theme() -> void:
-	var p: Dictionary = ThemePack.get_pack()
-	_bg_top       = p.get("bg_top",   Color(0.010, 0.008, 0.055))
-	_bg_bot       = p.get("bg_bot",   Color(0.002, 0.002, 0.022))
-	_grid_col     = p.get("grid",     Color(0.12, 0.40, 0.88))
-	_galaxy_col   = p.get("galaxy",   Color(0.52, 0.42, 0.80))
-	_nebula_cols  = p.get("nebulae",  [])
-	_star_cols    = p.get("stars",    [])
-	_shooter_cols = p.get("shooters", [])
-	_planet_cfgs  = p.get("planets",  [])
-	
-	# Only set _vietnam_mode if it wasn't already forced
-	if not _vietnam_mode:
-		_vietnam_mode = p.get("shape_mode", "") == "aerial_warfare"
-	
-	# Đóng băng scroll trong các màn boss challenge
-	var lv: Dictionary = PlayerData.current_level
-	if lv.get("is_boss_challenge", false):
-		_frozen    = true
-		_hq_ground = lv.get("challenge_aerial", false)
+	_vietnam_mode = true
 
 func _process(delta: float) -> void:
 	_t += delta

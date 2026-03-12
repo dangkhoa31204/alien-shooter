@@ -273,17 +273,7 @@ func _refresh_coins() -> void:
 	var lbl = get_node_or_null("UI/CoinLabel")
 	if lbl: lbl.text = "💰 %d coins" % PlayerData.coins
 
-func _on_play_pressed() -> void:
-	Audio.play("button_click")
-	get_tree().change_scene_to_file("res://scenes/airplane_level_select.tscn")
 
-func _on_shop_pressed() -> void:
-	Audio.play("button_click")
-	get_tree().change_scene_to_file("res://scenes/shop.tscn")
-
-func _on_highscore_pressed() -> void:
-	Audio.play("button_click")
-	get_tree().change_scene_to_file("res://scenes/highscore.tscn")
 
 func _on_settings_pressed() -> void:
 	Audio.play("button_click")
@@ -293,9 +283,7 @@ func _on_settings_pressed() -> void:
 		if ui: ui.move_child(popup, -1)
 		popup.show()
 		
-func _on_themes_pressed() -> void:
-	Audio.play("button_click")
-	get_tree().change_scene_to_file("res://scenes/themes.tscn")
+
 
 func _add_settings_popup() -> void:
 	var ui = get_node_or_null("UI")
@@ -396,7 +384,6 @@ func _add_settings_popup() -> void:
 	reset_btn.pressed.connect(func():
 		Audio.play("button_click")
 		PlayerData.reset_data()
-		HighScore.reset_scores()
 		PlayerData.music_enabled = false
 		PlayerData.save_data()
 		vol_val_btn.text = "🔇"

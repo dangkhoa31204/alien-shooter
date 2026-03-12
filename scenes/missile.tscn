@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://cwt4oois4rwgu"]
 
 [ext_resource type="Script" path="res://scripts/missile.gd" id="1"]
 
-[node name="Missile" type="Area2D"]
+[node name="Missile" type="Area2D" unique_id=277961189]
 script = ExtResource("1")
