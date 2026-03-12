@@ -379,11 +379,154 @@ func trigger_game_over() -> void:
 	# Game over: ít coin hơn hoàn thành, tính theo điểm / 50 (tối thiểu 5)
 	var earned_coins: int = maxi(5, score / 50)
 	PlayerData.add_coins(earned_coins)
-	if ui_label:
-		ui_label.text = "GAME OVER\nScore: %d\n+%d coins" % [score, earned_coins]
 	if hp_label:
 		hp_label.text = ""
 	HighScore.save_score(score, current_wave)
-	# Đợi 1.5s rồi chuyển sang màn hình điểm cao
-	await get_tree().create_timer(1.5).timeout
-	get_tree().change_scene_to_file("res://scenes/highscore.tscn")
+	# Hiển thị popup thất bại sau 1.5s — dùng Timer thay vì await để chắc chắn
+	var _go_timer := Timer.new()
+	_go_timer.wait_time = 1.5
+	_go_timer.one_shot = true
+	_go_timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	_go_timer.timeout.connect(_show_game_over_popup.bind(earned_coins))
+	add_child(_go_timer)
+	_go_timer.start()
+
+func _show_game_over_popup(earned_coins: int) -> void:
+	var overlay := Control.new()
+	overlay.name         = "GameOverOverlay"
+	overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	overlay.anchor_right  = 1.0
+	overlay.anchor_bottom = 1.0
+	$UI.add_child(overlay)
+
+	# Nền mờ
+	var bg := ColorRect.new()
+	bg.anchor_right  = 1.0
+	bg.anchor_bottom = 1.0
+	bg.color = Color(0.0, 0.0, 0.0, 0.75)
+	overlay.add_child(bg)
+
+	# Panel trung tâm
+	var vp_size := get_viewport().get_visible_rect().size
+	var panel_w: float = 320.0
+	var panel_h: float = 300.0
+	var panel := Panel.new()
+	panel.position = Vector2((vp_size.x - panel_w) * 0.5, (vp_size.y - panel_h) * 0.5)
+	panel.size     = Vector2(panel_w, panel_h)
+	var sty := StyleBoxFlat.new()
+	sty.bg_color            = Color(0.12, 0.04, 0.04, 0.96)
+	sty.border_color        = Color(0.9, 0.2, 0.2, 0.9)
+	sty.border_width_left   = 2
+	sty.border_width_right  = 2
+	sty.border_width_top    = 2
+	sty.border_width_bottom = 2
+	sty.corner_radius_top_left     = 10
+	sty.corner_radius_top_right    = 10
+	sty.corner_radius_bottom_left  = 10
+	sty.corner_radius_bottom_right = 10
+	panel.add_theme_stylebox_override("panel", sty)
+	overlay.add_child(panel)
+
+	# Tiêu đề THẤT BẠI
+	var title := Label.new()
+	title.text = "THẤT BẠI"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.size = Vector2(panel_w, 50)
+	title.position = Vector2(0, 20)
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", Color(1.0, 0.25, 0.2))
+	title.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.8))
+	title.add_theme_constant_override("shadow_offset_x", 2)
+	title.add_theme_constant_override("shadow_offset_y", 2)
+	panel.add_child(title)
+
+	# Thông tin điểm
+	var score_lbl := Label.new()
+	score_lbl.text = "Điểm: %d" % score
+	score_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_lbl.size = Vector2(panel_w, 30)
+	score_lbl.position = Vector2(0, 80)
+	score_lbl.add_theme_font_size_override("font_size", 20)
+	score_lbl.add_theme_color_override("font_color", Color(0.9, 0.85, 0.6))
+	panel.add_child(score_lbl)
+
+	# Thông tin wave
+	var wave_info := Label.new()
+	var max_w: int = PlayerData.current_level.get("max_waves", 999)
+	wave_info.text = "Wave: %d / %d" % [current_wave, max_w] if max_w < 999 else "Wave: %d" % current_wave
+	wave_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	wave_info.size = Vector2(panel_w, 26)
+	wave_info.position = Vector2(0, 112)
+	wave_info.add_theme_font_size_override("font_size", 16)
+	wave_info.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
+	panel.add_child(wave_info)
+
+	# Thông tin coin nhận được
+	var coin_lbl := Label.new()
+	coin_lbl.text = "+%d 💰" % earned_coins
+	coin_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	coin_lbl.size = Vector2(panel_w, 26)
+	coin_lbl.position = Vector2(0, 140)
+	coin_lbl.add_theme_font_size_override("font_size", 16)
+	coin_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
+	panel.add_child(coin_lbl)
+
+	# Nút Chơi lại
+	var btn_w: float = panel_w - 60.0
+	var btn_replay := _make_gameover_btn("Chơi lại", Vector2(30, 185), btn_w)
+	panel.add_child(btn_replay)
+	btn_replay.pressed.connect(_on_gameover_replay)
+
+	# Nút Thoát (về level select)
+	var btn_exit := _make_gameover_btn("Thoát", Vector2(30, 240), btn_w)
+	panel.add_child(btn_exit)
+	btn_exit.pressed.connect(_on_gameover_exit)
+
+	# Animation xuất hiện
+	panel.modulate.a = 0.0
+	panel.scale = Vector2(0.7, 0.7)
+	panel.pivot_offset = Vector2(panel_w * 0.5, panel_h * 0.5)
+	var tw := create_tween()
+	tw.tween_property(panel, "modulate:a", 1.0, 0.2)
+	tw.parallel().tween_property(panel, "scale", Vector2(1.0, 1.0), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+	get_tree().paused = true
+
+func _make_gameover_btn(txt: String, pos: Vector2, w: float) -> Button:
+	var btn := Button.new()
+	btn.text     = txt
+	btn.position = pos
+	btn.size     = Vector2(w, 44)
+	btn.process_mode = Node.PROCESS_MODE_ALWAYS
+	btn.add_theme_font_size_override("font_size", 18)
+	btn.add_theme_color_override("font_color",         Color(0.95, 0.95, 1.0))
+	btn.add_theme_color_override("font_hover_color",   Color(1.0, 0.6, 0.5))
+	btn.add_theme_color_override("font_pressed_color", Color(1.0, 1.0, 0.4))
+	var sty_n := StyleBoxFlat.new()
+	sty_n.bg_color          = Color(0.18, 0.08, 0.08, 0.9)
+	sty_n.border_color      = Color(0.7, 0.25, 0.2, 0.7)
+	sty_n.border_width_left   = 1
+	sty_n.border_width_right  = 1
+	sty_n.border_width_top    = 1
+	sty_n.border_width_bottom = 1
+	sty_n.corner_radius_top_left     = 6
+	sty_n.corner_radius_top_right    = 6
+	sty_n.corner_radius_bottom_left  = 6
+	sty_n.corner_radius_bottom_right = 6
+	var sty_h := sty_n.duplicate() as StyleBoxFlat
+	sty_h.bg_color     = Color(0.35, 0.12, 0.12, 0.95)
+	sty_h.border_color = Color(1.0, 0.4, 0.3, 1.0)
+	var sty_p := sty_n.duplicate() as StyleBoxFlat
+	sty_p.bg_color = Color(0.10, 0.05, 0.05, 0.9)
+	btn.add_theme_stylebox_override("normal",   sty_n)
+	btn.add_theme_stylebox_override("hover",    sty_h)
+	btn.add_theme_stylebox_override("pressed",  sty_p)
+	return btn
+
+func _on_gameover_replay() -> void:
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+func _on_gameover_exit() -> void:
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/level_select.tscn")

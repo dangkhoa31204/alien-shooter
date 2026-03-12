@@ -37,6 +37,7 @@ var _blink_cd:           float = 0.0   # Neon Dart: cooldown giữa mỗi lần 
 var hp: int = 5
 var _max_hp: int = 5   # cập nhật theo skin
 var can_shoot: bool = true
+var _is_dead: bool = false
 
 # ── POWER-UP STATE ─────────────────────────────────────────────────────────────
 # Powerup types: 0=EXTRA_STREAM, 1=ELECTRIC, 2=FIRE, 3=ICE, 4=EXPLOSIVE, 5=RICOCHET
@@ -1463,8 +1464,14 @@ func _show_dodge_text() -> void:
 			sprite.color = _get_sprite_color()
 
 func _die() -> void:
+	if _is_dead: return
+	_is_dead = true
 	set_physics_process(false)
+	set_process(false)
 	can_shoot = false
+	# Tắt collision để không nhận thêm damage
+	if has_node("CollisionShape2D"):
+		$CollisionShape2D.set_deferred("disabled", true)
 	# Dọn exhaust
 	for grp in _exhaust_groups:
 		for p in grp:
