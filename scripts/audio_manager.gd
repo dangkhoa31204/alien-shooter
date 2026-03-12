@@ -82,6 +82,9 @@ func play(sound_name: String, vol_db: float = 0.0) -> void:
 func refresh_music() -> void:
 	if _music_player == null: return
 	if PlayerData.sound_enabled:
+		# Do not start in-game procedural music if menu MP3 is playing
+		if _menu_music_player != null and _menu_music_player.playing:
+			return
 		if not _music_player.playing:
 			_music_player.play()
 			_music_pb = _music_player.get_stream_playback() as AudioStreamGeneratorPlayback
@@ -126,6 +129,10 @@ func refresh_menu_music() -> void:
 	if _menu_music_player == null: return
 	if PlayerData.sound_enabled:
 		if not _menu_music_player.playing and _menu_music_player.stream != null:
+			# Ensure procedural in-game music is stopped before playing menu MP3
+			if _music_player != null and _music_player.playing:
+				_music_player.stop()
+				_music_pb = null
 			_menu_music_player.play()
 	else:
 		_menu_music_player.stop()

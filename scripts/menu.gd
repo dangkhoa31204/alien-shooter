@@ -356,33 +356,15 @@ func _add_settings_popup() -> void:
 	content_vbox.add_theme_constant_override("separation", 20)
 	bg_panel.add_child(content_vbox)
 	
-	# --- Sound Toggle Row ---
-	var sound_row = HBoxContainer.new()
-	
-	var sound_lbl = Label.new()
-	sound_lbl.text = "Âm thanh game"
-	sound_lbl.add_theme_color_override("font_color", Color(0.88, 0.88, 0.88))
-	sound_lbl.add_theme_font_size_override("font_size", 20)
-	sound_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	
-	var sound_btn = Button.new()
-	sound_btn.name = "SoundBtn"
-	sound_btn.custom_minimum_size = Vector2(130, 38)
-	sound_btn.add_theme_font_size_override("font_size", 18)
-	
-	sound_row.add_child(sound_lbl)
-	sound_row.add_child(sound_btn)
-	content_vbox.add_child(sound_row)
-	
-	# --- Volume Row ---
+	# Volume Row (contains sound toggle button instead of percent)
 	var vol_row = HBoxContainer.new()
-	
+
 	var vol_lbl = Label.new()
-	vol_lbl.text = "Âm lượng"
+	vol_lbl.text = "Nhạc nền "
 	vol_lbl.add_theme_color_override("font_color", Color(0.88, 0.88, 0.88))
 	vol_lbl.add_theme_font_size_override("font_size", 20)
 	vol_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	
+
 	var vol_slider = HSlider.new()
 	vol_slider.name = "VolumeSlider"
 	vol_slider.custom_minimum_size = Vector2(160, 32)
@@ -390,18 +372,17 @@ func _add_settings_popup() -> void:
 	vol_slider.min_value = 0.0
 	vol_slider.max_value = 100.0
 	vol_slider.value = PlayerData.volume * 100.0
-	
-	var vol_val_lbl = Label.new()
-	vol_val_lbl.name = "VolumeValueLabel"
-	vol_val_lbl.custom_minimum_size = Vector2(52, 0)
-	vol_val_lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0))
-	vol_val_lbl.add_theme_font_size_override("font_size", 18)
-	vol_val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vol_val_lbl.text = "%d%%" % int(vol_slider.value)
-	
+
+	var vol_val_btn = Button.new()
+	vol_val_btn.name = "VolumeValueLabel"
+	vol_val_btn.custom_minimum_size = Vector2(52, 0)
+	vol_val_btn.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0))
+	vol_val_btn.add_theme_font_size_override("font_size", 18)
+	vol_val_btn.text = ("🔊" if PlayerData.sound_enabled else "🔇")
+
 	vol_row.add_child(vol_lbl)
 	vol_row.add_child(vol_slider)
-	vol_row.add_child(vol_val_lbl)
+	vol_row.add_child(vol_val_btn)
 	content_vbox.add_child(vol_row)
 	
 	var reset_btn = Button.new()
@@ -420,15 +401,16 @@ func _add_settings_popup() -> void:
 		Audio.play("button_click")
 		PlayerData.reset_data()
 		HighScore.reset_scores()
-		sound_btn.text = "🔇  TẮT"
-		sound_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
-		sound_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
-		sound_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
+		PlayerData.sound_enabled = false
+		PlayerData.save_data()
+		vol_val_btn.text = "🔇"
+		vol_val_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
+		vol_val_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
+		vol_val_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
 		AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), true)
 		Audio.refresh_music()
 		Audio.refresh_menu_music()
 		vol_slider.value = 100.0
-		vol_val_lbl.text = "100%"
 		_refresh_coins()
 		var title_prev = title.text
 		title.text = "✔ Đã xóa dữ liệu!"
@@ -440,19 +422,19 @@ func _add_settings_popup() -> void:
 	
 	# --- Signals and Styling ---
 	var update_sound_btn = func(on: bool):
-		sound_btn.text = "🔊  BẬT" if on else "🔇  TẮT"
+		vol_val_btn.text = ("🔊" if on else "🔇")
 		if on:
-			sound_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
-			sound_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.06,0.20,0.08), Color(0.25,0.75,0.35)))
-			sound_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.10,0.28,0.12), Color(0.35,0.90,0.45)))
+			vol_val_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
+			vol_val_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.06,0.20,0.08), Color(0.25,0.75,0.35)))
+			vol_val_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.10,0.28,0.12), Color(0.35,0.90,0.45)))
 		else:
-			sound_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
-			sound_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
-			sound_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
-			
+			vol_val_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
+			vol_val_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
+			vol_val_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
+
 	update_sound_btn.call(PlayerData.sound_enabled)
-	
-	sound_btn.pressed.connect(func():
+
+	vol_val_btn.pressed.connect(func():
 		Audio.play("button_click")
 		PlayerData.sound_enabled = not PlayerData.sound_enabled
 		PlayerData.save_data()
@@ -466,7 +448,6 @@ func _add_settings_popup() -> void:
 		PlayerData.volume = val / 100.0
 		PlayerData.apply_volume()
 		PlayerData.save_data()
-		vol_val_lbl.text = "%d%%" % int(val)
 	)
 	
 	# Close Button

@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://duiefbtady4l4"]
+[gd_scene format=3 uid="uid://2mkycygkxr0t"]
 
-[ext_resource type="Script" path="res://scripts/settings.gd" id="1_settings"]
+[ext_resource type="Script" uid="uid://t3p3gpar1tqn" path="res://scripts/settings.gd" id="1_settings"]
 [ext_resource type="Script" uid="uid://c8co51twf2ksw" path="res://scripts/background.gd" id="2_bg"]
 
 [node name="Settings" type="Node2D" unique_id=1693750662]
@@ -59,23 +59,6 @@ theme_override_colors/font_color = Color(0.65, 0.75, 0.85, 1)
 theme_override_font_sizes/font_size = 18
 text = "ÂM THANH"
 
-[node name="SoundRow" type="HBoxContainer" parent="UI/Panel/VBox" unique_id=103603800]
-layout_mode = 2
-theme_override_constants/separation = 18
-
-[node name="SoundLabel" type="Label" parent="UI/Panel/VBox/SoundRow" unique_id=1430771906]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.88, 0.88, 0.88, 1)
-theme_override_font_sizes/font_size = 20
-text = "Âm thanh game"
-
-[node name="SoundBtn" type="Button" parent="UI/Panel/VBox/SoundRow" unique_id=463267341]
-custom_minimum_size = Vector2(130, 38)
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "🔊  BẬT"
-
 [node name="VolumeRow" type="HBoxContainer" parent="UI/Panel/VBox" unique_id=112233445]
 layout_mode = 2
 theme_override_constants/separation = 14
@@ -85,31 +68,23 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.88, 0.88, 0.88, 1)
 theme_override_font_sizes/font_size = 20
-text = "Âm lượng"
+text = "Nhạc nền "
 
 [node name="VolumeSlider" type="HSlider" parent="UI/Panel/VBox/VolumeRow" unique_id=998877665]
 custom_minimum_size = Vector2(160, 32)
 layout_mode = 2
 size_flags_vertical = 4
-min_value = 0.0
-max_value = 100.0
-step = 1.0
 value = 80.0
 
-[node name="VolumeValueLabel" type="Label" parent="UI/Panel/VBox/VolumeRow" unique_id=443322110]
+[node name="VolumeValueLabel" type="Button" parent="UI/Panel/VBox/VolumeRow" unique_id=443322110]
 custom_minimum_size = Vector2(52, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.9, 1, 1)
 theme_override_font_sizes/font_size = 18
-horizontal_alignment = 1
-text = "80%"
+text = "🔊"
 
 [node name="Divider" type="HSeparator" parent="UI/Panel/VBox" unique_id=1180940256]
-layout_mode = 2 type="Label" parent="UI/Panel/VBox" unique_id=1298820389]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.75, 0.85, 1)
-theme_override_font_sizes/font_size = 18
-text = "DỮ LIỆU GAME"
 
 [node name="ResetDesc" type="Label" parent="UI/Panel/VBox" unique_id=854178869]
 layout_mode = 2
