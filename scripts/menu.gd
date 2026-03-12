@@ -11,7 +11,7 @@ func _ready() -> void:
 	PlayerData.load_data()
 	var bus := AudioServer.get_bus_index("Master")
 	if bus >= 0:
-		AudioServer.set_bus_mute(bus, not PlayerData.sound_enabled)
+		AudioServer.set_bus_mute(bus, not PlayerData.music_enabled)
 
 	var play_btn:     Node = get_node_or_null("UI/PlayBtn")
 	var shop_btn:     Node = get_node_or_null("UI/ShopBtn")
@@ -378,13 +378,13 @@ func _add_settings_popup() -> void:
 	vol_val_btn.custom_minimum_size = Vector2(52, 0)
 	vol_val_btn.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0))
 	vol_val_btn.add_theme_font_size_override("font_size", 18)
-	vol_val_btn.text = ("🔊" if PlayerData.sound_enabled else "🔇")
+	vol_val_btn.text = ("🔊" if PlayerData.music_enabled else "🔇")
 
 	vol_row.add_child(vol_lbl)
 	vol_row.add_child(vol_slider)
 	vol_row.add_child(vol_val_btn)
 	content_vbox.add_child(vol_row)
-	
+    
 	var reset_btn = Button.new()
 	reset_btn.name = "ResetBtn"
 	reset_btn.custom_minimum_size = Vector2(220, 42)
@@ -395,19 +395,20 @@ func _add_settings_popup() -> void:
 	reset_btn.add_theme_stylebox_override("normal",  _make_btn_style(Color(0.22,0.06,0.04), Color(0.65,0.18,0.14)))
 	reset_btn.add_theme_stylebox_override("hover",   _make_btn_style(Color(0.32,0.08,0.06), Color(0.85,0.25,0.20)))
 	reset_btn.add_theme_stylebox_override("pressed", _make_btn_style(Color(0.14,0.04,0.03), Color(0.65,0.18,0.14)))
-	content_vbox.add_child(reset_btn)
 	
 	reset_btn.pressed.connect(func():
 		Audio.play("button_click")
 		PlayerData.reset_data()
 		HighScore.reset_scores()
-		PlayerData.sound_enabled = false
+		PlayerData.music_enabled = false
 		PlayerData.save_data()
 		vol_val_btn.text = "🔇"
 		vol_val_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
 		vol_val_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
 		vol_val_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
-		AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), true)
+		# Stop music via Audio manager instead of muting Master bus
+		Audio.refresh_music()
+		Audio.refresh_menu_music()
 		Audio.refresh_music()
 		Audio.refresh_menu_music()
 		vol_slider.value = 100.0
@@ -432,14 +433,16 @@ func _add_settings_popup() -> void:
 			vol_val_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
 			vol_val_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
 
-	update_sound_btn.call(PlayerData.sound_enabled)
+	update_sound_btn.call(PlayerData.music_enabled)
 
 	vol_val_btn.pressed.connect(func():
 		Audio.play("button_click")
-		PlayerData.sound_enabled = not PlayerData.sound_enabled
+		PlayerData.music_enabled = not PlayerData.music_enabled
 		PlayerData.save_data()
-		update_sound_btn.call(PlayerData.sound_enabled)
-		AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), not PlayerData.sound_enabled)
+		update_sound_btn.call(PlayerData.music_enabled)
+		# Control music via Audio manager to avoid muting Master (which would affect SFX)
+		Audio.refresh_music()
+		Audio.refresh_menu_music()
 		Audio.refresh_music()
 		Audio.refresh_menu_music()
 	)
@@ -461,4 +464,63 @@ func _add_settings_popup() -> void:
 		popup.hide()
 	)
 	bg_panel.add_child(close_btn)
+
+	# --- SFX Row: Hiệu ứng âm thanh
+	var sfx_row = HBoxContainer.new()
+
+	var sfx_lbl = Label.new()
+	sfx_lbl.text = "Hiệu ứng âm thanh"
+	sfx_lbl.add_theme_color_override("font_color", Color(0.88, 0.88, 0.88))
+	sfx_lbl.add_theme_font_size_override("font_size", 20)
+	sfx_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var sfx_slider = HSlider.new()
+	sfx_slider.name = "SfxSlider"
+	sfx_slider.custom_minimum_size = Vector2(160, 32)
+	sfx_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sfx_slider.min_value = 0.0
+	sfx_slider.max_value = 100.0
+	sfx_slider.value = PlayerData.sfx_volume * 100.0
+
+	var sfx_val_btn = Button.new()
+	sfx_val_btn.name = "SfxValueLabel"
+	sfx_val_btn.custom_minimum_size = Vector2(52, 0)
+	sfx_val_btn.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0))
+	sfx_val_btn.add_theme_font_size_override("font_size", 18)
+	sfx_val_btn.text = ("🔊" if PlayerData.sfx_enabled else "🔇")
+
+	sfx_row.add_child(sfx_lbl)
+	sfx_row.add_child(sfx_slider)
+	sfx_row.add_child(sfx_val_btn)
+	content_vbox.add_child(sfx_row)
+
+	# add reset after SFX so order is Volume -> SFX -> Reset
+	content_vbox.add_child(reset_btn)
+
+	# SFX handlers
+	var update_sfx_btn = func(on: bool):
+		sfx_val_btn.text = ("🔊" if on else "🔇")
+		if on:
+			sfx_val_btn.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
+			sfx_val_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.06,0.20,0.08), Color(0.25,0.75,0.35)))
+			sfx_val_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.10,0.28,0.12), Color(0.35,0.90,0.45)))
+		else:
+			sfx_val_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
+			sfx_val_btn.add_theme_stylebox_override("normal", _make_btn_style(Color(0.20,0.06,0.06), Color(0.55,0.18,0.18)))
+			sfx_val_btn.add_theme_stylebox_override("hover",  _make_btn_style(Color(0.28,0.08,0.08), Color(0.70,0.25,0.25)))
+
+	update_sfx_btn.call(PlayerData.sfx_enabled)
+
+	sfx_val_btn.pressed.connect(func():
+		Audio.play("button_click")
+		PlayerData.sfx_enabled = not PlayerData.sfx_enabled
+		PlayerData.save_data()
+		update_sfx_btn.call(PlayerData.sfx_enabled)
+	)
+
+	sfx_slider.value_changed.connect(func(val: float):
+		PlayerData.sfx_volume = val / 100.0
+		PlayerData.apply_volume()
+		PlayerData.save_data()
+	)
 

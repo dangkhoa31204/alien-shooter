@@ -29,7 +29,10 @@ static var owned_starters: Array = [0]
 static var equipped_skin:    int = 0
 static var equipped_starter: int = 0
 static var sound_enabled:   bool  = true
+static var music_enabled:   bool  = true
 static var volume:          float = 0.8   # 0.0 – 1.0
+static var sfx_enabled:     bool  = true
+static var sfx_volume:      float = 0.8   # 0.0 – 1.0 (effects)
 static var active_theme:    int   = 0     # index vào ThemePack.PACKS
 static var owned_themes:    Array = [0]   # theme đã sở hữu
 
@@ -122,7 +125,8 @@ static func reset_data() -> void:
 		f.store_string(JSON.stringify({
 			"coins": 0, "owned_skins": [0], "owned_starters": [0],
 			"equipped_skin": 0, "equipped_starter": 0,
-			"sound_enabled": sound_enabled, "volume": volume,
+			"music_enabled": music_enabled, "sound_enabled": sound_enabled, "volume": volume,
+			"sfx_enabled": sfx_enabled, "sfx_volume": sfx_volume,
 			"active_theme": active_theme, "owned_themes": owned_themes
 		}))
 		f.close()
@@ -134,8 +138,11 @@ static func save_data() -> void:
 		"owned_starters":   owned_starters,
 		"equipped_skin":    equipped_skin,
 		"equipped_starter": equipped_starter,
+		"music_enabled":    music_enabled,
 		"sound_enabled":    sound_enabled,
 		"volume":           volume,
+		"sfx_enabled":      sfx_enabled,
+		"sfx_volume":       sfx_volume,
 		"active_theme":     active_theme,
 		"owned_themes":     owned_themes,
 		"contra_unlocked":  contra_unlocked_stage,
@@ -158,8 +165,11 @@ static func load_data() -> void:
 	owned_starters   = (parsed.get("owned_starters", [0]) as Array).map(func(x): return int(x))
 	equipped_skin    = int(parsed.get("equipped_skin",    0))
 	equipped_starter = int(parsed.get("equipped_starter", 0))
+	music_enabled    = bool(parsed.get("music_enabled",   true))
 	sound_enabled    = bool(parsed.get("sound_enabled",   true))
 	volume           = float(parsed.get("volume",          0.8))
+	sfx_enabled      = bool(parsed.get("sfx_enabled",     true))
+	sfx_volume       = float(parsed.get("sfx_volume",      0.8))
 	active_theme     = int(parsed.get("active_theme",      0))
 	owned_themes     = (parsed.get("owned_themes",  [0]) as Array).map(func(x): return int(x))
 	contra_unlocked_stage = int(parsed.get("contra_unlocked", 1))
@@ -167,4 +177,11 @@ static func load_data() -> void:
 
 static func apply_volume() -> void:
 	var db := linear_to_db(maxf(0.0001, volume))
-	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Master"), db)
+	var master_idx := AudioServer.get_bus_index("Master")
+	if master_idx >= 0:
+		AudioServer.set_bus_volume_db(master_idx, db)
+	# Apply SFX volume to SFX bus if exists
+	var sfx_idx := AudioServer.get_bus_index("SFX")
+	if sfx_idx >= 0:
+		var sdb := linear_to_db(maxf(0.0001, sfx_volume))
+		AudioServer.set_bus_volume_db(sfx_idx, sdb)

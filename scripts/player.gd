@@ -1545,3 +1545,10 @@ func _spawn_death_burst(delay: float, radius: float) -> void:
 	tw2.tween_property(flash, "color:a", 0.0, 0.24).set_trans(Tween.TRANS_EXPO)
 	await tw2.finished
 	if is_instance_valid(flash): flash.queue_free()
+
+
+func _input(event: InputEvent) -> void:
+	# Play punch SFX when melee key is pressed (mapped to action 'melee')
+	if event is InputEventKey and event.pressed and not event.echo:
+		if Input.is_action_pressed("melee"):
+			Audio.play("punch")
