@@ -3741,7 +3741,6 @@ func _show_settings_from_pause() -> void:
 	reset_btn.pressed.connect(func():
 		Audio.play("button_click")
 		PlayerData.reset_data()
-		HighScore.reset_scores()
 		PlayerData.music_enabled = false
 		PlayerData.save_data()
 		Audio.refresh_music()

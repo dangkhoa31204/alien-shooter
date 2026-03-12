@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://enemy001"]
+[gd_scene format=3 uid="uid://ch08r6vasm2j7"]
 
 [ext_resource type="Script" path="res://scripts/enemy.gd" id="1_enemy"]
 [ext_resource type="Script" path="res://scripts/enemy_ai.gd" id="2_enemy_ai"]
@@ -9,21 +9,20 @@ size = Vector2(36, 28)
 [sub_resource type="CircleShape2D" id="CircleShape2D_1"]
 radius = 150.0
 
-[node name="Enemy" type="CharacterBody2D"]
+[node name="Enemy" type="CharacterBody2D" unique_id=543463669]
 script = ExtResource("1_enemy")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1170979615]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="Sprite" type="Polygon2D" parent="."]
+[node name="Sprite" type="Polygon2D" parent="." unique_id=1954558228]
+color = Color(1, 0.25, 0.1, 1)
 polygon = PackedVector2Array(0, -14, 10, -8, 18, 0, 12, 10, 4, 14, -4, 14, -12, 10, -18, 0, -10, -8)
-color = Color(1.0, 0.25, 0.1, 1)
 
-[node name="DetectionArea" type="Area2D" parent="."]
-monitoring = true
+[node name="DetectionArea" type="Area2D" parent="." unique_id=1722027786]
 
-[node name="DetectionShape" type="CollisionShape2D" parent="DetectionArea"]
+[node name="DetectionShape" type="CollisionShape2D" parent="DetectionArea" unique_id=1883399561]
 shape = SubResource("CircleShape2D_1")
 
-[node name="EnemyAI" type="Node" parent="."]
+[node name="EnemyAI" type="Node" parent="." unique_id=1022625589]
 script = ExtResource("2_enemy_ai")

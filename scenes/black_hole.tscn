@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://njx1jgixddap"]
 
 [ext_resource type="Script" path="res://scripts/black_hole.gd" id="1"]
 
-[node name="BlackHole" type="Node2D"]
+[node name="BlackHole" type="Node2D" unique_id=1920090048]
 script = ExtResource("1")

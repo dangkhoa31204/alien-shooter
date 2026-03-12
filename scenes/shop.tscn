@@ -1,51 +1,56 @@
-[gd_scene format=3 uid="uid://shop001"]
+[gd_scene format=3 uid="uid://bnmhxtp5pxjyl"]
 
 [ext_resource type="Script" path="res://scripts/shop.gd" id="1_shop"]
-[ext_resource type="Script" path="res://scripts/background.gd" id="2_bg"]
+[ext_resource type="Script" uid="uid://c8co51twf2ksw" path="res://scripts/background.gd" id="2_bg"]
 
-[node name="Shop" type="Node2D"]
+[node name="Shop" type="Node2D" unique_id=1858536207]
 script = ExtResource("1_shop")
 
-[node name="Background" type="Node2D" parent="."]
+[node name="Background" type="Node2D" parent="." unique_id=2138063981]
 z_index = -10
 script = ExtResource("2_bg")
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="UI" type="CanvasLayer" parent="." unique_id=1961748311]
 
-[node name="TopBar" type="HBoxContainer" parent="UI"]
+[node name="TopBar" type="HBoxContainer" parent="UI" unique_id=1538130870]
 offset_left = 16.0
 offset_top = 14.0
 offset_right = 1136.0
 offset_bottom = 52.0
 
-[node name="BackBtn" type="Button" parent="UI/TopBar"]
+[node name="BackBtn" type="Button" parent="UI/TopBar" unique_id=668422322]
 custom_minimum_size = Vector2(110, 36)
+layout_mode = 2
 theme_override_font_sizes/font_size = 17
 text = "◀  BACK"
 
-[node name="Spacer" type="Control" parent="UI/TopBar"]
+[node name="Spacer" type="Control" parent="UI/TopBar" unique_id=418707393]
+layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="CoinLabel" type="Label" parent="UI/TopBar"]
+[node name="CoinLabel" type="Label" parent="UI/TopBar" unique_id=887706484]
 custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.2, 1)
 theme_override_font_sizes/font_size = 20
-theme_override_colors/font_color = Color(1.0, 0.88, 0.2, 1)
 text = "💰 0 coins"
 horizontal_alignment = 2
 
-[node name="ShopTitle" type="Label" parent="UI"]
+[node name="ShopTitle" type="Label" parent="UI" unique_id=45313811]
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -140.0
 offset_top = 56.0
 offset_right = 140.0
 offset_bottom = 96.0
+theme_override_colors/font_color = Color(0.5, 0.9, 1, 1)
 theme_override_font_sizes/font_size = 30
-theme_override_colors/font_color = Color(0.5, 0.9, 1.0, 1)
 text = "🛒  SHOP"
 horizontal_alignment = 1
 
-[node name="Tabs" type="HBoxContainer" parent="UI"]
+[node name="Tabs" type="HBoxContainer" parent="UI" unique_id=326332564]
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -180.0
@@ -54,17 +59,20 @@ offset_right = 180.0
 offset_bottom = 136.0
 alignment = 1
 
-[node name="SkinTab" type="Button" parent="UI/Tabs"]
+[node name="SkinTab" type="Button" parent="UI/Tabs" unique_id=1906024326]
 custom_minimum_size = Vector2(160, 34)
+layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "🎨  SKIN TÀU"
 
-[node name="StarterTab" type="Button" parent="UI/Tabs"]
+[node name="StarterTab" type="Button" parent="UI/Tabs" unique_id=1288418192]
 custom_minimum_size = Vector2(190, 34)
+layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "🔫  ĐẠN KHỞI ĐẦU"
 
-[node name="Scroll" type="ScrollContainer" parent="UI"]
+[node name="Scroll" type="ScrollContainer" parent="UI" unique_id=142760062]
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -340.0
@@ -72,11 +80,13 @@ offset_top = 148.0
 offset_right = 340.0
 offset_bottom = 660.0
 
-[node name="ItemList" type="VBoxContainer" parent="UI/Scroll"]
+[node name="ItemList" type="VBoxContainer" parent="UI/Scroll" unique_id=1750431951]
+layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="StatusLabel" type="Label" parent="UI"]
+[node name="StatusLabel" type="Label" parent="UI" unique_id=711128084]
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -200.0
@@ -84,5 +94,4 @@ offset_top = 668.0
 offset_right = 200.0
 offset_bottom = 698.0
 theme_override_font_sizes/font_size = 18
-text = ""
 horizontal_alignment = 1

@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://cr8myt5j0mgfd"]
 
 [ext_resource type="Script" path="res://scripts/special_pickup.gd" id="1"]
 
-[node name="SpecialPickup" type="Area2D"]
+[node name="SpecialPickup" type="Area2D" unique_id=1474797050]
 script = ExtResource("1")

@@ -1,20 +1,20 @@
-[gd_scene load_steps=4 format=3 uid="uid://boss001"]
+[gd_scene format=3 uid="uid://blsfou224pk8h"]
 
 [ext_resource type="Script" path="res://scripts/boss.gd" id="1_boss"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(80, 60)
 
-[node name="Boss" type="CharacterBody2D"]
+[node name="Boss" type="CharacterBody2D" unique_id=1939381143]
 script = ExtResource("1_boss")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=749183965]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="Sprite" type="Polygon2D" parent="."]
-polygon = PackedVector2Array(0, -30, 20, -18, 40, -8, 28, 4, 16, 14, 10, 30, -10, 30, -16, 14, -28, 4, -40, -8, -20, -18)
+[node name="Sprite" type="Polygon2D" parent="." unique_id=1062828906]
 color = Color(0.8, 0.2, 0.8, 1)
+polygon = PackedVector2Array(0, -30, 20, -18, 40, -8, 28, 4, 16, 14, 10, 30, -10, 30, -16, 14, -28, 4, -40, -8, -20, -18)
 
-[node name="ShootTimer" type="Timer" parent="."]
+[node name="ShootTimer" type="Timer" parent="." unique_id=989810650]
 wait_time = 1.2
 autostart = true

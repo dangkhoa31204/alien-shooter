@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://heart001"]
+[gd_scene format=3 uid="uid://dr3yv3psk6ohk"]
 
-[ext_resource type="Script" uid="uid://ys4nqhmtp1fn" path="res://scripts/heart.gd" id="1_heart"]
+[ext_resource type="Script" path="res://scripts/heart.gd" id="1_heart"]
 
 [sub_resource type="RectangleShape2D" id="RectShape_heart"]
 size = Vector2(18, 18)
