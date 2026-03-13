@@ -9,6 +9,8 @@ const SPEED: float = 120.0
 const GRAVITY: float = 1400.0
 const DETECTION_RANGE: float = 320.0
 
+const HP_MULT: float = 0.5
+
 var hp: int = 14
 var patrol_direction: int = -1 # Start walking left
 var _walk_time: float = 0.0
@@ -37,6 +39,7 @@ var _eye_r: ColorRect
 func _ready() -> void:
 	add_to_group("enemy")
 	_setup_complex_visuals()
+	hp = maxi(1, int(round(float(hp) * HP_MULT)))
 	shoot_timer.timeout.connect(_on_shoot_timer_timeout)
 
 func _setup_complex_visuals() -> void:
