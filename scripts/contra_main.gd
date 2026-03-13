@@ -3646,6 +3646,7 @@ func _setup_history_panel() -> void:
 	# Reliable manual centering
 	_history_panel.position = Vector2(151, 70) 
 	_history_panel.color = Color(0.08, 0.08, 0.08, 1.0) # Full opaque
+	_history_panel.clip_contents = true
 	_history_panel.z_index = 2500
 	_history_panel.process_mode = PROCESS_MODE_ALWAYS
 	$UI.add_child(_history_panel)
@@ -3670,6 +3671,11 @@ func _setup_history_panel() -> void:
 	var h_title = Label.new()
 	h_title.name = "HTitle"
 	h_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	h_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	h_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Ensure VBoxContainer allocates visible height even with autowrap enabled
+	h_title.custom_minimum_size = Vector2(0, 72)
 	h_title.add_theme_font_size_override("font_size", 28)
 	h_title.add_theme_color_override("font_color", Color(1, 0.9, 0.5))
 	content_v.add_child(h_title)
