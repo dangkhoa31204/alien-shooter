@@ -423,7 +423,7 @@ func _make_equip_button(vp: Vector2) -> void:
 	btn.add_theme_color_override("font_color",          C_PARCHMENT)
 	btn.add_theme_color_override("font_hover_color",    C_BG_DEEP)
 	btn.add_theme_color_override("font_pressed_color",  C_BG_DEEP)
-	# UI only: intentionally no pressed handler
+	btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/loadout_screen.tscn"))
 	add_child(btn)
 
 func _make_back_button(vp: Vector2) -> void:

@@ -231,6 +231,8 @@ func take_damage(amount: int) -> void:
 func _die() -> void:
 	# Explosion effect
 	var main = _get_main_scene()
+	if not is_ally and main and main.has_method("add_kill"):
+		main.add_kill(250, 24)
 	if main and main.has_method("screen_shake"):
 		main.screen_shake(12.0, 0.5)
 		Audio.play("b40", 12.0) # Exploding tank sound

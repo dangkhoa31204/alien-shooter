@@ -12,6 +12,8 @@ const GRAVITY: float = 1400.0
 
 var hp: int = 8
 var max_hp: int = 8
+var current_damage: int = 1
+var current_fire_rate: float = 0.12
 var is_dead: bool = false
 var ammo: int = 30
 var is_reloading: bool = false
@@ -33,11 +35,11 @@ const MAX_JUMPS: int = 2
 
 # Anti-tank Weapon (RPG/B40)
 var rpg_cooldown: float = 0.0
-const RPG_MAX_COOLDOWN: float = 10.0
+var rpg_max_cooldown: float = 10.0
 
 # Anti-aircraft Missile (phím X)
 var aa_cooldown: float = 0.0
-const AA_MAX_COOLDOWN: float = 10.0
+var aa_max_cooldown: float = 10.0
 var _aa_cool_bar = null
 var _aa_cool_lbl: Label = null
 
@@ -79,6 +81,7 @@ var _muzzle_flash: Polygon2D
 
 func _ready() -> void:
 	add_to_group("player")
+	_apply_loadout()
 	_setup_complex_visuals()
 	_sync_hp()
 	# Register melee input action for key F
@@ -88,6 +91,43 @@ func _ready() -> void:
 		InputMap.add_action("melee")
 		InputMap.action_add_event("melee", ev)
 
+func _apply_loadout() -> void:
+	max_hp = 8
+	SPEED = 240.0
+	current_damage = 1
+	current_fire_rate = 0.12
+	rpg_max_cooldown = 10.0
+	aa_max_cooldown = 10.0
+	
+	if not PlayerData.inventory.is_empty():
+		var arm_id = PlayerData.loadout.get("armor", "")
+		if arm_id != "":
+			var stat = ItemDatabase.get_stat(arm_id, "hp_bonus", PlayerData.inventory.get(arm_id, 1))
+			max_hp += int(stat / 10.0)
+			
+		var wpn_id = PlayerData.loadout.get("main_weapon", "")
+		if wpn_id != "":
+			current_damage = int(ItemDatabase.get_stat(wpn_id, "damage", PlayerData.inventory.get(wpn_id, 1)))
+			var fr = ItemDatabase.get_stat(wpn_id, "fire_rate", PlayerData.inventory.get(wpn_id, 1))
+			if fr > 0.0: current_fire_rate = fr
+			
+		var acc_id = PlayerData.loadout.get("accessory", "")
+		if acc_id != "":
+			var spd = ItemDatabase.get_stat(acc_id, "speed_bonus", PlayerData.inventory.get(acc_id, 1))
+			SPEED += float(spd)
+			
+		var skl_id = PlayerData.loadout.get("skill", "")
+		if skl_id != "":
+			var stat = ItemDatabase.get_stat(skl_id, "cooldown", PlayerData.inventory.get(skl_id, 1))
+			rpg_max_cooldown = stat
+			
+		var spc_id = PlayerData.loadout.get("special", "")
+		if spc_id != "":
+			var stat = ItemDatabase.get_stat(spc_id, "cooldown", PlayerData.inventory.get(spc_id, 1))
+			aa_max_cooldown = stat
+	
+	hp = max_hp
+
 func _sync_hp() -> void:
 	var main = _get_main_scene()
 	if main:
@@ -96,7 +136,7 @@ func _sync_hp() -> void:
 		if main.has_method("refresh_ammo"):
 			main.refresh_ammo(ammo, MAX_AMMO, is_reloading)
 		if main.has_method("refresh_heavy_weapon"):
-			main.refresh_heavy_weapon(rpg_cooldown, RPG_MAX_COOLDOWN)
+			main.refresh_heavy_weapon(rpg_cooldown, rpg_max_cooldown)
 
 func _setup_complex_visuals() -> void:
 	for n in sprite.get_children(): n.queue_free()
@@ -306,7 +346,7 @@ func _physics_process(delta: float) -> void:
 	var s_pressed = Input.is_key_pressed(KEY_S)
 	if s_pressed and shoot_timer.is_stopped() and not _is_firing_rpg and not is_reloading:
 		_shoot()
-		shoot_timer.start(0.12)
+		shoot_timer.start(current_fire_rate)
 	elif not s_pressed:
 		# Force muzzle flash off when button is released
 		_muzzle_flash.color.a = 0.0
@@ -330,7 +370,7 @@ func _physics_process(delta: float) -> void:
 func _fire_rpg() -> void:
 	_is_firing_rpg = true
 	_rpg_timer = 2.0 # Total animation time
-	rpg_cooldown = RPG_MAX_COOLDOWN
+	rpg_cooldown = rpg_max_cooldown
 	
 	# Play specific firing sequence
 	var tw = create_tween()
@@ -568,7 +608,7 @@ func _shoot() -> void:
 	var b = BULLET_SCENE.instantiate()
 	if "direction" in b: b.direction = aim_direction
 	b.is_enemy_bullet = false
-	if "damage" in b: b.damage = 1
+	if "damage" in b: b.damage = current_damage
 	var main = _get_main_scene()
 	if main:
 		main.bullet_container.add_child(b)
@@ -592,7 +632,7 @@ func _shoot() -> void:
 		var diff: Vector2 = (enemy as Node2D).global_position - gun_point.global_position
 		if diff.length() <= 50.0 and sign(diff.x) == facing:
 			if enemy.has_method("take_damage"):
-				enemy.take_damage(1)
+				enemy.take_damage(current_damage)
 
 func _spawn_dust() -> void:
 	var main = _get_main_scene()
@@ -642,9 +682,9 @@ func _fire_aa_missile() -> void:
 		_aa_flash_no_target()
 		return
 
-	aa_cooldown = AA_MAX_COOLDOWN
+	aa_cooldown = aa_max_cooldown
 	_update_aa_hud()
-	Audio.play("b40", 8.0)
+	Audio.play("aa_sound", 8.0)
 
 	var main := _get_main_scene()
 
@@ -774,14 +814,14 @@ func _aa_flash_no_target() -> void:
 func _update_aa_hud() -> void:
 	if not _aa_cool_bar: _setup_aa_hud()
 	if not _aa_cool_bar: return
-	_aa_cool_bar.max_value = AA_MAX_COOLDOWN
+	_aa_cool_bar.max_value = aa_max_cooldown
 	if aa_cooldown > 0.05:
-		_aa_cool_bar.value = AA_MAX_COOLDOWN - aa_cooldown
+		_aa_cool_bar.value = aa_max_cooldown - aa_cooldown
 		if _aa_cool_lbl:
 			_aa_cool_lbl.text = "%.1fs" % aa_cooldown
 			_aa_cool_lbl.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
 	else:
-		_aa_cool_bar.value = AA_MAX_COOLDOWN
+		_aa_cool_bar.value = aa_max_cooldown
 		if _aa_cool_lbl:
 			_aa_cool_lbl.text = "SẴN SÀNG"
 			_aa_cool_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
@@ -792,7 +832,7 @@ func _setup_aa_hud() -> void:
 	_aa_cool_bar = main.get_node_or_null("UI/HUDPanel/AACoolBar")
 	_aa_cool_lbl = main.get_node_or_null("UI/HUDPanel/AACDLabel")
 	if _aa_cool_bar:
-		_aa_cool_bar.max_value = AA_MAX_COOLDOWN
+		_aa_cool_bar.max_value = aa_max_cooldown
 
 func _get_main_scene() -> Node:
 	var curr = get_parent()

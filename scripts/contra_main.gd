@@ -17,6 +17,18 @@ const STAGE_SCRIPTS = {
 	5: preload("res://scripts/stages/contra_final.gd")
 }
 
+const DEFEAT_TRIBUTE_LINES: Array[String] = [
+	"Cảm ơn chiến sĩ. Bạn đã chiến đấu đến hơi thở cuối cùng.",
+	"Sự hi sinh của bạn sẽ không bị lãng quên.",
+	"Nhiệm vụ thất bại, nhưng lòng can đảm của bạn thì không.",
+	"Bạn đã ngã xuống như một người lính thực thụ.",
+	"Tổ quốc ghi nhận tinh thần chiến đấu của bạn.",
+	"Trận này khép lại, nhưng ý chí của chiến sĩ vẫn còn.",
+	"Cảm ơn bạn đã đứng vững đến phút cuối.",
+	"Bạn có thể thất bại một trận, nhưng chưa bao giờ thua cuộc chiến.",
+	"Danh dự của người lính được viết bằng lòng quả cảm."
+]
+
 var STAGE_LENGTH: float = 12000.0 # Increased for longer gameplay
 const RPG_MAX_COOLDOWN: float = 10.0
 
@@ -66,24 +78,34 @@ func _add_to_level(node: Node) -> void:
 	else:
 		_world.add_child(node)
 
-# ── SCORE / KILL TRACKING ───────────────────────────────────────────────────
-func add_score(pts: int) -> void:
-	score += pts
-	var lbl = get_node_or_null("UI/HUDPanel/ScoreLabel")
-	if lbl: lbl.text = str(score)
+# ── COIN / KILL TRACKING ───────────────────────────────────────────────────
+func _refresh_coin_hud() -> void:
+	var lbl = get_node_or_null("UI/HUDPanel/CoinLabel")
+	if lbl:
+		lbl.text = str(PlayerData.coins)
 
 # ── kill-feed state ────────────────────────────────────────────────────────
 var _kill_feed_items: Array = []          # Array[Label]
 const KILL_FEED_MAX: int = 4
 
-func add_kill(pts: int = 100) -> void:
+const COIN_REWARD_SOLDIER: int = 6
+const COIN_REWARD_TANK: int = 24
+const COIN_REWARD_BOMBER: int = 40
+
+func add_kill(pts: int = 100, coin_reward: int = 0) -> void:
 	kill_count += 1
-	add_score(pts)
+	if coin_reward > 0:
+		PlayerData.add_coins(coin_reward)
+		_refresh_coin_hud()
 	var kl = get_node_or_null("UI/HUDPanel/KillLabel")
 	if kl: kl.text = "⚔ %d tiêu diệt" % kill_count
-	_spawn_kill_feed_popup(pts)
+	_spawn_kill_feed_popup(coin_reward if coin_reward > 0 else pts, coin_reward > 0)
 
-func _spawn_kill_feed_popup(pts: int) -> void:
+func _get_stage_clear_coin_reward(stage_num: int) -> int:
+	# Formula: 120 + 60 * stage
+	return 120 + 60 * stage_num
+
+func _spawn_kill_feed_popup(amount: int, is_coin: bool = false) -> void:
 	var ui = get_node_or_null("UI")
 	if not ui: return
 	# Shift existing entries up
@@ -95,7 +117,7 @@ func _spawn_kill_feed_popup(pts: int) -> void:
 		var old: Label = _kill_feed_items.pop_front()
 		if is_instance_valid(old): old.queue_free()
 	var entry := Label.new()
-	entry.text = "💀 +%d" % pts
+	entry.text = "💰 +%d" % amount if is_coin else "💀 +%d" % amount
 	entry.add_theme_font_size_override("font_size", 13)
 	entry.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
 	entry.position = Vector2(900, 100)
@@ -374,27 +396,27 @@ func _setup_progress_ui() -> void:
 	score_sep.color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.35)
 	hud_panel.add_child(score_sep)
 
-	# ── 2e. SỐ ĐIỂM ──────────────────────────────────────────────────────────
-	var score_icon := Label.new()
-	score_icon.text = "★ ĐIỂM"
-	score_icon.add_theme_font_size_override("font_size", 12)
-	score_icon.add_theme_color_override("font_color", C_GOLD)
-	score_icon.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
-	score_icon.add_theme_constant_override("shadow_offset_x", 1)
-	score_icon.add_theme_constant_override("shadow_offset_y", 1)
-	score_icon.position = Vector2(10, 109)
-	hud_panel.add_child(score_icon)
+	# ── 2e. COIN ─────────────────────────────────────────────────────────────
+	var coin_icon := Label.new()
+	coin_icon.text = "💰 COIN"
+	coin_icon.add_theme_font_size_override("font_size", 12)
+	coin_icon.add_theme_color_override("font_color", C_GOLD)
+	coin_icon.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
+	coin_icon.add_theme_constant_override("shadow_offset_x", 1)
+	coin_icon.add_theme_constant_override("shadow_offset_y", 1)
+	coin_icon.position = Vector2(10, 109)
+	hud_panel.add_child(coin_icon)
 
-	var score_val_lbl := Label.new()
-	score_val_lbl.name = "ScoreLabel"
-	score_val_lbl.text = "0"
-	score_val_lbl.add_theme_font_size_override("font_size", 14)
-	score_val_lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.5))
-	score_val_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.9))
-	score_val_lbl.add_theme_constant_override("shadow_offset_x", 1)
-	score_val_lbl.add_theme_constant_override("shadow_offset_y", 1)
-	score_val_lbl.position = Vector2(70, 107)
-	hud_panel.add_child(score_val_lbl)
+	var coin_val_lbl := Label.new()
+	coin_val_lbl.name = "CoinLabel"
+	coin_val_lbl.text = str(PlayerData.coins)
+	coin_val_lbl.add_theme_font_size_override("font_size", 14)
+	coin_val_lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.5))
+	coin_val_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.9))
+	coin_val_lbl.add_theme_constant_override("shadow_offset_x", 1)
+	coin_val_lbl.add_theme_constant_override("shadow_offset_y", 1)
+	coin_val_lbl.position = Vector2(90, 107)
+	hud_panel.add_child(coin_val_lbl)
 
 	var kill_lbl := Label.new()
 	kill_lbl.name = "KillLabel"
@@ -451,7 +473,10 @@ func _process(delta: float) -> void:
 		_rpg_cooldown_timer -= delta
 		if _rpg_cooldown_timer < 0:
 			_rpg_cooldown_timer = 0
-		refresh_heavy_weapon(_rpg_cooldown_timer, RPG_MAX_COOLDOWN)
+		if is_instance_valid(player):
+			refresh_heavy_weapon(_rpg_cooldown_timer, player.rpg_max_cooldown)
+		else:
+			refresh_heavy_weapon(_rpg_cooldown_timer, RPG_MAX_COOLDOWN)
 	
 	if is_instance_valid(player):
 		var look_ahead: float = clamp(player.velocity.x * 0.12, -120.0, 120.0)
@@ -462,7 +487,7 @@ func _process(delta: float) -> void:
 		
 		# Sync B40 HUD from actual player cooldown
 		if player.get("rpg_cooldown") != null:
-			refresh_heavy_weapon(player.rpg_cooldown, RPG_MAX_COOLDOWN)
+			refresh_heavy_weapon(player.rpg_cooldown, player.rpg_max_cooldown)
 		
 		# Vertical Camera Follow (Follow player into tunnels)
 		var target_y = 360.0
@@ -1030,6 +1055,11 @@ func _start_stage(stage_num: int, is_respawn: bool = false) -> void:
 	if progress_bar: progress_bar.max_value = STAGE_LENGTH
 	is_game_over = false # FIX: must be false before cleanup so _process works from frame 1
 	_cleanup_level()
+	# Chuyển nhạc theo stage
+	if stage_num == 5:
+		Audio.play_stage5_music()
+	else:
+		Audio.play_ingame_music()
 	# FIX: call_deferred to ensure old physic objects are gone before new ones are added
 	call_deferred("_load_stage_data", stage_num)
 	call_deferred("_spawn_player_at_start")
@@ -1106,8 +1136,7 @@ func _cleanup_level() -> void:
 	kill_count = 0
 	var kl = get_node_or_null("UI/HUDPanel/KillLabel")
 	if kl: kl.text = "⚔ 0 tiêu diệt"
-	var sl = get_node_or_null("UI/HUDPanel/ScoreLabel")
-	if sl: sl.text = "0"
+	_refresh_coin_hud()
 
 func _load_stage_data(num: int) -> void:
 	if STAGE_SCRIPTS.has(num):
@@ -2993,7 +3022,7 @@ func _show_defeat_popup() -> void:
 	panel.add_child(title)
 
 	var thanks_lbl := Label.new()
-	thanks_lbl.text = "Tri an nguoi choi"
+	thanks_lbl.text = DEFEAT_TRIBUTE_LINES.pick_random() if not DEFEAT_TRIBUTE_LINES.is_empty() else "Tri an nguoi choi"
 	thanks_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	thanks_lbl.size = Vector2(panel_w, 24)
 	thanks_lbl.position = Vector2(0, 80)
@@ -3002,7 +3031,7 @@ func _show_defeat_popup() -> void:
 	panel.add_child(thanks_lbl)
 
 	var score_lbl := Label.new()
-	score_lbl.text = "Điểm: %d" % score
+	score_lbl.text = "Coin: %d" % PlayerData.coins
 	score_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_lbl.size = Vector2(panel_w, 30)
 	score_lbl.position = Vector2(0, 116)
@@ -3073,6 +3102,7 @@ func _on_defeat_replay() -> void:
 	if is_instance_valid(_defeat_overlay):
 		_defeat_overlay.queue_free()
 		_defeat_overlay = null
+	Audio.stop_music()
 	call_deferred("_start_stage", current_stage, false)
 
 func _on_defeat_exit() -> void:
@@ -3082,10 +3112,15 @@ func _on_defeat_exit() -> void:
 	if is_instance_valid(_defeat_overlay):
 		_defeat_overlay.queue_free()
 		_defeat_overlay = null
+	Audio.stop_music()
+	Audio.play_menu_music()
+	PlayerData.flush_pending_save()
 	get_tree().change_scene_to_file("res://scenes/level_select.tscn")
 
 func on_stage_complete():
 	if is_game_over: return  # FIX: prevent double-firing if player lingers at boundary
+	PlayerData.add_coins(_get_stage_clear_coin_reward(current_stage))
+	_refresh_coin_hud()
 	if current_stage == 5:
 		_show_victory()
 	else:
@@ -3113,6 +3148,7 @@ func on_stage_complete():
 		var tree = get_tree()
 		if tree:
 			await tree.create_timer(3.5).timeout
+			PlayerData.flush_pending_save()
 			tree.change_scene_to_file("res://scenes/level_select.tscn")
 
 
@@ -3238,7 +3274,7 @@ func _show_victory() -> void:
 	btn.size = Vector2(250, 60)
 	btn.position = Vector2(451, 370)
 	btn.z_index = 97
-	btn.pressed.connect(_exit_to_main_menu)
+	btn.pressed.connect(_exit_to_level_select)
 	$UI.add_child(btn)
 
 	
@@ -3280,6 +3316,9 @@ func _show_victory() -> void:
 		wave_tw.tween_property(giant_flag, "scale:y", 0.95, 0.2)
 		wave_tw.tween_property(giant_flag, "scale:y", 1.05, 0.2)
 	
+	# Dừng nhạc nền, phát nhạc chiến thắng
+	Audio.stop_music()
+	Audio.play_victory_music()
 	# Victory SFX and slow mo
 	Engine.time_scale = 0.5
 	screen_shake(15.0, 2.0)
@@ -3289,10 +3328,8 @@ func _show_victory() -> void:
 		for i in 20:
 			var delay = i * 0.15
 			tree.create_timer(delay).timeout.connect(_spawn_firework)
-	
-		await tree.create_timer(6.0).timeout
-		Engine.time_scale = 1.0
-		tree.change_scene_to_file("res://scenes/menu.tscn")
+		# Chỉ phục hồi tốc độ game, không tự động chuyển cảnh.
+		tree.create_timer(6.0).timeout.connect(func(): Engine.time_scale = 1.0)
 	else:
 		Engine.time_scale = 1.0
 
@@ -3809,7 +3846,7 @@ func _toggle_pause_menu() -> void:
 		if info:
 			var titles: Array[String] = ["RỪNG GIÀ", "ĐỊA ĐẠO", "ĐƯỜNG MÒN", "CĂN CỨ ĐỊCH", "SÀI GÒN"]
 			var stage_name: String = titles[current_stage - 1] if current_stage <= titles.size() else "MÀN %d" % current_stage
-			info.text = "Chiến dịch %d: %s  |  Điểm: %d" % [current_stage, stage_name, score]
+			info.text = "Chiến dịch %d: %s  |  Coin: %d" % [current_stage, stage_name, PlayerData.coins]
 	_update_pause_state()
 
 func _update_pause_state() -> void:
@@ -3819,7 +3856,17 @@ func _exit_to_main_menu() -> void:
 	get_tree().paused = false # Must resume before changing scene
 	var tree = get_tree()
 	if tree:
+		PlayerData.flush_pending_save()
 		tree.change_scene_to_file("res://scenes/menu.tscn")
+
+func _exit_to_level_select() -> void:
+	get_tree().paused = false
+	Audio.stop_music()
+	Audio.play_menu_music()
+	var tree = get_tree()
+	if tree:
+		PlayerData.flush_pending_save()
+		tree.change_scene_to_file("res://scenes/level_select.tscn")
 
 func _cheat_god_mode() -> void:
 	if is_instance_valid(player):
