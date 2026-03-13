@@ -72,7 +72,7 @@ func setup():
 		elif v_dice < 0.25: _create_abandoned_vespa(dx + 150)
 
 	# Gameplay Logic
-	main._spawn_enemy_wave(22, 0.4) 
+	main._spawn_enemy_wave(18, 0.4) 
 	
 	# Allied Armored Advance (Tanks for our side - Just moving as decor)
 	for i in 10:
@@ -80,9 +80,9 @@ func setup():
 		main._spawn_heavy_enemy(tax, 580, "tank", true, false)
 
 	# Enemy Defense Tanks (These still shoot)
-	for i in 4: main._spawn_heavy_enemy(4500 + i*3500, 595, "tank")
+	for i in 3: main._spawn_heavy_enemy(4500 + i*3500, 595, "tank")
 	
-	main._spawn_background_soldiers(30) 
+	main._spawn_background_soldiers(12) 
 	main._bomber_timer = 12.0 
 	main._spawn_boss(STAGE_LENGTH - 400, 600)
 

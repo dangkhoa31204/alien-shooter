@@ -50,9 +50,9 @@ func setup():
 		
 		main._create_gaz_truck_bg(Vector2(bx - 300, main._get_ground_y(bx-300)))
 	
-	main._spawn_background_soldiers(3)
-	main._spawn_enemy_wave(10, 0.3)
-	for i in 3:
+	main._spawn_background_soldiers(1)
+	main._spawn_enemy_wave(8, 0.3)
+	for i in 2:
 		var tx = 2500 + i * 3500 + randf_range(-400, 400)
 		var ty = main._get_ground_y(tx)
 		main._spawn_heavy_enemy(tx, ty, "tank")

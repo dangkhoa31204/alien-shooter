@@ -87,7 +87,7 @@ func setup():
 				main._add_to_level(wire_line)
 
 	# Military Infrastructure: Buildings, Bunkers, Watchtowers
-	for i in range(int(STAGE_LENGTH/800)):
+	for i in range(int(STAGE_LENGTH/1000)):
 		var tx = 600 + i * 800 + randf_range(-100, 100)
 		if randf() < 0.4: # Watchtower
 			var tower = Node2D.new(); tower.position = Vector2(tx, 600); main._add_to_level(tower); tower.z_index = -15
@@ -114,12 +114,12 @@ func setup():
 	for i in range(int(STAGE_LENGTH / 2000)):
 		main._create_sandbag_fort(Vector2(1500 + i * 2000, 600), 45)
 
-	main._spawn_enemy_wave(22, 0.4) 
-	for i in 5:
+	main._spawn_enemy_wave(18, 0.4) 
+	for i in 4:
 		var t_tx = 2000 + i * 2200 + randf_range(-200, 200); main._spawn_heavy_enemy(t_tx, 595, "tank")
 	
 	main._bomber_timer = 3.0
-	main._spawn_background_soldiers(6)
+	main._spawn_background_soldiers(2)
 
 	# --- Bomb craters from prior artillery barrages ---
 	for i in 14:
