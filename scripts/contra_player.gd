@@ -10,8 +10,8 @@ var SPEED: float = 240.0
 const JUMP_VELOCITY: float = -500.0
 const GRAVITY: float = 1400.0
 
-var hp: int = 8
-var max_hp: int = 8
+var hp: int = 100
+var max_hp: int = 100
 var current_damage: int = 1
 var current_fire_rate: float = 0.12
 var is_dead: bool = false
@@ -23,7 +23,6 @@ const RELOAD_TIME: float = 2.5
 
 var is_god_mode: bool = false
 var is_infinite_ammo: bool = false
-var _dmg_accum: float = 0.0  # accumulates 0.75× damage for true 25% reduction
 
 # Movement & Aiming state
 var is_crouching: bool = false
@@ -92,7 +91,7 @@ func _ready() -> void:
 		InputMap.action_add_event("melee", ev)
 
 func _apply_loadout() -> void:
-	max_hp = 8
+	max_hp = 100
 	SPEED = 240.0
 	current_damage = 1
 	current_fire_rate = 0.12
@@ -103,7 +102,7 @@ func _apply_loadout() -> void:
 		var arm_id = PlayerData.loadout.get("armor", "")
 		if arm_id != "":
 			var stat = ItemDatabase.get_stat(arm_id, "hp_bonus", PlayerData.inventory.get(arm_id, 1))
-			max_hp += int(stat / 10.0)
+			max_hp += int(stat)
 			
 		var wpn_id = PlayerData.loadout.get("main_weapon", "")
 		if wpn_id != "":
@@ -758,7 +757,7 @@ func _fire_aa_missile() -> void:
 		var hit_pos := missile.global_position if is_instance_valid(missile) else start_pos
 		# Damage target
 		if is_instance_valid(target) and target.has_method("take_damage"):
-			target.take_damage(3)
+			target.take_damage(45)
 		# Explosion
 		_spawn_aa_explosion(hit_pos, main)
 		if main and main.has_method("screen_shake"): main.screen_shake(16.0, 0.5)
@@ -881,6 +880,7 @@ func _melee_attack() -> void:
 	melee_cooldown = MELEE_COOLDOWN_MAX
 	is_meleeing       = true
 	_melee_anim_timer = 0.0
+	Audio.play("punch")
 	var facing := sprite.scale.x
 
 	# Damage is applied at the impact frame (t ≈ 0.18)
@@ -894,9 +894,8 @@ func _melee_attack() -> void:
 			var diff: Vector2 = enemy.global_position - global_position
 			if diff.length() <= MELEE_RANGE and sign(diff.x) == facing:
 				if enemy.has_method("take_damage"):
-					# Xe tăng (tank group) chỉ nhận MELEE_DAMAGE bình thường
-					# Tất cả enemy khác: 1 đấm chết
-					var dmg := MELEE_DAMAGE if enemy.is_in_group("tank") else 999
+					# Lính thường: 1 hit chết; tank giữ damage thấp
+					var dmg := 12 if enemy.is_in_group("tank") else 999
 					enemy.take_damage(dmg)
 					hit_any = true
 		if hit_any:
@@ -921,12 +920,8 @@ func _melee_attack() -> void:
 
 func take_damage(amount: int) -> void:
 	if is_god_mode: return
-	# Giảm 25% sát thương nhận vào (tích lũy phần thập phân)
-	_dmg_accum += amount * 0.75
-	var actual := int(_dmg_accum)
-	_dmg_accum -= actual
-	if actual <= 0: return
-	hp -= actual
+	if amount <= 0: return
+	hp -= amount
 	_sync_hp()
 	var main: Node = _get_main_scene()
 	if main and main.has_method("flash_damage"):
@@ -944,3 +939,9 @@ func _die() -> void:
 		main.on_player_die()
 	else:
 		get_tree().call_deferred("reload_current_scene")
+
+func revive() -> void:
+	is_dead = false
+	hp = max_hp
+	sprite.modulate = Color.WHITE
+	_sync_hp()

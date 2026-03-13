@@ -9,7 +9,7 @@ const SPEED: float = 120.0
 const GRAVITY: float = 1400.0
 const DETECTION_RANGE: float = 320.0
 
-var hp: int = 2
+var hp: int = 30
 var patrol_direction: int = -1 # Start walking left
 var _walk_time: float = 0.0
 var _muzzle_flash_timer: float = 0.0
@@ -81,7 +81,7 @@ func _setup_complex_visuals() -> void:
 	if is_officer:
 		pack.size = Vector2(12, 18); pack.position = Vector2(-12, -18); pack.color = Color(0.2, 0.2, 0.25) # Radio grey
 		var ant = Line2D.new(); ant.points = [Vector2(-10, -18), Vector2(-14, -35)]; ant.width = 1.0; ant.default_color = Color.BLACK; _backpack.add_child(ant)
-		hp = 6
+		hp = 70
 	else:
 		pack.size = Vector2(10, 15); pack.position = Vector2(-10, -16); pack.color = Color(0.35, 0.3, 0.25)
 	_backpack.add_child(pack)
@@ -230,7 +230,7 @@ func _shoot(player: Node2D) -> void:
 	var dir = (player.global_position - b.global_position).normalized()
 	b.direction = dir
 	b.is_enemy_bullet = true
-	b.damage = 1
+	b.damage = 8
 	b.add_to_group("enemy_bullet")
 	Audio.play("m4_fire")
 	

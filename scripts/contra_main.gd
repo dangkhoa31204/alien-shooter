@@ -44,6 +44,8 @@ var is_game_over: bool = false
 
 var progress_bar: ProgressBar
 var hp_bar: ProgressBar
+var player_lives: int = 3
+var _life_hearts: Array = []
 var player: CharacterBody2D = null
 var _world: Node2D = null
 var _parallax_bg: Node2D = null
@@ -259,13 +261,13 @@ func _setup_progress_ui() -> void:
 	var hud_panel := Panel.new()
 	hud_panel.name = "HUDPanel"
 	hud_panel.position = Vector2(8, 8)
-	hud_panel.size = Vector2(310, 148)
+	hud_panel.size = Vector2(324, 148)
 	hud_panel.add_theme_stylebox_override("panel", _make_sbox.call(C_OLIVE, C_GOLD, 2, 6))
 	$UI.add_child(hud_panel)
 
 	# Dải viền vàng nhỏ ở trên cùng bảng (tai trang trí)
 	var hud_header := ColorRect.new()
-	hud_header.size = Vector2(310, 4)
+	hud_header.size = Vector2(324, 4)
 	hud_header.color = C_GOLD
 	hud_panel.add_child(hud_header)
 
@@ -282,7 +284,7 @@ func _setup_progress_ui() -> void:
 
 	hp_bar = ProgressBar.new()
 	hp_bar.name = "HPBar"
-	hp_bar.size = Vector2(205, 14)
+	hp_bar.size = Vector2(150, 14)
 	hp_bar.position = Vector2(40, 10)
 	hp_bar.max_value = 3
 	hp_bar.value = 3
@@ -295,12 +297,34 @@ func _setup_progress_ui() -> void:
 	var hp_num_lbl := Label.new()
 	hp_num_lbl.name = "HPNumLabel"
 	hp_num_lbl.text = "3 / 3"
-	hp_num_lbl.add_theme_font_size_override("font_size", 12)
+	hp_num_lbl.add_theme_font_size_override("font_size", 11)
 	hp_num_lbl.add_theme_color_override("font_color", C_TEXT)
-	hp_num_lbl.position = Vector2(252, 8)
+	hp_num_lbl.position = Vector2(196, 9)
 	hud_panel.add_child(hp_num_lbl)
 
-	# ── 2b. ĐẠN ──────────────────────────────────────────────────────────────
+	# ── 2f. TIM MẠNG (3 lives) ─────────────────────────────────────────────
+	_life_hearts.clear()
+	for _hi in 3:
+		var heart := Label.new()
+		heart.name = "Heart%d" % _hi
+		heart.text = "♥"
+		heart.add_theme_font_size_override("font_size", 16)
+		heart.add_theme_color_override("font_color", Color(1.0, 0.18, 0.18))
+		heart.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.8))
+		heart.add_theme_constant_override("shadow_offset_x", 1)
+		heart.add_theme_constant_override("shadow_offset_y", 1)
+		heart.position = Vector2(252 + _hi * 16, 6)
+		hud_panel.add_child(heart)
+		_life_hearts.append(heart)
+
+	# ── 2b. ĐẠN (BOX RIÊNG GÓC PHẢI DƯỚI) ────────────────────────────────────
+	var ammo_box := Panel.new()
+	ammo_box.name = "AmmoBox"
+	ammo_box.position = Vector2(972, 650)
+	ammo_box.size = Vector2(168, 56)
+	ammo_box.add_theme_stylebox_override("panel", _make_sbox.call(Color(0.10, 0.12, 0.10, 0.88), C_GOLD, 2, 6))
+	$UI.add_child(ammo_box)
+
 	var ammo_icon_lbl := Label.new()
 	ammo_icon_lbl.text = "ĐẠN"
 	ammo_icon_lbl.add_theme_font_size_override("font_size", 12)
@@ -308,23 +332,23 @@ func _setup_progress_ui() -> void:
 	ammo_icon_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.8))
 	ammo_icon_lbl.add_theme_constant_override("shadow_offset_x", 1)
 	ammo_icon_lbl.add_theme_constant_override("shadow_offset_y", 1)
-	ammo_icon_lbl.position = Vector2(10, 30)
-	hud_panel.add_child(ammo_icon_lbl)
+	ammo_icon_lbl.position = Vector2(10, 6)
+	ammo_box.add_child(ammo_icon_lbl)
 
 	var ammo_lbl := Label.new()
 	ammo_lbl.name = "AmmoLabel"
 	ammo_lbl.text = "30 / 30"
-	ammo_lbl.add_theme_font_size_override("font_size", 14)
+	ammo_lbl.add_theme_font_size_override("font_size", 20)
 	ammo_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.35))
 	ammo_lbl.add_theme_color_override("font_shadow_color", Color(0,0,0,0.9))
 	ammo_lbl.add_theme_constant_override("shadow_offset_x", 1)
 	ammo_lbl.add_theme_constant_override("shadow_offset_y", 1)
-	ammo_lbl.position = Vector2(48, 28)
-	hud_panel.add_child(ammo_lbl)
+	ammo_lbl.position = Vector2(52, 18)
+	ammo_box.add_child(ammo_lbl)
 
 	# ── Separator ─────────────────────────────────────────────────────────────
 	var b40_sep := ColorRect.new()
-	b40_sep.size = Vector2(290, 1); b40_sep.position = Vector2(10, 52)
+	b40_sep.size = Vector2(304, 1); b40_sep.position = Vector2(10, 52)
 	b40_sep.color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.35)
 	hud_panel.add_child(b40_sep)
 
@@ -341,7 +365,7 @@ func _setup_progress_ui() -> void:
 
 	var b40_cd_bar := ProgressBar.new()
 	b40_cd_bar.name = "B40CoolBar"
-	b40_cd_bar.size = Vector2(125, 10)
+	b40_cd_bar.size = Vector2(150, 10)
 	b40_cd_bar.position = Vector2(72, 61)
 	b40_cd_bar.max_value = RPG_MAX_COOLDOWN
 	b40_cd_bar.value = RPG_MAX_COOLDOWN
@@ -356,7 +380,7 @@ func _setup_progress_ui() -> void:
 	b40_cd_lbl.text = "SẴN SÀNG"
 	b40_cd_lbl.add_theme_font_size_override("font_size", 11)
 	b40_cd_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
-	b40_cd_lbl.position = Vector2(203, 57)
+	b40_cd_lbl.position = Vector2(228, 57)
 	hud_panel.add_child(b40_cd_lbl)
 
 	# ── 2d. AA MISSILE [X] ───────────────────────────────────────────────────
@@ -372,8 +396,8 @@ func _setup_progress_ui() -> void:
 
 	var aa_cd_bar := ProgressBar.new()
 	aa_cd_bar.name = "AACoolBar"
-	aa_cd_bar.size = Vector2(100, 10)
-	aa_cd_bar.position = Vector2(105, 85)
+	aa_cd_bar.size = Vector2(150, 10)
+	aa_cd_bar.position = Vector2(72, 85)
 	aa_cd_bar.max_value = 10.0
 	aa_cd_bar.value = 10.0
 	aa_cd_bar.show_percentage = false
@@ -387,12 +411,12 @@ func _setup_progress_ui() -> void:
 	aa_cd_lbl.text = "SẴN SÀNG"
 	aa_cd_lbl.add_theme_font_size_override("font_size", 11)
 	aa_cd_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
-	aa_cd_lbl.position = Vector2(211, 81)
+	aa_cd_lbl.position = Vector2(228, 81)
 	hud_panel.add_child(aa_cd_lbl)
 
 	# ── Separator ─────────────────────────────────────────────────────────────
 	var score_sep := ColorRect.new()
-	score_sep.size = Vector2(290, 1); score_sep.position = Vector2(10, 104)
+	score_sep.size = Vector2(304, 1); score_sep.position = Vector2(10, 104)
 	score_sep.color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.35)
 	hud_panel.add_child(score_sep)
 
@@ -446,15 +470,42 @@ func refresh_hp(val: int, max_val: int) -> void:
 				_damage_vignette.remove_meta("low_hp_looping")
 				_damage_vignette.modulate.a = 0.0
 
+func refresh_lives(lives: int) -> void:
+	for i in _life_hearts.size():
+		var h = _life_hearts[i]
+		if not is_instance_valid(h): continue
+		if i < lives:
+			h.visible = true
+			h.add_theme_color_override("font_color", Color(1.0, 0.18, 0.18))
+		else:
+			h.visible = false
+
 func refresh_ammo(val: int, max_val: int, is_rel: bool) -> void:
-	var al = get_node_or_null("UI/HUDPanel/AmmoLabel")
+	var al = get_node_or_null("UI/AmmoBox/AmmoLabel")
+	if not al:
+		al = get_node_or_null("UI/HUDPanel/AmmoLabel")
 	if not al:  # fallback lazy-create if HUD panel missing
-		if not has_node("UI/AmmoLabel"):
-			var lbl = Label.new(); lbl.name = "AmmoLabel"; lbl.position = Vector2(20, 85)
+		if not has_node("UI/AmmoBox"):
+			var box = Panel.new(); box.name = "AmmoBox"; box.position = Vector2(972, 650); box.size = Vector2(168, 56)
+			var ammo_box_style := StyleBoxFlat.new()
+			ammo_box_style.bg_color = Color(0.10, 0.12, 0.10, 0.88)
+			ammo_box_style.border_color = Color(0.82, 0.68, 0.22)
+			ammo_box_style.border_width_left = 2
+			ammo_box_style.border_width_right = 2
+			ammo_box_style.border_width_top = 2
+			ammo_box_style.border_width_bottom = 2
+			ammo_box_style.set_corner_radius_all(6)
+			box.add_theme_stylebox_override("panel", ammo_box_style)
+			$UI.add_child(box)
+			var lbl_icon = Label.new(); lbl_icon.text = "ĐẠN"; lbl_icon.position = Vector2(10, 6)
+			lbl_icon.add_theme_font_size_override("font_size", 12)
+			lbl_icon.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+			box.add_child(lbl_icon)
+			var lbl = Label.new(); lbl.name = "AmmoLabel"; lbl.position = Vector2(52, 18)
 			lbl.add_theme_font_size_override("font_size", 18)
 			lbl.add_theme_color_override("font_color", Color.YELLOW)
-			$UI.add_child(lbl)
-		al = $UI/AmmoLabel
+			box.add_child(lbl)
+		al = get_node_or_null("UI/AmmoBox/AmmoLabel")
 	if is_rel:
 		al.text = "  NẠP ĐẠN..."
 		al.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
@@ -690,7 +741,7 @@ func _explode_bomb(pos: Vector2) -> void:
 	_create_crater(pos)
 
 	if is_instance_valid(player) and player.global_position.distance_to(pos) < 110.0:
-		player.take_damage(1)
+		player.take_damage(15)
 
 func _create_crater(pos: Vector2) -> void:
 	var floor_y := _get_ground_y(pos.x)
@@ -1051,7 +1102,10 @@ func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 func _start_stage(stage_num: int, is_respawn: bool = false) -> void:
 	current_stage = stage_num
 	STAGE_LENGTH = 12000.0 # Reset to default
-	if not is_respawn: last_checkpoint_x = 100.0
+	if not is_respawn:
+		last_checkpoint_x = 100.0
+		player_lives = 3
+		refresh_lives(player_lives)
 	if progress_bar: progress_bar.max_value = STAGE_LENGTH
 	is_game_over = false # FIX: must be false before cleanup so _process works from frame 1
 	_cleanup_level()
@@ -2960,6 +3014,24 @@ func refresh_heavy_weapon(cooldown: float, _max_cooldown: float) -> void:
 
 func on_player_die() -> void:
 	if is_game_over: return
+	player_lives -= 1
+	refresh_lives(player_lives)
+	if player_lives > 0:
+		# Còn mạng → hồi sinh tại checkpoint sau 1.5s
+		var rt := Timer.new()
+		rt.one_shot = true
+		rt.wait_time = 1.5
+		rt.process_mode = Node.PROCESS_MODE_ALWAYS
+		rt.timeout.connect(func():
+			if is_instance_valid(player):
+				var spawn_x := maxf(last_checkpoint_x, 576.0)
+				player.position = Vector2(spawn_x, _get_ground_y(spawn_x) - 40.0)
+				player.revive()
+		)
+		add_child(rt)
+		rt.start()
+		return
+	# Hết mạng → game over
 	is_game_over = true
 	Audio.play_died_music()
 	# Dọn kẻ địch để màn hình thất bại rõ ràng hơn
@@ -2993,8 +3065,8 @@ func _show_defeat_popup() -> void:
 	bg.color = Color(0.0, 0.0, 0.0, 0.78)
 	_defeat_overlay.add_child(bg)
 
-	var panel_w: float = 420.0
-	var panel_h: float = 320.0
+	var panel_w: float = 520.0
+	var panel_h: float = 360.0
 	var panel := Panel.new()
 	panel.size = Vector2(panel_w, panel_h)
 	panel.position = Vector2((1152.0 - panel_w) * 0.5, (720.0 - panel_h) * 0.5)
@@ -3024,8 +3096,10 @@ func _show_defeat_popup() -> void:
 	var thanks_lbl := Label.new()
 	thanks_lbl.text = DEFEAT_TRIBUTE_LINES.pick_random() if not DEFEAT_TRIBUTE_LINES.is_empty() else "Tri an nguoi choi"
 	thanks_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	thanks_lbl.size = Vector2(panel_w, 24)
-	thanks_lbl.position = Vector2(0, 80)
+	thanks_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	thanks_lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	thanks_lbl.size = Vector2(panel_w - 40.0, 64)
+	thanks_lbl.position = Vector2(20, 80)
 	thanks_lbl.add_theme_font_size_override("font_size", 15)
 	thanks_lbl.add_theme_color_override("font_color", Color(0.95, 0.82, 0.58))
 	panel.add_child(thanks_lbl)
@@ -3034,7 +3108,7 @@ func _show_defeat_popup() -> void:
 	score_lbl.text = "Coin: %d" % PlayerData.coins
 	score_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_lbl.size = Vector2(panel_w, 30)
-	score_lbl.position = Vector2(0, 116)
+	score_lbl.position = Vector2(0, 152)
 	score_lbl.add_theme_font_size_override("font_size", 22)
 	score_lbl.add_theme_color_override("font_color", Color(0.95, 0.90, 0.70))
 	panel.add_child(score_lbl)
@@ -3043,17 +3117,17 @@ func _show_defeat_popup() -> void:
 	stage_lbl.text = "Chiến dịch: %d" % current_stage
 	stage_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stage_lbl.size = Vector2(panel_w, 26)
-	stage_lbl.position = Vector2(0, 148)
+	stage_lbl.position = Vector2(0, 184)
 	stage_lbl.add_theme_font_size_override("font_size", 18)
 	stage_lbl.add_theme_color_override("font_color", Color(0.72, 0.78, 0.9))
 	panel.add_child(stage_lbl)
 
 	var btn_w: float = panel_w - 70.0
-	var replay_btn := _make_defeat_btn("Chơi lại", Vector2(35, 190), btn_w)
+	var replay_btn := _make_defeat_btn("Chơi lại", Vector2(35, 238), btn_w)
 	replay_btn.pressed.connect(_on_defeat_replay)
 	panel.add_child(replay_btn)
 
-	var exit_btn := _make_defeat_btn("Thoát", Vector2(35, 246), btn_w)
+	var exit_btn := _make_defeat_btn("Thoát", Vector2(35, 294), btn_w)
 	exit_btn.pressed.connect(_on_defeat_exit)
 	panel.add_child(exit_btn)
 

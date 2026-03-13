@@ -10,7 +10,7 @@ const SPEED: float        = 180.0
 const GRAVITY: float      = 520.0   # pixels/s² while falling
 const SPIN_SPEED: float   = 3.8     # radians/s while spinning down
 
-var hp: int       = 6
+var hp: int       = 130
 var direction: int = 1  # 1 = Right, -1 = Left
 
 # Falling state
@@ -215,7 +215,7 @@ func _drop_bomb() -> void:
 	b.set_meta("is_bomb", true)
 	if "direction" in b: b.direction = Vector2.DOWN
 	b.is_enemy_bullet = true
-	if "damage" in b: b.damage = 1
+	if "damage" in b: b.damage = 14
 	b.scale = Vector2(2.5, 2.5)
 	b.add_to_group("enemy_bullet")
 
