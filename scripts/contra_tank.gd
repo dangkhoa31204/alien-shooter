@@ -193,8 +193,11 @@ func _fire_cannon() -> void:
 	var b = BULLET_SCENE.instantiate()
 	# FIX: use bullet_container via main scene instead of get_parent() for proper management
 	var main = _get_main_scene()
-	if main and is_instance_valid(main.bullet_container):
-		main.bullet_container.add_child(b)
+	var bullet_container: Node = null
+	if main:
+		bullet_container = main.get_node_or_null("BulletContainer")
+	if is_instance_valid(bullet_container):
+		bullet_container.add_child(b)
 	else:
 		get_parent().add_child(b)
 	b.global_position = _muzzle_flash.global_position
@@ -209,7 +212,23 @@ func _fire_cannon() -> void:
 	b.scale = Vector2(2.5, 2.5)
 	if is_ally:
 		b.is_enemy_bullet = false
-		b.damage = 30
+		# Support fire: deal 1/10 of player's current damage (minimum 1).
+		var player_dmg: int = 1
+		var main2 := _get_main_scene()
+		var player_node: Node = null
+		if main2:
+			var cand = main2.get("player")
+			if cand is Node and is_instance_valid(cand):
+				player_node = cand
+		if not is_instance_valid(player_node):
+			var players := get_tree().get_nodes_in_group("player")
+			if players.size() > 0:
+				player_node = players[0]
+		if is_instance_valid(player_node):
+			var dmg_val = player_node.get("current_damage")
+			if dmg_val != null:
+				player_dmg = maxi(1, int(dmg_val))
+		b.damage = maxi(1, int(round(float(player_dmg) / 10.0)))
 		b.add_to_group("player_bullet")
 	else:
 		b.is_enemy_bullet = true
