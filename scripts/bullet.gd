@@ -38,7 +38,9 @@ func _ready() -> void:
 	get_tree().create_timer(5.0).timeout.connect(queue_free)
 	# Áp cấp độ (chỉ với đạn người chơi)
 	if not is_enemy_bullet:
-		damage = bullet_level
+		# Do not overwrite custom damage set by the shooter (Contra uses current_damage).
+		if damage <= 1:
+			damage = bullet_level
 		speed  = 600.0 + (bullet_level - 1) * 50.0  # 600/650/700/750/800
 		# RICOCHET: sát thương khởi đầu thấp hơn 1 bậc, giảm dần theo lần nảy
 		if bullet_type == BulletType.RICOCHET:
