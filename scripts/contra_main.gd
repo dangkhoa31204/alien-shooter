@@ -576,11 +576,11 @@ func _process(delta: float) -> void:
 		if current_stage == 5:
 			_allied_tank_timer -= delta
 			if _allied_tank_timer <= 0:
-				var tax = camera.position.x - 650 # Spawn just off left screen
+				var tax = camera.position.x - 400 # Spawn gần hơn vào màn hình
 				_spawn_heavy_enemy(tax, 580, "tank", true, false)
-				_allied_tank_timer = randf_range(12.0, 18.0)
+				_allied_tank_timer = randf_range(6.0, 10.0) # Tăng tần suất spawn xe tăng
 			# Always reset timer
-			_army_spawn_timer = 3.0
+			_army_spawn_timer = 1.0 # Tăng tần suất spawn bộ đội
 		
 		# Dynamic Enemy Spawning (To keep the action going)
 		_enemy_spawn_timer -= delta

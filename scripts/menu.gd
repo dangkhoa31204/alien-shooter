@@ -503,4 +503,3 @@ func _add_settings_popup() -> void:
 		PlayerData.apply_volume()
 		PlayerData.save_data()
 	)
-
