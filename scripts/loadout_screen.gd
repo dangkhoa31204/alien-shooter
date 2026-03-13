@@ -384,10 +384,13 @@ func _update_detail_panel():
 	var is_equipped = (PlayerData.loadout.get(current_tab_id) == selected_item_id)
 	
 	var col_hex = ItemDatabase.RARITY_COLORS.get(it.rarity, Color.WHITE).to_html()
+	var is_implemented = ItemDatabase.is_item_implemented(selected_item_id)
 	
 	var bbcode = "[font_size=20][color=#%s]%s[/color][/font_size]\n" % [col_hex, it.name]
 	bbcode += "Loại: %s | Phẩm chất: [color=#%s]%s[/color]\n\n" % [it.type.capitalize(), col_hex, it.rarity]
 	bbcode += "%s\n\n" % it.desc
+	if not is_implemented:
+		bbcode += "[color=#FFA500]Trạng thái: Đang phát triển[/color]\n\n"
 	
 	bbcode += "[font_size=16][color=#FFFF00]CHỈ SỐ (Lv.%d)[/color][/font_size]\n" % lvl
 	

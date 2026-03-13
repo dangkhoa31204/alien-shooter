@@ -5,7 +5,7 @@ extends CharacterBody2D
 
 const BULLET_SCENE = preload("res://scenes/bullet.tscn")
 
-var hp: int = 4
+var hp: int = 55
 var detection_range: float = 500.0
 var shoot_cooldown: float = 2.0
 var _timer: float = 0.0
@@ -70,6 +70,7 @@ func _shoot(p: Node2D) -> void:
 	b.global_position = muzzle.global_position
 	b.direction = (p.global_position - b.global_position).normalized()
 	b.is_enemy_bullet = true
+	b.damage = 10
 	b.add_to_group("enemy_bullet")
 	Audio.play("m4_fire")
 

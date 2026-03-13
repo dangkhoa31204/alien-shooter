@@ -5,7 +5,7 @@ extends Area2D
 
 var direction: Vector2 = Vector2.RIGHT
 var speed: float = 800.0
-var damage: int = 25 # Massive damage
+var damage: int = 90 # Massive damage
 var life_time: float = 3.0
 
 func _ready() -> void:

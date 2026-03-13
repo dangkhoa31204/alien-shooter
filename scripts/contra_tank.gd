@@ -8,7 +8,7 @@ const BULLET_SCENE = preload("res://scenes/bullet.tscn")
 const SPEED: float = 60.0 # Slow but steady
 const GRAVITY: float = 1400.0
 
-var hp: int = 15
+var hp: int = 240
 var patrol_direction: int = -1
 var is_ally: bool = false
 var can_shoot: bool = true
@@ -206,11 +206,11 @@ func _fire_cannon() -> void:
 	b.scale = Vector2(2.5, 2.5)
 	if is_ally:
 		b.is_enemy_bullet = false
-		b.damage = 5
+		b.damage = 30
 		b.add_to_group("player_bullet")
 	else:
 		b.is_enemy_bullet = true
-		b.damage = 2
+		b.damage = 20
 		b.add_to_group("enemy_bullet")
 	
 	_muzzle_flash.color.a = 1.0
