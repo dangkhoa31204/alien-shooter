@@ -3991,9 +3991,11 @@ func _create_health_kit(pos: Vector2) -> void:
 	
 	kit.body_entered.connect(func(body):
 		if body.is_in_group("player"):
-			if body.hp < body.max_hp:
-				body.hp = min(body.hp + 1, body.max_hp)
-				body._sync_hp()
+			if ("hp" in body) and ("max_hp" in body) and body.hp < body.max_hp:
+				var heal_amt: int = maxi(1, ceili(float(body.max_hp) * 0.25))
+				body.hp = mini(body.hp + heal_amt, body.max_hp)
+				if body.has_method("_sync_hp"):
+					body._sync_hp()
 				Audio.play("collected_item")
 				kit.queue_free()
 	)
