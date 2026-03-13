@@ -5,6 +5,8 @@ extends CharacterBody2D
 
 const BULLET_SCENE = preload("res://scenes/bullet.tscn")
 
+const HP_MULT: float = 0.5
+
 const SPEED: float = 60.0 # Slow but steady
 const GRAVITY: float = 1400.0
 
@@ -31,6 +33,7 @@ func _ready() -> void:
 	else:
 		add_to_group("enemy")
 		add_to_group("tank")
+		hp = maxi(1, int(round(float(hp) * HP_MULT)))
 	
 	# Create nodes programmatically
 	sprite = Node2D.new(); sprite.name = "Sprite"; add_child(sprite)

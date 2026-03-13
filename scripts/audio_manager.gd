@@ -34,6 +34,11 @@ const MP3_SFX_DEFS: Dictionary = {
 }
 var _mp3_sfx_loaded := false
 
+# Some Windows setups can invalidate the WASAPI output device at runtime
+# (Bluetooth unplug, default device change, etc.). Keep a lightweight
+# watchdog that re-selects a valid device to avoid audio failures.
+var _device_watch_timer: Timer = null
+
 # ── MUSIC ─────────────────────────────────────────────────────────────────────
 var _music_player:  AudioStreamPlayer = null
 const INGAME_MUSIC_PATH  := "res://assets/audio/game_background_music1.mp3"
@@ -61,6 +66,7 @@ const _CHORDS: Array = [
 # ────────────────────────────────────────────────────────────────────────────
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_setup_output_device_watchdog()
 	# Load saved settings early so music_enabled/sfx_enabled are correct
 	PlayerData.load_data()
 	_build_sfx_library()
@@ -68,6 +74,40 @@ func _ready() -> void:
 	_setup_menu_music()
 	# Load MP3 SFX sau 2 frame để resource cache kịp đăng ký
 	call_deferred("_deferred_build_mp3_sfx")
+
+func _setup_output_device_watchdog() -> void:
+	# Best-effort only; keep game running even if audio APIs differ.
+	_ensure_valid_output_device()
+	_device_watch_timer = Timer.new()
+	_device_watch_timer.one_shot = false
+	_device_watch_timer.wait_time = 1.5
+	_device_watch_timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	_device_watch_timer.timeout.connect(_ensure_valid_output_device)
+	add_child(_device_watch_timer)
+	_device_watch_timer.start()
+
+func _ensure_valid_output_device() -> void:
+	if not AudioServer.has_method("get_output_device_list"):
+		return
+	var devices = AudioServer.get_output_device_list()
+	if devices == null or devices.size() == 0:
+		return
+
+	var current := ""
+	if AudioServer.has_method("get_output_device"):
+		current = str(AudioServer.get_output_device())
+	elif "output_device" in AudioServer:
+		current = str(AudioServer.output_device)
+
+	# If current is missing/invalid, pick the first available device.
+	var current_ok := false
+	for d in devices:
+		if str(d) == current:
+			current_ok = true
+			break
+	if not current_ok:
+		if AudioServer.has_method("set_output_device"):
+			AudioServer.set_output_device(str(devices[0]))
 
 func _deferred_build_mp3_sfx() -> void:
 	await get_tree().process_frame

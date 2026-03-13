@@ -377,12 +377,13 @@ func _make_controls_panel(vp: Vector2) -> void:
 	add_child(sep)
 
 	var rows: Array = [
-		["A / D  |  ◀ ▶",  "Di chuyển"],
+		["◀ ▶",            "Di chuyển"],
 		["SPACE",           "Nhảy / Nhảy kép"],
 		["S",               "Bắn súng"],
-		["↑  (khi chạy)",  "Bắn chéo 45°"],
+		["↑ / ↓",          "Ngắm lên / Ngồi"],
 		["↓ + SHIFT",       "Lộn vòng lướt"],
 		["A  (B40)",        "Bắn hỏa tiễn"],
+		["X",               "Tên lửa phòng không"],
 		["F",               "Đánh cận chiến"],
 		["F1",              "Cheat Menu"],
 	]

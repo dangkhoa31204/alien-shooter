@@ -190,12 +190,13 @@ func _add_how_to_play_popup() -> void:
 	bg_panel.add_child(keys_vbox)
 	
 	var rows: Array = [
-		["A / D  |  ◀ ▶",  "Di chuyển"],
+		["◀ ▶",            "Di chuyển"],
 		["SPACE",           "Nhảy / Nhảy kép"],
 		["S",               "Bắn súng"],
-		["↑  (khi chạy)",  "Bắn chéo 45°"],
+		["↑ / ↓",          "Ngắm lên / Ngồi"],
 		["↓ + SHIFT",       "Lộn vòng lướt"],
 		["A  (B40)",        "Bắn hỏa tiễn"],
+		["X",               "Tên lửa phòng không"],
 		["F",               "Đánh cận chiến"],
 		["F1",              "Cheat Menu"],
 	]

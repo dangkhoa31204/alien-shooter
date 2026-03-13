@@ -5,6 +5,8 @@ extends CharacterBody2D
 
 const BULLET_SCENE = preload("res://scenes/bullet.tscn")
 
+const HP_MULT: float = 0.5
+
 var hp: int = 55
 var detection_range: float = 500.0
 var shoot_cooldown: float = 2.0
@@ -15,6 +17,7 @@ var muzzle: Marker2D
 
 func _ready() -> void:
 	add_to_group("enemy")
+	hp = maxi(1, int(round(float(hp) * HP_MULT)))
 	_setup_visuals()
 
 func _setup_visuals() -> void:
