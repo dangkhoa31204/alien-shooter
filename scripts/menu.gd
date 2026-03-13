@@ -29,7 +29,10 @@ func _ready() -> void:
 		title_lbl.add_theme_color_override("font_shadow_color", Color(0.8, 0.0, 0.0))
 
 	if subtitle_lbl:
-		subtitle_lbl.add_theme_color_override("font_color", Color(0.8, 1.0, 0.8, 0.8))
+		subtitle_lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
+		subtitle_lbl.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 1.0))
+		subtitle_lbl.add_theme_constant_override("shadow_offset_x", 2)
+		subtitle_lbl.add_theme_constant_override("shadow_offset_y", 2)
 		_typewriter(subtitle_lbl as Label, "Kháng chiến chống Mỹ cứu nước")
 
 	var divider: Node = get_node_or_null("UI/Divider")

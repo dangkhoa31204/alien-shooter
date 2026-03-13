@@ -128,8 +128,8 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	if _custom_bg_tex:
-		# Draw the static image
-		draw_texture_rect(_custom_bg_tex, Rect2(0, 0, _vp.x, _vp.y), false)
+		# Draw the static image (darkened by 15%)
+		draw_texture_rect(_custom_bg_tex, Rect2(0, 0, _vp.x, _vp.y), false, Color(0.85, 0.85, 0.85))
 		# Only draw the battlefield tracers (shooters) on top
 		if _vietnam_mode:
 			for sh in _shooters:
