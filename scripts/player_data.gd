@@ -16,6 +16,22 @@ static var sfx_volume:      float = 0.8   # 0.0 – 1.0 (effects)
 static var contra_unlocked_stage: int = 1
 static var current_selected_stage: int = 1
 
+# Equipment / Loadout
+static var inventory: Dictionary = {}  # { "item_id": level, ... }
+static var loadout: Dictionary = {
+	"main_weapon": "wpn_ak47",
+	"sub_weapon": "",
+	"skill": "",
+	"armor": "",
+	"accessory": "",
+	"special": ""
+}
+
+# Performance: avoid disk I/O every kill/coin tick by batching saves.
+static var _save_dirty: bool = false
+static var _last_save_ms: int = 0
+const SAVE_THROTTLE_MS: int = 1200
+
 static func get_unlocked_stage() -> int:
 	return contra_unlocked_stage
 
@@ -26,14 +42,24 @@ static func unlock_next_stage() -> void:
 
 static func add_coins(amount: int) -> void:
 	coins += amount
-	save_data()
+	_mark_dirty_and_maybe_save()
 
 static func spend_coins(amount: int) -> bool:
 	if coins < amount:
 		return false
 	coins -= amount
-	save_data()
+	_mark_dirty_and_maybe_save()
 	return true
+
+static func _mark_dirty_and_maybe_save() -> void:
+	_save_dirty = true
+	var now_ms := Time.get_ticks_msec()
+	if now_ms - _last_save_ms >= SAVE_THROTTLE_MS:
+		save_data()
+
+static func flush_pending_save() -> void:
+	if _save_dirty:
+		save_data()
 
 
 static func reset_data() -> void:
@@ -46,6 +72,15 @@ static func reset_data() -> void:
 			"music_enabled": music_enabled, "sound_enabled": sound_enabled, "volume": volume,
 			"sfx_enabled": sfx_enabled, "sfx_volume": sfx_volume,
 			"contra_unlocked": 1,
+			"inventory": {},
+			"loadout": {
+				"main_weapon": "wpn_ak47",
+				"sub_weapon": "",
+				"skill": "",
+				"armor": "",
+				"accessory": "",
+				"special": ""
+			}
 		}))
 		f.close()
 
@@ -58,11 +93,15 @@ static func save_data() -> void:
 		"sfx_enabled":      sfx_enabled,
 		"sfx_volume":       sfx_volume,
 		"contra_unlocked":  contra_unlocked_stage,
+		"inventory":        inventory,
+		"loadout":          loadout,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(d))
 		f.close()
+		_save_dirty = false
+		_last_save_ms = Time.get_ticks_msec()
 
 static func load_data() -> void:
 	if not FileAccess.file_exists(SAVE_PATH): return
@@ -78,6 +117,13 @@ static func load_data() -> void:
 	sfx_enabled      = bool(parsed.get("sfx_enabled",     true))
 	sfx_volume       = float(parsed.get("sfx_volume",      0.8))
 	contra_unlocked_stage = int(parsed.get("contra_unlocked", 1))
+	
+	if parsed.has("inventory"):
+		inventory = parsed.get("inventory")
+	if parsed.has("loadout"):
+		var saved_loadout = parsed.get("loadout")
+		for k in saved_loadout.keys():
+			loadout[k] = saved_loadout[k]
 	apply_volume()
 
 static func apply_volume() -> void:

@@ -146,7 +146,7 @@ func _crash_impact(main: Node) -> void:
 	if not main: queue_free(); return
 
 	main.screen_shake(22.0, 0.7)
-	Audio.play("b40", 16.0)
+	Audio.play("bomber_explode", 16.0)
 
 	# Big ground explosion
 	for ring in 3:
@@ -200,7 +200,7 @@ func _crash_impact(main: Node) -> void:
 
 	# Score & feedback
 	if main.has_method("add_kill"):
-		main.add_kill(500)
+		main.add_kill(500, 40)
 
 	queue_free()
 
@@ -231,6 +231,7 @@ func take_damage(amount: int) -> void:
 func _start_fall() -> void:
 	_dying = true
 	shoot_timer.stop()
+	Audio.play("bomber_drop_sound", 10.0)
 	# Initial velocity: keep horizontal momentum, slight upward kick
 	_fall_vel = Vector2(velocity.x * 0.5, -120.0)
 	# Remove from "enemy" group so it no longer counts for targeting

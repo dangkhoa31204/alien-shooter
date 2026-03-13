@@ -268,7 +268,7 @@ func _die() -> void:
 	# Báo điểm và kill cho main
 	var main_node = get_tree().current_scene
 	if main_node and main_node.has_method("add_kill"):
-		main_node.add_kill(100)
+		main_node.add_kill(100, 6)
 
 	# Reaction: Fall backwards based on movement
 	var fall_dir = -patrol_direction

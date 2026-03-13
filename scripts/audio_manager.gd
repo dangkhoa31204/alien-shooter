@@ -20,8 +20,11 @@ const MP3_SFX_DEFS: Dictionary = {
 	"ak47_fire":  		"res://assets/audio/ak47_fire.mp3",
 	"m4_fire": "res://assets/audio/m4_fire.wav",
 	"collected_item": "res://assets/audio/collected_item.mp3",
-	"b40":           "res://assets/audio/b40.mp3",
-	"reload_ak47":   "res://assets/audio/reload_ak47.mp3",
+	"b40":               "res://assets/audio/b40.mp3",
+	"aa_sound":           "res://assets/audio/aa_sound.mp3",
+	"bomber_drop_sound":  "res://assets/audio/bomber_drop_sound.mp3",
+	"bomber_explode":     "res://assets/audio/bomber_explode.mp3",
+	"reload_ak47":       "res://assets/audio/reload_ak47.mp3",
 	"footstep_grass_1": "res://assets/audio/walk-on-grass-1.mp3",
 	"footstep_grass_2": "res://assets/audio/walk-on-grass-2.mp3",
 	"footstep_grass_3": "res://assets/audio/walk-on-grass-3.mp3",
@@ -33,8 +36,10 @@ var _mp3_sfx_loaded := false
 
 # ── MUSIC ─────────────────────────────────────────────────────────────────────
 var _music_player:  AudioStreamPlayer = null
-const INGAME_MUSIC_PATH := "res://assets/audio/game_background_music1.mp3"
-const DIED_MUSIC_PATH := "res://assets/audio/died_music.mp3"
+const INGAME_MUSIC_PATH  := "res://assets/audio/game_background_music1.mp3"
+const DIED_MUSIC_PATH    := "res://assets/audio/died_music.mp3"
+const STAGE5_MUSIC_PATH  := "res://assets/audio/final_screen_music.mp3"
+const VICTORY_MUSIC_PATH := "res://assets/audio/victory _music.mp3"
 var _music_pb:      AudioStreamGeneratorPlayback = null
 var _music_t:       float = 0.0
 var _chord_beat:    float = 0.0
@@ -147,6 +152,28 @@ func play_ingame_music() -> void:
 		_music_player.play()
 		call_deferred("_grab_music_playback")
 
+func play_stage5_music() -> void:
+	if _music_player == null: return
+	if not PlayerData.music_enabled: return
+	if _menu_music_player != null and _menu_music_player.playing:
+		_menu_music_player.stop()
+	if _set_music_stream_from_path(STAGE5_MUSIC_PATH, true):
+		_music_player.stop()
+		_music_player.play()
+		_music_pb = null
+	else:
+		play_ingame_music()  # fallback nếu file chưa có
+
+func play_victory_music() -> void:
+	if _music_player == null: return
+	if _menu_music_player != null and _menu_music_player.playing:
+		_menu_music_player.stop()
+	if not PlayerData.music_enabled: return
+	if _set_music_stream_from_path(VICTORY_MUSIC_PATH, false):
+		_music_player.stop()
+		_music_player.play()
+		_music_pb = null
+
 func play_died_music() -> void:
 	if _music_player == null: return
 	if not PlayerData.music_enabled: return
@@ -187,6 +214,14 @@ func stop_menu_music() -> void:
 	if _menu_music_player != null:
 		_menu_music_player.stop()
 	play_ingame_music()
+
+## Dừng toàn bộ nhạc (cả nhạc game lẫn nhạc menu)
+func stop_music() -> void:
+	if _music_player != null:
+		_music_player.stop()
+	_music_pb = null
+	if _menu_music_player != null:
+		_menu_music_player.stop()
 
 ## Gọi sau khi toggle sound để cập nhật nhạc menu đang phát
 func refresh_menu_music() -> void:
