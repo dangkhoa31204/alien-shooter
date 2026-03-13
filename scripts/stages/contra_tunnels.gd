@@ -226,8 +226,8 @@ func setup():
 		rj.color = Color(0.02, 0.01, 0.005, 0.85); rj.z_index = -8
 		main._add_to_level(rj)
 
-	main._spawn_background_soldiers(6)
-	main._spawn_enemy_wave(18, 0.30)
+	main._spawn_background_soldiers(2)
+	main._spawn_enemy_wave(14, 0.30)
 	main._spawn_enemy(400, surface_y - 50)
 	main._bomber_timer = 4.0
 

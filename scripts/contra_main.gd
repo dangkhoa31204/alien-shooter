@@ -561,7 +561,7 @@ func _process(delta: float) -> void:
 		# Army spawn: soldiers enter from the LEFT edge, march right alongside player
 		_army_spawn_timer -= delta
 		if _army_spawn_timer <= 0:
-			var army_cap = 40 if current_stage == 5 else 14 # Tăng army_cap cho Map 5
+			var army_cap = 8 if current_stage == 5 else 6
 			var current_army_count = tree.get_nodes_in_group("ally_army").size()
 			if current_army_count < army_cap:
 				var spawn_count = 2
@@ -586,10 +586,10 @@ func _process(delta: float) -> void:
 		_enemy_spawn_timer -= delta
 		if _enemy_spawn_timer <= 0:
 			var enemies = tree.get_nodes_in_group("enemy").size()
-			var base_max = 8
-			if current_stage == 2: base_max = 12
-			elif current_stage == 3: base_max = 8 # Less crowded for Map 3
-			elif current_stage == 5: base_max = 4
+			var base_max = 6
+			if current_stage == 2: base_max = 10
+			elif current_stage == 3: base_max = 6 # Less crowded for Map 3
+			elif current_stage == 5: base_max = 3
 			
 			if enemies < base_max:
 				var spawn_x = camera.position.x + 900 + randf_range(100, 400)
@@ -1121,7 +1121,7 @@ func _start_stage(stage_num: int, is_respawn: bool = false) -> void:
 func _spawn_player_at_start() -> void:
 	_spawn_player()
 	# FIX: spawn army AFTER _spawn_player so camera is correctly positioned
-	for idx_army in 6:
+	for idx_army in 2:
 		var sx_army = camera.position.x + 100 + idx_army * 140
 		_add_individual_background_soldier(sx_army, _get_ground_y(sx_army))
 	

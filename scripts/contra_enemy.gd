@@ -9,7 +9,7 @@ const SPEED: float = 120.0
 const GRAVITY: float = 1400.0
 const DETECTION_RANGE: float = 320.0
 
-var hp: int = 30
+var hp: int = 14
 var patrol_direction: int = -1 # Start walking left
 var _walk_time: float = 0.0
 var _muzzle_flash_timer: float = 0.0
@@ -81,7 +81,7 @@ func _setup_complex_visuals() -> void:
 	if is_officer:
 		pack.size = Vector2(12, 18); pack.position = Vector2(-12, -18); pack.color = Color(0.2, 0.2, 0.25) # Radio grey
 		var ant = Line2D.new(); ant.points = [Vector2(-10, -18), Vector2(-14, -35)]; ant.width = 1.0; ant.default_color = Color.BLACK; _backpack.add_child(ant)
-		hp = 70
+		hp = 42
 	else:
 		pack.size = Vector2(10, 15); pack.position = Vector2(-10, -16); pack.color = Color(0.35, 0.3, 0.25)
 	_backpack.add_child(pack)
@@ -134,23 +134,44 @@ func _physics_process(delta: float) -> void:
 
 	var player = _find_player()
 	if player:
-		var dist_x = global_position.x - player.global_position.x
-		patrol_direction = -sign(dist_x) if dist_x != 0 else patrol_direction
+		var dist_vec = player.global_position - global_position
+		var abs_dist_x = abs(dist_vec.x)
 		
-		# Engagment range reduced to 420 for easier dodging
-		if abs(dist_x) > 420:
-			_patrol(delta)
-			_eye_l.color = Color.BLACK; _eye_r.color = Color.BLACK
+		# --- Tầm nhìn và Phản xạ chiến thuật ---
+		# 1. Nếu quá xa (> 500px): Tiến lại gần để bắn
+		if abs_dist_x > 500:
+			patrol_direction = sign(dist_vec.x)
+			if _has_ground_ahead():
+				_patrol(delta)
+			else:
+				velocity.x = 0
+				_aim_and_fire(player, delta) # Đứng lại bắn nếu hết đường
+				
+		# 2. Nếu quá gần (< 200px): Lùi lại để giữ khoảng cách an toàn
+		elif abs_dist_x < 200:
+			patrol_direction = -sign(dist_vec.x) # Đi ngược hướng player
+			if _has_ground_ahead():
+				_patrol(delta, 0.6) # Lùi chậm hơn
+			else:
+				velocity.x = 0
+			_aim_and_fire(player, delta)
+			
+		# 3. Khoảng cách bắn lý tưởng (200px - 500px): Đứng lại nã đạn
 		else:
 			velocity.x = 0
 			_aim_and_fire(player, delta)
-			_eye_l.color = Color.RED; _eye_r.color = Color.RED # Alert eyes
+			
+		# Đồng tử đỏ khi thấy mục tiêu
+		_eye_l.color = Color.RED; _eye_r.color = Color.RED
 	else:
+		# Không thấy player thì đi tuần bình thường
+		if not _has_ground_ahead() or is_on_wall():
+			patrol_direction *= -1
+		
 		_patrol(delta)
 		_eye_l.color = Color.BLACK; _eye_r.color = Color.BLACK
 
 	move_and_slide()
-	if is_on_wall(): patrol_direction *= -1
 
 	# Flash logic
 	if _muzzle_flash_timer > 0:
@@ -161,12 +182,23 @@ func _physics_process(delta: float) -> void:
 	_recoil_offset = lerp(_recoil_offset, 0.0, 0.1)
 	_weapon_node.position.x = 6 - _recoil_offset
 
+# Kiểm tra xem phía trước có đất không (tránh lao xuống vực)
+func _has_ground_ahead() -> bool:
+	var space_state = get_world_2d().direct_space_state
+	# Chiếu một tia xuống đất phía trước hướng đang đi
+	var test_pos = global_position + Vector2(patrol_direction * 25, 10)
+	var query = PhysicsRayQueryParameters2D.create(test_pos, test_pos + Vector2(0, 50))
+	# Loại bỏ bản thân khỏi danh sách va chạm
+	query.exclude = [get_rid()]
+	var result = space_state.intersect_ray(query)
+	return result.size() > 0
+
 func _find_player() -> Node2D:
 	var players = get_tree().get_nodes_in_group("player")
 	return players[0] if players.size() > 0 else null
 
-func _patrol(delta: float) -> void:
-	velocity.x = patrol_direction * (SPEED * (1.5 if is_officer else 1.0))
+func _patrol(delta: float, speed_mult: float = 1.0) -> void:
+	velocity.x = patrol_direction * (SPEED * (1.5 if is_officer else 1.0)) * speed_mult
 	sprite.scale.x = patrol_direction
 	var old_walk = int(_walk_time)
 	_walk_time += delta * 12

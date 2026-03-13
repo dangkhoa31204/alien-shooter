@@ -132,8 +132,8 @@ func setup():
 		main._create_aa_gun_bg(Vector2(ax, main._get_ground_y(ax)))
 
 	# --- Enemies & Items ---
-	main._spawn_background_soldiers(8)
-	main._spawn_enemy_wave(10, 0.20)
+	main._spawn_background_soldiers(3)
+	main._spawn_enemy_wave(8, 0.20)
 
 	# --- Sniper / officer on elevated rocks (mid-stage danger zones) ---
 	for i in 2:
