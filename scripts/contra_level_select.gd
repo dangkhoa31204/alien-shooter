@@ -322,7 +322,7 @@ func _make_card(idx: int, pos: Vector2, sz: Vector2, unlocked: int) -> void:
 	var btn := Button.new()
 	btn.position                  = Vector2(pos.x + 12, btn_y)
 	btn.size                      = Vector2(sz.x - 24, maxf(btn_mh, 38))
-	btn.text                      = "▶  THAM CHIẾN"
+	btn.text                      = "▶  RA TRẬN"
 	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 	var bs_n := StyleBoxFlat.new()
