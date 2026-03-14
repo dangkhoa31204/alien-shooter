@@ -23,6 +23,7 @@ Audio="*res://scripts/audio_manager.gd"
 
 window/size/viewport_height=720
 window/size/resizable=false
+window/stretch/mode="canvas_items"
 
 [input]
 
@@ -65,4 +66,5 @@ aa_missile={
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=0
 rendering_device/driver.windows="d3d12"

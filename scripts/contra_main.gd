@@ -2823,50 +2823,13 @@ func _spawn_background_soldiers(count: int) -> void:
 func _add_individual_background_soldier(x: float, y: float = 600, is_tun: bool = false) -> void:
 	# Check for overlaps (loosen even more to 60px for density)
 	for s in get_tree().get_nodes_in_group("ally_army"):
-		if abs(s.position.x - x) < 60: return 
-	var soldier = Node2D.new()
-	var body_node = Node2D.new(); soldier.add_child(body_node)
-	var head_node = Node2D.new(); body_node.add_child(head_node)
-	
-	# Leg visuals (Back & Front)
-	var leg_poly = PackedVector2Array([Vector2(-4, 0), Vector2(4, 0), Vector2(4.5, 16), Vector2(-4.5, 16)])
-	var l_l = Polygon2D.new(); l_l.polygon = leg_poly; l_l.color = Color(0.12, 0.28, 0.1); l_l.name = "LegL"; soldier.add_child(l_l); l_l.position = Vector2(-3, 0)
-	var l_r = Polygon2D.new(); l_r.polygon = leg_poly; l_r.color = Color(0.18, 0.4, 0.15); l_r.name = "LegR"; soldier.add_child(l_r); l_r.position = Vector2(3, 0)
-	
-	# --- Body (Olive Green Uniform with depth) ---
-	var soldier_color = Color(0.18, 0.38, 0.15)
-	var torso = Polygon2D.new()
-	torso.polygon = PackedVector2Array([Vector2(-9, -18), Vector2(9, -18), Vector2(10, 0), Vector2(-10, 0)])
-	torso.color = soldier_color
-	body_node.add_child(torso)
-	
-	# Shading
-	var t_shade = Polygon2D.new(); t_shade.polygon = PackedVector2Array([Vector2(4, -18), Vector2(9, -18), Vector2(10, 0), Vector2(5, 0)]); t_shade.color = soldier_color.darkened(0.15); body_node.add_child(t_shade)
-	
-	# Ba lô con cóc (Backpack)
-	var pack = Polygon2D.new(); pack.polygon = PackedVector2Array([Vector2(-14, -16), Vector2(-8, -16), Vector2(-8, -4), Vector2(-15, -6)]); pack.color = soldier_color.darkened(0.2); body_node.add_child(pack)
+		if abs(s.position.x - x) < 60:
+			return
 
-	# --- Head & Realistic Mũ Cối ---
-	var face = ColorRect.new(); face.size = Vector2(10, 7); face.position = Vector2(-5, -23); face.color = Color(0.95, 0.8, 0.65); head_node.add_child(face)
-	
-	# Mũ Cối (High detail)
-	var hat_base = Polygon2D.new(); hat_base.polygon = [Vector2(-11, -24), Vector2(11, -24), Vector2(9, -20), Vector2(-9, -20)]; hat_base.color = Color(0.1, 0.32, 0.1); head_node.add_child(hat_base)
-	var hat_dome = Polygon2D.new(); hat_dome.polygon = [Vector2(-8, -24), Vector2(8, -24), Vector2(7, -33), Vector2(0, -35), Vector2(-7, -33)]; hat_dome.color = Color(0.15, 0.4, 0.15); head_node.add_child(hat_dome)
-	
-	# Star
-	var star = Polygon2D.new(); var pts = []
-	for j in 5:
-		var a = j*TAU/5-PI/2; pts.append(Vector2(cos(a)*1.5, sin(a)*1.5 - 28))
-	star.polygon = PackedVector2Array(pts); star.color = Color.YELLOW; head_node.add_child(star)
-	
-	# Rifle (Súng AK-47 visual)
-	var gun = ColorRect.new(); gun.size = Vector2(28, 4); gun.position = Vector2(2, -12); gun.color = Color(0.08, 0.08, 0.08); body_node.add_child(gun)
-	var stock = ColorRect.new(); stock.size = Vector2(6, 4); stock.position = Vector2(-4, -12); stock.color = Color(0.4, 0.15, 0.05); body_node.add_child(stock)
-	
-	soldier.z_index = -4
-	# Snap Y immediately so soldiers don't fall from sky
-	var snapped_y = 650.0 if is_tun else _get_ground_y(x)
-	soldier.position = Vector2(x, snapped_y)
+	# Instance player asset for ally soldier
+	var soldier_scene = preload("res://scenes/contra_player.tscn")
+	var soldier = soldier_scene.instantiate()
+	soldier.position = Vector2(x, y)
 	soldier.z_index = 4 # Explicitly in front of props
 	soldier.add_to_group("ally_army")
 	soldier.set_meta("is_vn_soldier", true)
