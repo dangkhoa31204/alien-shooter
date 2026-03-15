@@ -3368,6 +3368,16 @@ func on_stage_complete():
 		# --- EPIC STAGE VICTORY UI ---
 		is_game_over = true # Stop enemy spawning/bombers
 		
+		var tree = get_tree()
+		if not tree: return
+
+		var fade_rect = ColorRect.new()
+		fade_rect.color = Color(0, 0, 0, 0)
+		fade_rect.size = Vector2(1152, 648)
+		fade_rect.z_index = 110 # Khung màu đen ở trên cùng
+		fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		$UI.add_child(fade_rect)
+		
 		var vic_title = Label.new()
 		vic_title.text = "CHIẾN THẮNG!"
 		vic_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -3375,40 +3385,41 @@ func on_stage_complete():
 		vic_title.add_theme_color_override("font_color", Color.YELLOW)
 		vic_title.add_theme_constant_override("outline_size", 10)
 		vic_title.add_theme_color_override("font_outline_color", Color.DARK_RED)
-		vic_title.size = Vector2(1152, 200); vic_title.position = Vector2(0, 200)
+		vic_title.size = Vector2(1152, 200)
+		vic_title.position = Vector2(0, 200)
+		vic_title.z_index = 111 # Nổi trên fade_rect
+		vic_title.modulate.a = 0.0 # Bắt đầu bằng vô hình
 		$UI.add_child(vic_title)
 		
 		var sub = Label.new()
 		sub.text = "NHIỆM VỤ HOÀN THÀNH - CHUẨN BỊ CHO CHIẾN DỊCH TIẾP THEO"
 		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		sub.size = Vector2(1152, 50); sub.position = Vector2(0, 320)
-		sub.add_theme_font_size_override("font_size", 18); sub.add_theme_color_override("font_color", Color.WHITE)
+		sub.size = Vector2(1152, 50)
+		sub.position = Vector2(0, 320)
+		sub.add_theme_font_size_override("font_size", 18)
+		sub.add_theme_color_override("font_color", Color.WHITE)
+		sub.z_index = 111 # Nổi trên fade_rect
+		sub.modulate.a = 0.0 # Bắt đầu bằng vô hình
 		$UI.add_child(sub)
 		
 		PlayerData.unlock_next_stage()
-		var tree = get_tree()
-		if tree:
-			# Hiệu ứng chuyển cảnh: Màn hình bắt đầu tối lại từ từ
-			var fade_rect = ColorRect.new()
-			fade_rect.color = Color(0, 0, 0, 0)
-			fade_rect.size = Vector2(1152, 648)
-			fade_rect.z_index = 110 # Ở trên cùng để che lấp mọi thứ
-			fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			$UI.add_child(fade_rect)
-			
-			var tw = tree.create_tween()
-			tw.tween_interval(1.0) # Dừng 1 giây để người chơi nhìn chữ "CHIẾN THẮNG"
-			tw.tween_property(fade_rect, "color:a", 1.0, 3.0) # Từ từ tối đen trong 3 giây
-			
-			await tw.finished
-			PlayerData.flush_pending_save()
-			
-			# Tự động nhảy sang map tiếp theo
-			if current_stage < 5:
-				PlayerData.current_selected_stage = current_stage + 1
-				tree.change_scene_to_file("res://scenes/contra_main.tscn")
-			else:
-				tree.change_scene_to_file("res://scenes/level_select.tscn")
+
+		# Hiệu ứng chuyển cảnh: Màn hình bắt đầu tối lại từ từ
+		var tw = tree.create_tween()
+		tw.tween_property(fade_rect, "color:a", 1.0, 1.5) # Tối dần toàn màn hình trong 1.5 giây
+		tw.tween_property(vic_title, "modulate:a", 1.0, 1.0) # Từ từ hiện chữ "CHIẾN THẮNG!"
+		tw.parallel().tween_property(sub, "modulate:a", 1.0, 1.0)
+		tw.tween_interval(1.5) # Đợi 1.5s người chơi nhìn chữ
+		
+		await tw.finished
+		PlayerData.flush_pending_save()
+		
+		# Tự động nhảy sang map tiếp theo
+		if current_stage < 5:
+			PlayerData.current_selected_stage = current_stage + 1
+			tree.change_scene_to_file("res://scenes/contra_main.tscn")
+		else:
+			tree.change_scene_to_file("res://scenes/level_select.tscn")
 
 
 func flash_damage() -> void:
