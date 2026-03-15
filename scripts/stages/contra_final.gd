@@ -44,10 +44,6 @@ func setup():
 	for i in range(int(STAGE_LENGTH / 500)):
 		var dx = 400 + i * 500 + randf_range(-60, 60)
 		
-		# Checkpoints at 4000, 9000
-		if abs(dx - 4000) < 250 and i % 5 == 0: main._create_checkpoint(Vector2(dx, 600))
-		if abs(dx - 9000) < 250 and i % 5 == 0: main._create_checkpoint(Vector2(dx, 600))
-		
 		# Health Kits scattered
 		if i % 6 == 3: main._create_health_kit(Vector2(dx, 580))
 		
@@ -70,6 +66,11 @@ func setup():
 		var v_dice = randf()
 		if v_dice < 0.15: _create_abandoned_jeep(dx + 150)
 		elif v_dice < 0.25: _create_abandoned_vespa(dx + 150)
+
+	# 6. CHECKPOINTS
+	for i in range(1, 4):
+		var x = i * (STAGE_LENGTH / 4.0)
+		main._create_checkpoint(Vector2(x, 600))
 
 	# Gameplay Logic
 	main._spawn_enemy_wave(18, 0.4) 
