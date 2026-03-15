@@ -36,10 +36,10 @@ var _mp3_sfx_loaded := false
 
 # ── MUSIC ─────────────────────────────────────────────────────────────────────
 var _music_player:  AudioStreamPlayer = null
-const INGAME_MUSIC_PATH  := "res://assets/audio/game_background_music1.mp3"
-const DIED_MUSIC_PATH    := "res://assets/audio/died_music.mp3"
-const STAGE5_MUSIC_PATH  := "res://assets/audio/final_screen_music.mp3"
-const VICTORY_MUSIC_PATH := "res://assets/audio/victory _music.mp3"
+const INGAME_MUSIC_PATH  := "" # Đã xóa nhạc nền các màn chơi
+const DIED_MUSIC_PATH    := ""
+const STAGE5_MUSIC_PATH  := ""
+const VICTORY_MUSIC_PATH := ""
 var _music_pb:      AudioStreamGeneratorPlayback = null
 var _music_t:       float = 0.0
 var _chord_beat:    float = 0.0
@@ -145,45 +145,24 @@ func refresh_music() -> void:
 		_music_pb = null
 
 func play_ingame_music() -> void:
+	# Không phát nhạc nền màn chơi
 	if _music_player == null: return
-	if not PlayerData.music_enabled: return
-	_set_music_stream_from_path(INGAME_MUSIC_PATH, true)
-	if not _music_player.playing:
-		_music_player.play()
-		call_deferred("_grab_music_playback")
+	_music_player.stop()
 
 func play_stage5_music() -> void:
+	# Không phát nhạc nền màn chơi
 	if _music_player == null: return
-	if not PlayerData.music_enabled: return
-	if _menu_music_player != null and _menu_music_player.playing:
-		_menu_music_player.stop()
-	if _set_music_stream_from_path(STAGE5_MUSIC_PATH, true):
-		_music_player.stop()
-		_music_player.play()
-		_music_pb = null
-	else:
-		play_ingame_music()  # fallback nếu file chưa có
+	_music_player.stop()
 
 func play_victory_music() -> void:
+	# Không phát nhạc nền màn chơi
 	if _music_player == null: return
-	if _menu_music_player != null and _menu_music_player.playing:
-		_menu_music_player.stop()
-	if not PlayerData.music_enabled: return
-	if _set_music_stream_from_path(VICTORY_MUSIC_PATH, false):
-		_music_player.stop()
-		_music_player.play()
-		_music_pb = null
+	_music_player.stop()
 
 func play_died_music() -> void:
+	# Không phát nhạc nền màn chơi
 	if _music_player == null: return
-	if not PlayerData.music_enabled: return
-	# Ngắt nhạc menu và nhạc nền gameplay, phát nhạc thua trận
-	if _menu_music_player != null and _menu_music_player.playing:
-		_menu_music_player.stop()
-	_set_music_stream_from_path(DIED_MUSIC_PATH, false)
 	_music_player.stop()
-	_music_player.play()
-	_music_pb = null
 
 ## Phát nhạc nền menu từ file MP3 (lac_troi.mp3)
 ## Tắt nhạc procedural chỉ khi MP3 load thành công
