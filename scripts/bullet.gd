@@ -96,11 +96,19 @@ func _apply_color() -> void:
 func _physics_process(delta: float) -> void:
 	_fx_timer += delta
 	if is_enemy_bullet:
-		_enemy_move_and_collide(delta)
-		if is_queued_for_deletion():
-			return
+		if has_meta("is_bomb") or has_meta("is_tank_shell"):
+			# Bombs and Tank Shells are heavy, they pierce until ground impact handled by ContraMain
+			position += direction * speed * delta
+		else:
+			_enemy_move_and_collide(delta)
+			if is_queued_for_deletion():
+				return
 	else:
-		position += direction * speed * delta
+		if has_meta("is_tank_shell"):
+			# Ally tank shells also pierce everything until ground
+			position += direction * speed * delta
+		else:
+			position += direction * speed * delta
 	queue_redraw()
 
 	# Contra Mode: Ground collision fallback for hilly terrain
@@ -108,9 +116,11 @@ func _physics_process(delta: float) -> void:
 	if main and main.name == "ContraMain" and main.has_method("_get_ground_y") and main.current_stage != 2:
 		var gy = main._get_ground_y(global_position.x)
 		if global_position.y >= gy - 5.0:
-			_spawn_hit_effect(global_position)
-			queue_free()
-			return
+			if not has_meta("is_bomb") and not has_meta("is_tank_shell"): 
+				# Bombs and shells handle their own explosion/sound in ContraMain._process_bombs
+				_spawn_hit_effect(global_position)
+				queue_free()
+				return
 
 	if bullet_type == BulletType.RICOCHET and (_bounce_count < 4 or is_max_power):
 		var bounced := false
@@ -222,6 +232,10 @@ func _draw() -> void:
 	draw_circle(tip, _beam_w * 0.85, Color(1.0, 1.0, 1.0, 0.95 * flicker))            # bright tip
 
 func _on_body_entered(body: Node) -> void:
+	# Heavy projectiles (bombs/tank shells) pierce everything
+	if has_meta("is_bomb") or has_meta("is_tank_shell"):
+		return
+		
 	if is_enemy_bullet:
 		if body.is_in_group("player"):
 			body.take_damage(damage)

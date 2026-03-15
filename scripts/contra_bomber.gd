@@ -149,7 +149,7 @@ func _crash_impact(main: Node) -> void:
 	if not main: queue_free(); return
 
 	main.screen_shake(22.0, 0.7)
-	Audio.play("bomber_explode", 16.0)
+	Audio.play("bomb_explode", 16.0)
 
 	# Big ground explosion
 	for ring in 3:
