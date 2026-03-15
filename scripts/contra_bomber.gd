@@ -10,6 +10,8 @@ const SPEED: float        = 180.0
 const GRAVITY: float      = 520.0   # pixels/s² while falling
 const SPIN_SPEED: float   = 3.8     # radians/s while spinning down
 
+const HP_MULT: float = 0.5
+
 var hp: int       = 130
 var direction: int = 1  # 1 = Right, -1 = Left
 
@@ -24,6 +26,7 @@ var _fire_timer:  float  = 0.0
 
 func _ready() -> void:
 	add_to_group("enemy")
+	hp = maxi(1, int(round(float(hp) * HP_MULT)))
 	_setup_visuals()
 	shoot_timer.timeout.connect(_on_shoot_timer_timeout)
 	shoot_timer.start(1.5 + randf())
@@ -221,12 +224,13 @@ func _drop_bomb() -> void:
 
 func take_damage(amount: int) -> void:
 	if _dying: return
-	hp -= amount
+	if amount <= 0: return
+	# One-shot down: any hit makes the bomber fall.
+	hp = 0
 	# Flash red
 	var tw := create_tween()
 	tw.tween_property(sprite, "modulate", Color.WHITE, 0.06).from(Color.RED)
-	if hp <= 0:
-		_start_fall()
+	_start_fall()
 
 func _start_fall() -> void:
 	_dying = true

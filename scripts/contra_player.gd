@@ -931,6 +931,20 @@ func take_damage(amount: int) -> void:
 	t.tween_property(sprite, "modulate", Color.WHITE, 0.1)
 	if hp <= 0: _die()
 
+func apply_bomb_knockback(explosion_pos: Vector2) -> void:
+	if is_dead: return
+	# Cancel low-profile states so impulse looks natural.
+	is_crouching = false
+	is_rolling = false
+	_roll_timer = 0.0
+	# Vertical knock-up (stronger than a normal jump)
+	velocity.y = minf(velocity.y, JUMP_VELOCITY * 1.3)
+	# Horizontal push away from explosion center
+	var push_dir: float = sign(global_position.x - explosion_pos.x)
+	if is_zero_approx(push_dir):
+		push_dir = 1.0 if randf() > 0.5 else -1.0
+	velocity.x += push_dir * 220.0
+
 func _die() -> void:
 	if is_dead: return
 	is_dead = true

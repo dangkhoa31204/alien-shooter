@@ -26,6 +26,8 @@ var _beam_w:   float = 2.2          # core line width
 
 var _vp: Vector2 = Vector2(1152, 720)  # cached once in _ready
 
+const _RAYCAST_MAX_PASSES: int = 6
+
 @onready var sprite: ColorRect = $Sprite
 
 func _ready() -> void:
@@ -36,7 +38,9 @@ func _ready() -> void:
 	get_tree().create_timer(5.0).timeout.connect(queue_free)
 	# Áp cấp độ (chỉ với đạn người chơi)
 	if not is_enemy_bullet:
-		damage = bullet_level
+		# Do not overwrite custom damage set by the shooter (Contra uses current_damage).
+		if damage <= 1:
+			damage = bullet_level
 		speed  = 600.0 + (bullet_level - 1) * 50.0  # 600/650/700/750/800
 		# RICOCHET: sát thương khởi đầu thấp hơn 1 bậc, giảm dần theo lần nảy
 		if bullet_type == BulletType.RICOCHET:
@@ -91,7 +95,12 @@ func _apply_color() -> void:
 
 func _physics_process(delta: float) -> void:
 	_fx_timer += delta
-	position += direction * speed * delta
+	if is_enemy_bullet:
+		_enemy_move_and_collide(delta)
+		if is_queued_for_deletion():
+			return
+	else:
+		position += direction * speed * delta
 	queue_redraw()
 
 	# Contra Mode: Ground collision fallback for hilly terrain
@@ -123,6 +132,59 @@ func _physics_process(delta: float) -> void:
 		if not is_scrolling:
 			if position.y < -60.0 or position.y > _vp.y + 60.0: queue_free()
 			if position.x < -60.0 or position.x > _vp.x + 60.0: queue_free()
+
+
+func _enemy_move_and_collide(delta: float) -> void:
+	# Enemy bullets move by teleporting position; use a raycast each frame to avoid tunneling
+	# through StaticBody2D/TileMap terrain when speed is high.
+	var from_pos: Vector2 = global_position
+	var to_pos: Vector2 = from_pos + direction * speed * delta
+	if from_pos.is_equal_approx(to_pos):
+		return
+
+	var space_state := get_world_2d().direct_space_state
+	# Godot allows excluding objects directly; this is safer than juggling RIDs.
+	var exclude: Array = [self]
+	var passes := 0
+	while passes < _RAYCAST_MAX_PASSES:
+		passes += 1
+		var q := PhysicsRayQueryParameters2D.create(from_pos, to_pos)
+		q.exclude = exclude
+		# Use all layers so terrain on non-default layers still blocks enemy bullets.
+		q.collision_mask = 0xffffffff
+		q.collide_with_bodies = true
+		q.collide_with_areas = true
+		var hit := space_state.intersect_ray(q)
+		if hit.is_empty():
+			global_position = to_pos
+			return
+
+		var collider: Object = hit.get("collider")
+		var hit_pos: Vector2 = hit.get("position", to_pos)
+		if collider == null:
+			global_position = to_pos
+			return
+
+		# Ignore other bullets and enemies (enemy bullets should not get blocked by their own units)
+		if collider is Node and ((collider as Node).is_in_group("bullet") or (collider as Node).is_in_group("enemy")):
+			exclude.append(collider)
+			continue
+
+		# Player hit
+		if collider is Node and (collider as Node).is_in_group("player"):
+			(collider as Node).call("take_damage", damage)
+			queue_free()
+			return
+
+		# Terrain / world geometry hit
+		if collider is PhysicsBody2D or collider is TileMap:
+			_spawn_hit_effect(hit_pos)
+			queue_free()
+			return
+
+		# Unknown collider: fall back to normal movement to avoid swallowing gameplay interactions.
+		global_position = to_pos
+		return
 
 func _draw() -> void:
 	# Star-Wars laser bolt: 3 draw_line + 1 draw_circle — very cheap
@@ -163,6 +225,11 @@ func _on_body_entered(body: Node) -> void:
 	if is_enemy_bullet:
 		if body.is_in_group("player"):
 			body.take_damage(damage)
+			queue_free()
+			return
+		# Stop enemy bullets from passing through terrain / world geometry
+		if body is StaticBody2D or body is TileMap:
+			_spawn_hit_effect(global_position)
 			queue_free()
 	else:
 		if body.is_in_group("enemy") or body is StaticBody2D:

@@ -8,6 +8,7 @@ const ENEMY_SCENE  = preload("res://scenes/contra_enemy.tscn")
 const BOMBER_SCENE = preload("res://scenes/contra_bomber.tscn")
 const TURRET_SCENE = preload("res://scenes/contra_turret.tscn")
 const TANK_SCENE   = preload("res://scripts/contra_tank.gd")
+const BULLET_SCENE = preload("res://scenes/bullet.tscn")
 
 const STAGE_SCRIPTS = {
 	1: preload("res://scripts/stages/contra_jungle.gd"),
@@ -741,7 +742,37 @@ func _explode_bomb(pos: Vector2) -> void:
 	_create_crater(pos)
 
 	if is_instance_valid(player) and player.global_position.distance_to(pos) < 110.0:
+		if player.has_method("apply_bomb_knockback"):
+			player.apply_bomb_knockback(pos)
 		player.take_damage(15)
+
+	# Allies (background soldiers / allied column) also get knocked up.
+	var tree := get_tree()
+	if tree:
+		for ally in tree.get_nodes_in_group("ally_army"):
+			if not is_instance_valid(ally):
+				continue
+			# Only apply to lightweight background allies (Node2D), not physics heavy units.
+			if not (ally is Node2D) or (ally is CharacterBody2D):
+				continue
+			var a2 := ally as Node2D
+			var dist_to_bomb: float = a2.global_position.distance_to(pos)
+			if dist_to_bomb >= 130.0:
+				continue
+			var push_dir: float = sign(a2.global_position.x - pos.x)
+			if is_zero_approx(push_dir):
+				push_dir = 1.0 if randf() > 0.5 else -1.0
+			var is_vn_soldier: bool = bool(a2.get_meta("is_vn_soldier", false))
+			var is_direct_hit: bool = dist_to_bomb <= 35.0
+			a2.set_meta("kb_active", true)
+			if is_direct_hit and is_vn_soldier:
+				# Bomb lands on the soldier: launch up, then die on landing.
+				a2.set_meta("kb_kill", true)
+				a2.set_meta("kb_vel", Vector2(push_dir * 260.0, -820.0))
+			else:
+				a2.set_meta("kb_kill", false)
+				a2.set_meta("kb_vel", Vector2(push_dir * 220.0, -650.0))
+			a2.set_meta("jump_time", 0.0)
 
 func _create_crater(pos: Vector2) -> void:
 	var floor_y := _get_ground_y(pos.x)
@@ -2838,9 +2869,17 @@ func _add_individual_background_soldier(x: float, y: float = 600, is_tun: bool =
 	soldier.position = Vector2(x, snapped_y)
 	soldier.z_index = 4 # Explicitly in front of props
 	soldier.add_to_group("ally_army")
+	soldier.set_meta("is_vn_soldier", true)
 	soldier.set_meta("walk_speed", randf_range(100, 180))  # Slightly faster so they keep up
 	soldier.set_meta("on_tunnel", is_tun)
 	soldier.set_meta("jump_time", 0.0)  # Pre-set so _process_background_army never fails
+	# Support fire: one shot every 5s (staggered start)
+	soldier.set_meta("shoot_cd", randf_range(0.0, 5.0))
+	soldier.set_meta("kb_active", false)
+	soldier.set_meta("kb_vel", Vector2.ZERO)
+	soldier.set_meta("kb_kill", false)
+	soldier.set_meta("dead", false)
+	soldier.set_meta("dead_timer", 0.0)
 	_add_to_level(soldier)
 	# Bobbing animation handled procedurally in _process_background_army (no looping tween)
 
@@ -2902,8 +2941,12 @@ func _process_background_army(delta: float) -> void:
 	var cam_pos = camera.position
 	
 	for idx_a in range(army_nodes.size()):
-		var soldier = army_nodes[idx_a]
-		if not is_instance_valid(soldier): continue
+		var soldier_raw = army_nodes[idx_a]
+		if not is_instance_valid(soldier_raw):
+			continue
+		if not (soldier_raw is Node2D):
+			continue
+		var soldier: Node2D = soldier_raw
 		
 		var cam_x = cam_pos.x
 		var dist_to_cam = soldier.position.x - cam_x
@@ -2920,6 +2963,93 @@ func _process_background_army(delta: float) -> void:
 			soldier.queue_free()
 			continue
 		
+		# Skip animation/movement for distant units (performance)
+		# BUT still update knockback and shooting cooldowns for all allies.
+
+		# --- Dead soldiers (lying down) ---
+		var is_dead: bool = bool(soldier.get_meta("dead", false))
+		if is_dead:
+			var dead_t: float = float(soldier.get_meta("dead_timer", 0.0)) - delta
+			if dead_t <= 0.0:
+				soldier.queue_free()
+				continue
+			soldier.set_meta("dead_timer", dead_t)
+			continue
+
+		# --- Knockback physics (bomb shockwave) ---
+		var kb_active: bool = bool(soldier.get_meta("kb_active", false))
+		if kb_active:
+			var vel: Vector2 = soldier.get_meta("kb_vel", Vector2.ZERO)
+			vel.y += 1400.0 * delta
+			soldier.position += vel * delta
+			soldier.rotation += vel.x * 0.0006 * delta
+			soldier.set_meta("kb_vel", vel)
+			var is_tunnel_soldier2: bool = bool(soldier.get_meta("on_tunnel", false))
+			var is_tank2: bool = soldier.has_meta("is_tank")
+			var leg_h2 := 0.0 if is_tank2 else 16.0
+			var ground_y2 := 650.0 if is_tunnel_soldier2 else _get_ground_y(soldier.position.x)
+			var target_y2 := ground_y2 - leg_h2
+			if soldier.position.y >= target_y2:
+				# If the bomb directly hit this soldier, it dies on landing (with a short prone animation).
+				if bool(soldier.get_meta("kb_kill", false)):
+					_start_vn_death_anim(soldier, target_y2)
+					continue
+				soldier.position.y = target_y2
+				soldier.rotation = 0.0
+				soldier.set_meta("kb_active", false)
+				soldier.set_meta("kb_vel", Vector2.ZERO)
+			# While airborne, do not run normal snapping/walking.
+			continue
+
+		# --- Support shooting (every 5 seconds) ---
+		if soldier.has_meta("shoot_cd") and is_instance_valid(bullet_container):
+			var cd: float = float(soldier.get_meta("shoot_cd", 0.0)) - delta
+			if cd <= 0.0:
+				# Find nearest enemy
+				var best: Node2D = null
+				var best_d := 999999.0
+				# Background allies always advance to the right.
+				var facing_dir: float = 1.0
+				if soldier.has_meta("walk_speed"):
+					var ws = float(soldier.get_meta("walk_speed", 0.0))
+					if ws < 0.0: facing_dir = -1.0
+				for e in tree.get_nodes_in_group("enemy"):
+					if not is_instance_valid(e):
+						continue
+					if not (e is Node2D):
+						continue
+					var en := e as Node2D
+					# Only shoot enemies in front of ally.
+					var rel_x: float = en.global_position.x - soldier.global_position.x
+					if rel_x * facing_dir <= 0.0:
+						continue
+					var d: float = soldier.global_position.distance_to(en.global_position)
+					if d < 650.0 and d < best_d:
+						best_d = d
+						best = en
+				if best != null:
+					# Compute support damage = 10% player damage (min 1)
+					var player_dmg: int = 10
+					if is_instance_valid(player):
+						var dmg_val: Variant = player.get("current_damage")
+						if dmg_val != null:
+							player_dmg = maxi(1, int(dmg_val))
+					var support_dmg := maxi(1, int(round(float(player_dmg) * 0.1)))
+					var b: Node2D = BULLET_SCENE.instantiate() as Node2D
+					bullet_container.add_child(b)
+					var dir_x: float = sign(best.global_position.x - soldier.global_position.x)
+					if is_zero_approx(dir_x):
+						dir_x = 1.0
+					b.global_position = soldier.global_position + Vector2(dir_x * 18.0, -14.0)
+					if "direction" in b:
+						b.direction = (best.global_position - b.global_position).normalized()
+					b.is_enemy_bullet = false
+					if "damage" in b:
+						b.damage = support_dmg
+					b.add_to_group("player_bullet")
+				cd = 5.0
+			soldier.set_meta("shoot_cd", cd)
+
 		# Skip animation/movement for distant units (performance)
 		if (idx_a + _perf_frame) % 2 != 0: continue
 		
@@ -2970,6 +3100,31 @@ func _process_background_army(delta: float) -> void:
 			else:
 				var follow_speed = 12.0 if soldier.position.y < target_y else 25.0
 				soldier.position.y = lerp(soldier.position.y, final_target, follow_speed * delta * 2.0)
+
+func _start_vn_death_anim(soldier: Node2D, ground_y: float) -> void:
+	if not is_instance_valid(soldier):
+		return
+	if bool(soldier.get_meta("dead", false)):
+		return
+	# Stop any knockback + combat logic.
+	soldier.set_meta("kb_active", false)
+	soldier.set_meta("kb_vel", Vector2.ZERO)
+	soldier.set_meta("kb_kill", false)
+	soldier.set_meta("dead", true)
+	soldier.set_meta("dead_timer", 2.5)
+	if soldier.has_meta("walk_speed"):
+		soldier.set_meta("walk_speed", 0.0)
+	if soldier.has_meta("shoot_cd"):
+		soldier.set_meta("shoot_cd", 999999.0)
+
+	# Snap to ground then animate into a prone pose ("nằm xuống").
+	soldier.position.y = ground_y
+	var tw: Tween = soldier.create_tween()
+	tw.set_ease(Tween.EASE_OUT)
+	tw.set_trans(Tween.TRANS_QUAD)
+	# Fall sideways a bit.
+	tw.tween_property(soldier, "rotation", deg_to_rad(85.0), 0.22)
+	tw.parallel().tween_property(soldier, "position:y", ground_y + 6.0, 0.22)
 
 func _spawn_heavy_enemy(x, y, type: String, is_ally: bool = false, can_shoot: bool = true) -> void:
 	var e = null
@@ -3646,6 +3801,7 @@ func _setup_history_panel() -> void:
 	# Reliable manual centering
 	_history_panel.position = Vector2(151, 70) 
 	_history_panel.color = Color(0.08, 0.08, 0.08, 1.0) # Full opaque
+	_history_panel.clip_contents = true
 	_history_panel.z_index = 2500
 	_history_panel.process_mode = PROCESS_MODE_ALWAYS
 	$UI.add_child(_history_panel)
@@ -3670,6 +3826,11 @@ func _setup_history_panel() -> void:
 	var h_title = Label.new()
 	h_title.name = "HTitle"
 	h_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	h_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	h_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Ensure VBoxContainer allocates visible height even with autowrap enabled
+	h_title.custom_minimum_size = Vector2(0, 72)
 	h_title.add_theme_font_size_override("font_size", 28)
 	h_title.add_theme_color_override("font_color", Color(1, 0.9, 0.5))
 	content_v.add_child(h_title)
@@ -3985,9 +4146,11 @@ func _create_health_kit(pos: Vector2) -> void:
 	
 	kit.body_entered.connect(func(body):
 		if body.is_in_group("player"):
-			if body.hp < body.max_hp:
-				body.hp = min(body.hp + 1, body.max_hp)
-				body._sync_hp()
+			if ("hp" in body) and ("max_hp" in body) and body.hp < body.max_hp:
+				var heal_amt: int = maxi(1, ceili(float(body.max_hp) * 0.25))
+				body.hp = mini(body.hp + heal_amt, body.max_hp)
+				if body.has_method("_sync_hp"):
+					body._sync_hp()
 				Audio.play("collected_item")
 				kit.queue_free()
 	)
@@ -4009,6 +4172,7 @@ func _create_checkpoint(pos: Vector2) -> void:
 			last_checkpoint_x = pos.x
 			flag.color = Color.YELLOW # Activated
 			ui_label.text = "ĐIỂM LƯU TẠM THỜI (CHECKPOINT)!"
+			Audio.play("checkpoint")
 	)
 	_checkpoint_positions.append(pos.x)
 

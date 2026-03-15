@@ -9,6 +9,9 @@ const SPEED: float = 120.0
 const GRAVITY: float = 1400.0
 const DETECTION_RANGE: float = 320.0
 
+const INFANTRY_HITS_TO_KILL: int = 2
+const OFFICER_HITS_TO_KILL: int = 6
+
 var hp: int = 14
 var patrol_direction: int = -1 # Start walking left
 var _walk_time: float = 0.0
@@ -38,6 +41,21 @@ func _ready() -> void:
 	add_to_group("enemy")
 	_setup_complex_visuals()
 	shoot_timer.timeout.connect(_on_shoot_timer_timeout)
+	# Ensure intended TTK stays consistent across different player weapon damages.
+	call_deferred("_apply_scaled_hp")
+
+
+func _apply_scaled_hp() -> void:
+	var hits := OFFICER_HITS_TO_KILL if is_officer else INFANTRY_HITS_TO_KILL
+	var player_dmg: int = 1
+	var players := get_tree().get_nodes_in_group("player")
+	if players.size() > 0 and is_instance_valid(players[0]):
+		var p = players[0]
+		# contra_player.gd exposes current_damage; fall back to 1 if missing.
+		var v = p.get("current_damage")
+		if v != null:
+			player_dmg = maxi(1, int(v))
+	hp = maxi(1, hits * player_dmg)
 
 func _setup_complex_visuals() -> void:
 	# Clean existing if any
