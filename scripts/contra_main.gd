@@ -4025,6 +4025,7 @@ func _show_settings_from_pause() -> void:
 
 func _close_history() -> void:
 	_history_panel.visible = false
+	Audio.play("checkpoint") # Phát sound checkpoint khi đóng popup lịch sử
 	# Always restore MainPanel visibility
 	var p_main = _pause_menu.get_node_or_null("MainPanel")
 	if p_main: p_main.visible = true
