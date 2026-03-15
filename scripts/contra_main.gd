@@ -4172,6 +4172,7 @@ func _create_checkpoint(pos: Vector2) -> void:
 			last_checkpoint_x = pos.x
 			flag.color = Color.YELLOW # Activated
 			ui_label.text = "ĐIỂM LƯU TẠM THỜI (CHECKPOINT)!"
+			Audio.play("checkpoint")
 	)
 	_checkpoint_positions.append(pos.x)
 

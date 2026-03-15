@@ -20,6 +20,7 @@ const MP3_SFX_DEFS: Dictionary = {
 	"ak47_fire":  		"res://assets/audio/ak47_fire.mp3",
 	"m4_fire": "res://assets/audio/m4_fire.wav",
 	"collected_item": "res://assets/audio/collected_item.mp3",
+	"checkpoint": "res://assets/audio/CheckCheckPoint.mp3",
 	"b40":               "res://assets/audio/b40.mp3",
 	"aa_sound":           "res://assets/audio/aa_sound.mp3",
 	"bomber_drop_sound":  "res://assets/audio/bomber_drop_sound.mp3",
