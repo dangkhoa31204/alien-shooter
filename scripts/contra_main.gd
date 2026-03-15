@@ -208,6 +208,18 @@ func _ready() -> void:
 	_damage_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_damage_vignette.z_index = 90
 	$UI.add_child(_damage_vignette)
+	
+	# Transition Fade-In when scene starts
+	var start_fade = ColorRect.new()
+	start_fade.color = Color(0, 0, 0, 1.0)
+	start_fade.size = Vector2(1152, 648)
+	start_fade.z_index = 100
+	start_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$UI.add_child(start_fade)
+	var tw = create_tween()
+	tw.tween_property(start_fade, "color:a", 0.0, 1.0)
+	tw.finished.connect(func(): start_fade.queue_free())
+
 
 func _setup_progress_ui() -> void:
 	# ── Màu chuẩn military ────────────────────────────────────────────────────
@@ -3376,9 +3388,27 @@ func on_stage_complete():
 		PlayerData.unlock_next_stage()
 		var tree = get_tree()
 		if tree:
-			await tree.create_timer(3.5).timeout
+			# Hiệu ứng chuyển cảnh: Màn hình bắt đầu tối lại từ từ
+			var fade_rect = ColorRect.new()
+			fade_rect.color = Color(0, 0, 0, 0)
+			fade_rect.size = Vector2(1152, 648)
+			fade_rect.z_index = 110 # Ở trên cùng để che lấp mọi thứ
+			fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			$UI.add_child(fade_rect)
+			
+			var tw = tree.create_tween()
+			tw.tween_interval(1.0) # Dừng 1 giây để người chơi nhìn chữ "CHIẾN THẮNG"
+			tw.tween_property(fade_rect, "color:a", 1.0, 3.0) # Từ từ tối đen trong 3 giây
+			
+			await tw.finished
 			PlayerData.flush_pending_save()
-			tree.change_scene_to_file("res://scenes/level_select.tscn")
+			
+			# Tự động nhảy sang map tiếp theo
+			if current_stage < 5:
+				PlayerData.current_selected_stage = current_stage + 1
+				tree.change_scene_to_file("res://scenes/contra_main.tscn")
+			else:
+				tree.change_scene_to_file("res://scenes/level_select.tscn")
 
 
 func flash_damage() -> void:
@@ -4098,9 +4128,22 @@ func _exit_to_main_menu() -> void:
 func _exit_to_level_select() -> void:
 	get_tree().paused = false
 	Audio.stop_music()
-	Audio.play_menu_music()
+	
 	var tree = get_tree()
 	if tree:
+		# Thêm hiệu ứng chuyển cảnh mờ dần sang màn hình chọn lúc nhấn nút
+		var fade_rect = ColorRect.new()
+		fade_rect.color = Color(0, 0, 0, 0)
+		fade_rect.size = Vector2(1152, 648)
+		fade_rect.z_index = 100
+		fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		$UI.add_child(fade_rect)
+		
+		var tw = tree.create_tween()
+		tw.tween_property(fade_rect, "color:a", 1.0, 1.0)
+		
+		await tw.finished
+		Audio.play_menu_music()
 		PlayerData.flush_pending_save()
 		tree.change_scene_to_file("res://scenes/level_select.tscn")
 
