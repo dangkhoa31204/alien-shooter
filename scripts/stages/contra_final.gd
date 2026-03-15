@@ -68,9 +68,8 @@ func setup():
 		elif v_dice < 0.25: _create_abandoned_vespa(dx + 150)
 
 	# 6. CHECKPOINTS
-	for i in range(1, 4):
-		var x = i * (STAGE_LENGTH / 4.0)
-		main._create_checkpoint(Vector2(x, 600))
+	# Only 1 checkpoint exactly in the middle of the map
+	main._create_checkpoint(Vector2(STAGE_LENGTH / 2.0, 600))
 
 	# Gameplay Logic
 	main._spawn_enemy_wave(18, 0.4) 
