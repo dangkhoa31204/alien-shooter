@@ -65,6 +65,7 @@ var _enemy_spawn_timer: float = 2.0 # Dynamic enemy spawn
 var _stage_terrain: PackedVector2Array = PackedVector2Array()
 var last_checkpoint_x: float = 100.0
 var _checkpoint_positions: Array[float] = []
+var _checkpoint_count: int = 0
 var _rpg_cooldown_timer: float = 0.0 # Added for RPG cooldown tracking
 var _perf_frame: int = 0
 var _flash_rect: ColorRect = null # Persistent flash for explosions
@@ -639,7 +640,8 @@ func _process_bombs(_delta: float) -> void:
 	var tree = get_tree()
 	if not tree: return
 	
-	var bullets = tree.get_nodes_in_group("enemy_bullet")
+	# Process both enemy bombs andally/enemy tank shells
+	var bullets = tree.get_nodes_in_group("enemy_bullet") + tree.get_nodes_in_group("player_bullet")
 	var count = bullets.size()
 	if count == 0: return
 
@@ -670,14 +672,19 @@ func _process_bombs(_delta: float) -> void:
 			var result = space_state.intersect_ray(query)
 			
 			if result or b.global_position.y >= ground_y - 5.0:
-				_explode_bomb(b.global_position)
+				_explode_bomb(b.global_position, b)
 				b.queue_free()
 		elif b.global_position.y > 1000: 
 			b.queue_free()
 
-func _explode_bomb(pos: Vector2) -> void:
+func _explode_bomb(pos: Vector2, b: Node = null) -> void:
 	screen_shake(12.0, 0.4)
-	Audio.play("b40", 12.0)
+	
+	# Use specific sound for tank shells if available, otherwise bomb
+	if b and b.has_meta("is_tank_shell"):
+		Audio.play("bomb_explode", 14.0) # Or "tank_shoot" but explode sounds better for impact
+	else:
+		Audio.play("bomb_explode", 12.0)
 
 	# Layer 1 — white hot core
 	var core := Polygon2D.new()
@@ -757,6 +764,17 @@ func _explode_bomb(pos: Vector2) -> void:
 		if player.has_method("apply_bomb_knockback"):
 			player.apply_bomb_knockback(pos)
 		player.take_damage(15)
+
+	# Damage enemies/tanks if it's a powerful explosion (Tank Shell or Player-owned)
+	var dmg_radius = 120.0
+	var targets = get_tree().get_nodes_in_group("enemy") + get_tree().get_nodes_in_group("tank")
+	for target in targets:
+		if is_instance_valid(target) and target.global_position.distance_to(pos) < dmg_radius:
+			if target.has_method("take_damage"):
+				# Determine damage: Player shells do more
+				var dmg = 50
+				if b and b.is_in_group("player_bullet"): dmg = 80
+				target.take_damage(dmg)
 
 	# Allies (background soldiers / allied column) also get knocked up.
 	var tree := get_tree()
@@ -1148,13 +1166,14 @@ func _start_stage(stage_num: int, is_respawn: bool = false) -> void:
 	if not is_respawn:
 		last_checkpoint_x = 100.0
 		player_lives = 3
+		_checkpoint_count = 0
 		refresh_lives(player_lives)
 	if progress_bar: progress_bar.max_value = STAGE_LENGTH
 	is_game_over = false # FIX: must be false before cleanup so _process works from frame 1
 	_cleanup_level()
 	# Chuyển nhạc theo stage
 	if stage_num == 5:
-		Audio.play_stage5_music()
+		Audio.play_ingame_music() # Không phát nhạc nền màn 5
 	else:
 		Audio.play_ingame_music()
 	# FIX: call_deferred to ensure old physic objects are gone before new ones are added
@@ -4066,6 +4085,7 @@ func _show_settings_from_pause() -> void:
 
 func _close_history() -> void:
 	_history_panel.visible = false
+	Audio.play("intro%d" % current_stage) # Phát sound intro tương ứng với màn khi đóng popup lịch sử
 	# Always restore MainPanel visibility
 	var p_main = _pause_menu.get_node_or_null("MainPanel")
 	if p_main: p_main.visible = true
@@ -4214,6 +4234,8 @@ func _create_health_kit(pos: Vector2) -> void:
 	tw.tween_property(kit, "position:y", pos.y, 0.8).set_trans(Tween.TRANS_SINE)
 
 func _create_checkpoint(pos: Vector2) -> void:
+	_checkpoint_count += 1
+	var my_idx = _checkpoint_count
 	var cp = Area2D.new(); cp.position = pos; _add_to_level(cp); cp.z_index = -2
 	var col = CollisionShape2D.new(); var shp = RectangleShape2D.new(); shp.size = Vector2(100, 200); col.shape = shp; cp.add_child(col)
 	
@@ -4226,7 +4248,7 @@ func _create_checkpoint(pos: Vector2) -> void:
 			last_checkpoint_x = pos.x
 			flag.color = Color.YELLOW # Activated
 			ui_label.text = "ĐIỂM LƯU TẠM THỜI (CHECKPOINT)!"
-			Audio.play("checkpoint")
+			Audio.play_checkpoint_audio(current_stage, my_idx)
 	)
 	_checkpoint_positions.append(pos.x)
 

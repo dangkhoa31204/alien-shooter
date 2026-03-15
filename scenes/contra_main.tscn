@@ -1,19 +1,18 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://75kqg8hgpmgl"]
 
-[ext_resource type="Script" path="res://scripts/contra_main.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://djq18ojcief7k" path="res://scripts/contra_main.gd" id="1_script"]
 
-[node name="ContraMain" type="Node2D"]
+[node name="ContraMain" type="Node2D" unique_id=1569851978]
 script = ExtResource("1_script")
 
-[node name="Camera2D" type="Camera2D" parent="."]
-anchor_mode = 1
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1296428708]
 position = Vector2(576, 360)
 
-[node name="BulletContainer" type="Node2D" parent="."]
+[node name="BulletContainer" type="Node2D" parent="." unique_id=440053337]
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="UI" type="CanvasLayer" parent="." unique_id=925761505]
 
-[node name="Label" type="Label" parent="UI"]
+[node name="Label" type="Label" parent="UI" unique_id=1388873696]
 offset_left = 20.0
 offset_top = 20.0
 offset_right = 300.0
@@ -21,7 +20,7 @@ offset_bottom = 60.0
 theme_override_font_sizes/font_size = 20
 text = "Stage: 1   Score: 0"
 
-[node name="StageLabel" type="Label" parent="UI"]
+[node name="StageLabel" type="Label" parent="UI" unique_id=537654353]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5

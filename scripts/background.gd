@@ -1,4 +1,4 @@
-﻿extends Node2D
+extends Node2D
 # background.gd -- 2.5D deep-space parallax
 
 const STAR_COUNTS: Array = [70, 38, 16, 6]   # was [150,85,42,14]
@@ -329,8 +329,8 @@ func _gen_battlefield() -> void:
 		_bf_craters.append([cx, cy, cr, randf()*TAU])
 		if randf() > 0.45:
 			_bf_fires.append([cx + randf_range(-cr*0.4, cr*0.4),
-			                  cy + randf_range(-cr*0.4, cr*0.4),
-			                  randf()*TAU, randf_range(0.5, 1.0)])
+							  cy + randf_range(-cr*0.4, cr*0.4),
+							  randf()*TAU, randf_range(0.5, 1.0)])
 	# Đường mòn — 6 con đường gồ ghề
 	for _i in 6:
 		var ry := randf()*h

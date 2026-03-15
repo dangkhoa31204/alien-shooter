@@ -17,12 +17,42 @@ const MENU_MUSIC_PATH := "res://assets/audio/lac_troi.mp3"
 const MP3_SFX_DEFS: Dictionary = {
 	"gun_fire":       "res://assets/audio/gun_fire.mp3",
 	"punch":          "res://assets/audio/punch_sound.mp3",
-	"ak47_fire":  		"res://assets/audio/ak47_fire.mp3",
+	"ak47_fire":      "res://assets/audio/ak47_fire.mp3",
 	"m4_fire": "res://assets/audio/m4_fire.wav",
 	"collected_item": "res://assets/audio/collected_item.mp3",
-	"checkpoint": "res://assets/audio/CheckCheckPoint.mp3",
+	"checkpoint": {
+		"1": [
+			"res://assets/audio/checkpoint/Checkpoint1_1.mp3",
+			"res://assets/audio/checkpoint/Checkpoint2_1.mp3",
+			"res://assets/audio/checkpoint/Checkpoint3_1.mp3"
+		],
+		"2": [
+			"res://assets/audio/checkpoint/Checkpoint1_2.mp3",
+			"res://assets/audio/checkpoint/Checkpoint2_2.mp3",
+			"res://assets/audio/checkpoint/Checkpoint3_2.mp3"
+		],
+		"3": [
+			"res://assets/audio/checkpoint/Checkpoint1_3.mp3",
+			"res://assets/audio/checkpoint/Checkpoint2_3.mp3",
+			"res://assets/audio/checkpoint/Checkpoint3_3.mp3"
+		],
+		"4": [
+			"res://assets/audio/checkpoint/Checkpoint1_4.mp3",
+			"res://assets/audio/checkpoint/Checkpoint2_4.mp3",
+			"res://assets/audio/checkpoint/Checkpoint3_4.mp3"
+		],
+		"5": [
+			"res://assets/audio/checkpoint/Checkpoint1_5.mp3"
+		]
+	},
+	"intro1": "res://assets/audio/intro/intro1.mp3",
+	"intro2": "res://assets/audio/intro/intro2.mp3",
+	"intro3": "res://assets/audio/intro/intro3.mp3",
+	"intro4": "res://assets/audio/intro/intro4.mp3",
+	"intro5": "res://assets/audio/intro/intro5.mp3",
 	"b40":               "res://assets/audio/b40.mp3",
 	"aa_sound":           "res://assets/audio/aa_sound.mp3",
+	"bomb_explode":      "res://assets/audio/bomb_explode.mp3",
 	"bomber_drop_sound":  "res://assets/audio/bomber_drop_sound.mp3",
 	"bomber_explode":     "res://assets/audio/bomber_explode.mp3",
 	"reload_ak47":       "res://assets/audio/reload_ak47.mp3",
@@ -32,6 +62,7 @@ const MP3_SFX_DEFS: Dictionary = {
 	"footstep_road_1": "res://assets/audio/step-1.mp3",
 	"footstep_road_2": "res://assets/audio/step-2.mp3",
 	"footstep_road_3": "res://assets/audio/step-3.mp3",
+	"tank_shoot": "res://assets/audio/tank_shoot_sound.mp3",
 }
 var _mp3_sfx_loaded := false
 
@@ -42,9 +73,9 @@ var _device_watch_timer: Timer = null
 
 # ── MUSIC ─────────────────────────────────────────────────────────────────────
 var _music_player:  AudioStreamPlayer = null
-const INGAME_MUSIC_PATH  := "res://assets/audio/game_background_music1.mp3"
+const INGAME_MUSIC_PATH  := "" # Đã xóa nhạc nền các màn chơi
 const DIED_MUSIC_PATH    := "res://assets/audio/died_music.mp3"
-const STAGE5_MUSIC_PATH  := "res://assets/audio/final_screen_music.mp3"
+const STAGE5_MUSIC_PATH  := "res://assets/audio/victory _music.mp3"
 const VICTORY_MUSIC_PATH := "res://assets/audio/victory _music.mp3"
 var _music_pb:      AudioStreamGeneratorPlayback = null
 var _music_t:       float = 0.0
@@ -171,6 +202,33 @@ func play_footstep(surface: String = "grass", vol_db: float = 0.0) -> void:
 	(arr[0] as AudioStreamPlayer).volume_db = vol_db + sfx_db2
 	(arr[0] as AudioStreamPlayer).play()
 
+## Play a level-specific checkpoint audio using dynamic loading.
+## Format: res://assets/audio/checkpoint/Checkpoint{checkpoint}_{level}.mp3
+## Fallback: res://assets/audio/CheckCheckPoint.mp3
+func play_checkpoint_audio(level: int, checkpoint: int) -> void:
+	if not PlayerData.sfx_enabled: return
+	
+	var path := "res://assets/audio/checkpoint/Checkpoint%d_%d.mp3" % [checkpoint, level]
+	var fallback := "res://assets/audio/CheckCheckPoint.mp3"
+	
+	var stream: AudioStream = null
+	if ResourceLoader.exists(path):
+		stream = load(path) as AudioStream
+	elif ResourceLoader.exists(fallback):
+		stream = load(fallback) as AudioStream
+	
+	if stream == null: return
+	
+	var p := AudioStreamPlayer.new()
+	p.stream = stream
+	p.bus = "SFX"
+	add_child(p)
+	# Use player's SFX volume from settings
+	var sfx_db := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
+	p.volume_db = sfx_db
+	p.finished.connect(p.queue_free)
+	p.play()
+
 ## Gọi sau khi toggle sound trong settings để cập nhật trạng thái nhạc
 func refresh_music() -> void:
 	if _music_player == null: return
@@ -186,45 +244,42 @@ func refresh_music() -> void:
 		_music_pb = null
 
 func play_ingame_music() -> void:
+	# Không phát nhạc nền màn chơi
 	if _music_player == null: return
-	if not PlayerData.music_enabled: return
-	_set_music_stream_from_path(INGAME_MUSIC_PATH, true)
-	if not _music_player.playing:
-		_music_player.play()
-		call_deferred("_grab_music_playback")
+	_music_player.stop()
 
 func play_stage5_music() -> void:
+	# Phát nhạc chiến thắng màn 5
 	if _music_player == null: return
 	if not PlayerData.music_enabled: return
 	if _menu_music_player != null and _menu_music_player.playing:
 		_menu_music_player.stop()
-	if _set_music_stream_from_path(STAGE5_MUSIC_PATH, true):
+	if _set_music_stream_from_path(STAGE5_MUSIC_PATH, false):
 		_music_player.stop()
 		_music_player.play()
 		_music_pb = null
-	else:
-		play_ingame_music()  # fallback nếu file chưa có
 
 func play_victory_music() -> void:
+	# Phát nhạc chiến thắng
 	if _music_player == null: return
+	if not PlayerData.music_enabled: return
 	if _menu_music_player != null and _menu_music_player.playing:
 		_menu_music_player.stop()
-	if not PlayerData.music_enabled: return
 	if _set_music_stream_from_path(VICTORY_MUSIC_PATH, false):
 		_music_player.stop()
 		_music_player.play()
 		_music_pb = null
 
 func play_died_music() -> void:
+	# Phát nhạc thất bại
 	if _music_player == null: return
 	if not PlayerData.music_enabled: return
-	# Ngắt nhạc menu và nhạc nền gameplay, phát nhạc thua trận
 	if _menu_music_player != null and _menu_music_player.playing:
 		_menu_music_player.stop()
-	_set_music_stream_from_path(DIED_MUSIC_PATH, false)
-	_music_player.stop()
-	_music_player.play()
-	_music_pb = null
+	if _set_music_stream_from_path(DIED_MUSIC_PATH, false):
+		_music_player.stop()
+		_music_player.play()
+		_music_pb = null
 
 ## Phát nhạc nền menu từ file MP3 (lac_troi.mp3)
 ## Tắt nhạc procedural chỉ khi MP3 load thành công
@@ -412,20 +467,20 @@ func _make_wav(freq_start: float, freq_end: float, duration: float,
 # ── MP3 SFX LIBRARY ──────────────────────────────────────────────────────────
 func _build_mp3_sfx_library() -> void:
 	for sfx_name: String in MP3_SFX_DEFS:
-		var path: String = MP3_SFX_DEFS[sfx_name]
-		# Robust check: try with and without the 's' in assets
+		var path = MP3_SFX_DEFS[sfx_name]
+		if typeof(path) != TYPE_STRING:
+			continue # Bỏ qua các sound dạng Dictionary (checkpoint)
+		# Robust check: try với và không có 's' trong assets
 		if not ResourceLoader.exists(path):
 			var alt_path = path.replace("res://assets/", "res://asset/")
 			if ResourceLoader.exists(alt_path):
 				path = alt_path
-		
 		var stream := load(path) as AudioStream
-		if stream == null: 
+		if stream == null:
 			push_warning("Audio: Failed to load SFX at path: " + path)
 			continue
-		
-		# If it's a new sound (not procedural), create a new pool
-		# If it already exists (procedural), replace existing stream in pool
+		# Nếu là sound mới (không phải procedural), tạo pool mới
+		# Nếu đã có (procedural), thay stream
 		if not _sfx.has(sfx_name):
 			var arr: Array = []
 			for _i in range(POOL_SIZE):
@@ -436,7 +491,6 @@ func _build_mp3_sfx_library() -> void:
 				arr.append(p)
 			_sfx[sfx_name] = arr
 		else:
-			# Replace procedural dummy with real audio asset if loaded
 			for p: AudioStreamPlayer in _sfx[sfx_name]:
 				p.stream = stream
 
@@ -462,10 +516,7 @@ func _setup_music() -> void:
 		_music_player.bus = "Master"
 	
 	if not _set_music_stream_from_path(INGAME_MUSIC_PATH, true):
-		var gen := AudioStreamGenerator.new()
-		gen.mix_rate      = MUSIC_RATE
-		gen.buffer_length = 0.15
-		_music_player.stream = gen
+		_music_player.stream = null # Không tạo procedural music nữa
 
 	add_child(_music_player)
 	if PlayerData.music_enabled:

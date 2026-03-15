@@ -186,7 +186,7 @@ func _on_shoot_timer_timeout() -> void:
 	var p = _find_player()
 	if p and global_position.distance_to(p.global_position) < 500:
 		# Play launch sound (High volume as requested)
-		Audio.play("b40", 15.0) # Tank firing sound
+		Audio.play("tank_shoot", 15.0) # Tank firing sound
 		_fire_cannon()
 
 func _fire_cannon() -> void:
