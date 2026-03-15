@@ -1111,7 +1111,7 @@ func _start_stage(stage_num: int, is_respawn: bool = false) -> void:
 	_cleanup_level()
 	# Chuyển nhạc theo stage
 	if stage_num == 5:
-		Audio.play_stage5_music()
+		Audio.play_ingame_music() # Không phát nhạc nền màn 5
 	else:
 		Audio.play_ingame_music()
 	# FIX: call_deferred to ensure old physic objects are gone before new ones are added

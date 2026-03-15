@@ -37,9 +37,9 @@ var _mp3_sfx_loaded := false
 # ── MUSIC ─────────────────────────────────────────────────────────────────────
 var _music_player:  AudioStreamPlayer = null
 const INGAME_MUSIC_PATH  := "" # Đã xóa nhạc nền các màn chơi
-const DIED_MUSIC_PATH    := ""
-const STAGE5_MUSIC_PATH  := ""
-const VICTORY_MUSIC_PATH := ""
+const DIED_MUSIC_PATH    := "res://assets/audio/died_music.mp3"
+const STAGE5_MUSIC_PATH  := "res://assets/audio/victory _music.mp3"
+const VICTORY_MUSIC_PATH := "res://assets/audio/victory _music.mp3"
 var _music_pb:      AudioStreamGeneratorPlayback = null
 var _music_t:       float = 0.0
 var _chord_beat:    float = 0.0
@@ -150,19 +150,37 @@ func play_ingame_music() -> void:
 	_music_player.stop()
 
 func play_stage5_music() -> void:
-	# Không phát nhạc nền màn chơi
+	# Phát nhạc chiến thắng màn 5
 	if _music_player == null: return
-	_music_player.stop()
+	if not PlayerData.music_enabled: return
+	if _menu_music_player != null and _menu_music_player.playing:
+		_menu_music_player.stop()
+	if _set_music_stream_from_path(STAGE5_MUSIC_PATH, false):
+		_music_player.stop()
+		_music_player.play()
+		_music_pb = null
 
 func play_victory_music() -> void:
-	# Không phát nhạc nền màn chơi
+	# Phát nhạc chiến thắng
 	if _music_player == null: return
-	_music_player.stop()
+	if not PlayerData.music_enabled: return
+	if _menu_music_player != null and _menu_music_player.playing:
+		_menu_music_player.stop()
+	if _set_music_stream_from_path(VICTORY_MUSIC_PATH, false):
+		_music_player.stop()
+		_music_player.play()
+		_music_pb = null
 
 func play_died_music() -> void:
-	# Không phát nhạc nền màn chơi
+	# Phát nhạc thất bại
 	if _music_player == null: return
-	_music_player.stop()
+	if not PlayerData.music_enabled: return
+	if _menu_music_player != null and _menu_music_player.playing:
+		_menu_music_player.stop()
+	if _set_music_stream_from_path(DIED_MUSIC_PATH, false):
+		_music_player.stop()
+		_music_player.play()
+		_music_pb = null
 
 ## Phát nhạc nền menu từ file MP3 (lac_troi.mp3)
 ## Tắt nhạc procedural chỉ khi MP3 load thành công
@@ -400,10 +418,7 @@ func _setup_music() -> void:
 		_music_player.bus = "Master"
 	
 	if not _set_music_stream_from_path(INGAME_MUSIC_PATH, true):
-		var gen := AudioStreamGenerator.new()
-		gen.mix_rate      = MUSIC_RATE
-		gen.buffer_length = 0.15
-		_music_player.stream = gen
+		_music_player.stream = null # Không tạo procedural music nữa
 
 	add_child(_music_player)
 	if PlayerData.music_enabled:
