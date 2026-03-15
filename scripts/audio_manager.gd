@@ -223,8 +223,8 @@ func play_checkpoint_audio(level: int, checkpoint: int) -> void:
 	p.stream = stream
 	p.bus = "SFX"
 	add_child(p)
-	# Use player's SFX volume from settings
-	var sfx_db := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
+	# Use player's SFX volume from settings + 50% boost for clarity as requested
+	var sfx_db := linear_to_db(maxf(0.0001, PlayerData.sfx_volume * 1.5))
 	p.volume_db = sfx_db
 	p.finished.connect(p.queue_free)
 	p.play()
