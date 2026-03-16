@@ -16,63 +16,55 @@ var hp: int       = 130
 var direction: int = 1  # 1 = Right, -1 = Left
 
 # Falling state
+
 var _dying:      bool    = false
 var _fall_vel:   Vector2 = Vector2.ZERO
 var _smoke_timer: float  = 0.0
 var _fire_timer:  float  = 0.0
+var _shot:       bool    = false # Trạng thái vừa bị bắn, chạy animation bay thẳng ngắn
+var _shot_timer: float   = 0.0
+# Góc nghiêng mục tiêu khi rơi (rad)
+const FALL_TARGET_ROT = deg_to_rad(38)
+var _fall_rot: float = 0.0 # Góc nghiêng hiện tại
+var _fall_rot_speed: float = 0.0 # Tốc độ xoay nghiêng
 
-@onready var sprite: Node2D    = $Sprite
+@onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var shoot_timer: Timer = $ShootTimer
 
 func _ready() -> void:
 	add_to_group("enemy")
 	hp = maxi(1, int(round(float(hp) * HP_MULT)))
-	_setup_visuals()
+	sprite.play("fly")
 	shoot_timer.timeout.connect(_on_shoot_timer_timeout)
 	shoot_timer.start(1.5 + randf())
 
-func _setup_visuals() -> void:
-	# B-52 style bomber silhouette using polygons
-	var fuse = Polygon2D.new()
-	fuse.polygon = PackedVector2Array([
-		Vector2(-40, -5), Vector2(40, -5), Vector2(45, 2),
-		Vector2(40, 8), Vector2(-40, 8), Vector2(-45, 2)
-	])
-	fuse.color = Color(0.3, 0.32, 0.35)
-	sprite.add_child(fuse)
-
-	var cock = ColorRect.new()
-	cock.size = Vector2(8, 4); cock.position = Vector2(30, -4)
-	cock.color = Color(0.1, 0.4, 0.8, 0.7)
-	sprite.add_child(cock)
-
-	var tail = Polygon2D.new()
-	tail.polygon = PackedVector2Array([
-		Vector2(-40, -5), Vector2(-45, -20), Vector2(-35, -20), Vector2(-30, -5)
-	])
-	tail.color = Color(0.25, 0.28, 0.3)
-	sprite.add_child(tail)
-
-	var wing1 = Polygon2D.new()
-	wing1.polygon = PackedVector2Array([
-		Vector2(-10, 0), Vector2(-25, -20), Vector2(0, -20), Vector2(15, 0)
-	])
-	wing1.color = Color(0.2, 0.22, 0.25); wing1.z_index = -1
-	sprite.add_child(wing1)
-
-	var eng1 = ColorRect.new()
-	eng1.size = Vector2(12, 4); eng1.position = Vector2(-2, -22)
-	eng1.color = Color(0.1, 0.1, 0.1)
-	wing1.add_child(eng1)
+## Đã thay thế bằng AnimatedSprite2D, không cần vẽ Polygon2D thủ công nữa
 
 func _physics_process(delta: float) -> void:
+	if _shot:
+		_shot_timer -= delta
+		# Chạy animation bay thẳng ngắn, chậm hơn
+		velocity.x = direction * (SPEED * 0.55)
+		move_and_slide()
+		sprite.play("fly")
+		sprite.scale = Vector2(-1.2, 0.95) # To hơn
+		if _shot_timer <= 0.0:
+			_shot = false
+			_start_fall()
+		return
+
 	if _dying:
 		_update_fall(delta)
 		return
 
 	velocity.x = direction * SPEED
 	move_and_slide()
-	sprite.scale.x = direction
+	sprite.scale.x = direction * 0.2
+	# Đảm bảo animation luôn là "fly" khi bay
+	if not _dying and sprite.animation != "fly":
+		sprite.play("fly")
+	# Đảm bảo scale dày hơn
+	sprite.scale = Vector2(-1.2, 0.95) # To hơn, dày hơn nữa, bay chiều ngược lại
 
 	if abs(global_position.x) > 14000:
 		queue_free()
@@ -80,10 +72,32 @@ func _physics_process(delta: float) -> void:
 func _update_fall(delta: float) -> void:
 	# Apply gravity
 	_fall_vel.y += GRAVITY * delta
+	# Tăng vận tốc ngang để tạo cảm giác lao nhanh hơn
+	_fall_vel.x += direction * 60.0 * delta # Tăng dần vận tốc ngang
+	# Giảm nhẹ vận tốc ngang nếu quá lớn
+	if abs(_fall_vel.x) > SPEED * 2.2:
+		_fall_vel.x = sign(_fall_vel.x) * SPEED * 2.2
 	global_position += _fall_vel * delta
 
-	# Spin out of control
-	sprite.rotation += SPIN_SPEED * delta
+	# Chuyển animation sang "fall" khi rơi
+	if sprite.animation != "fall":
+		sprite.play("fall")
+		# Để animation rơi chỉ chạy 1 lần, hãy bỏ tick 'Loop' cho animation 'fall' trong SpriteFrames bằng editor Godot
+
+	# Nghiêng máy bay từ từ về góc mục tiêu
+	var target_rot = FALL_TARGET_ROT * direction
+	# Tăng tốc độ xoay khi rơi
+	_fall_rot_speed += 2.8 * delta
+	# Giới hạn tốc độ xoay
+	if _fall_rot_speed > 3.2:
+		_fall_rot_speed = 3.2
+	# Xoay dần về góc mục tiêu
+	_fall_rot = lerp(_fall_rot, target_rot, _fall_rot_speed * delta)
+	sprite.rotation = _fall_rot
+
+	# Giữ frame cuối nếu animation không lặp
+	if not sprite.is_playing():
+		sprite.frame = sprite.sprite_frames.get_frame_count("fall") - 1
 
 	# Smoke trail every 0.08 s
 	_smoke_timer -= delta
@@ -205,7 +219,7 @@ func _crash_impact(main: Node) -> void:
 	if main.has_method("add_kill"):
 		main.add_kill(500, 40)
 
-	queue_free()
+		queue_free()
 
 func _on_shoot_timer_timeout() -> void:
 	if not _dying:
@@ -223,21 +237,26 @@ func _drop_bomb() -> void:
 	b.add_to_group("enemy_bullet")
 
 func take_damage(amount: int) -> void:
-	if _dying: return
+	if _dying or _shot: return
 	if amount <= 0: return
 	# One-shot down: any hit makes the bomber fall.
 	hp = 0
 	# Flash red
 	var tw := create_tween()
 	tw.tween_property(sprite, "modulate", Color.WHITE, 0.06).from(Color.RED)
-	_start_fall()
+	# Bắt đầu trạng thái bị bắn: bay thẳng ngắn, chậm hơn
+	_shot = true
+	_shot_timer = 0.55 # Thời gian bay thẳng ngắn (chậm hơn, mượt)
 
 func _start_fall() -> void:
 	_dying = true
 	shoot_timer.stop()
 	Audio.play("bomber_drop_sound", 10.0)
-	# Initial velocity: keep horizontal momentum, slight upward kick
-	_fall_vel = Vector2(velocity.x * 0.5, -120.0)
+	# Initial velocity: lao xiên (vận tốc ngang lớn hơn)
+	_fall_vel = Vector2(velocity.x * 1.2, -120.0)
+	# Reset góc nghiêng và tốc độ xoay
+	_fall_rot = 0.0
+	_fall_rot_speed = 0.0
 	# Remove from "enemy" group so it no longer counts for targeting
 	remove_from_group("enemy")
 	# Disable collision so it doesn't push the player while falling
@@ -249,5 +268,3 @@ func _get_main_scene() -> Node:
 		if "ContraMain" in curr.name: return curr
 		curr = curr.get_parent()
 	return null
-
-
