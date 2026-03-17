@@ -68,6 +68,7 @@ var _checkpoint_positions: Array[float] = []
 var _checkpoint_count: int = 0
 var _rpg_cooldown_timer: float = 0.0 # Added for RPG cooldown tracking
 var _perf_frame: int = 0
+var _ally_sprite_frames: SpriteFrames = null
 var _flash_rect: ColorRect = null # Persistent flash for explosions
 var _level_node: Node2D = null # Container for all stage-specific objects (for fast cleanup)
 var _history_panel: Control = null # Historical info panel
@@ -524,7 +525,7 @@ func refresh_ammo(val: int, max_val: int, is_rel: bool) -> void:
 		al.text = "  NẠP ĐẠN..."
 		al.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
 	else:
-		var color := Color(0.3, 1.0, 0.3) if val > max_val / 4 else Color(1.0, 0.6, 0.1)
+		var color := Color(0.3, 1.0, 0.3) if val > max_val / 4.0 else Color(1.0, 0.6, 0.1)
 		al.text = "%d / %d" % [val, max_val]
 		al.add_theme_color_override("font_color", color)
 
@@ -745,7 +746,7 @@ func _explode_bomb(pos: Vector2, b: Node = null) -> void:
 		deg.global_position = pos; deg.z_index = 9
 		_add_to_level(deg)
 		var vel_x := randf_range(-180.0, 180.0)
-		var vel_y := randf_range(-280.0, -80.0)
+		var _vel_y := randf_range(-280.0, -80.0)
 		var d_tw: Tween = create_tween()
 		d_tw.tween_property(deg, "position", deg.position + Vector2(vel_x * 0.5, 120.0), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		d_tw.parallel().tween_property(deg, "rotation", randf_range(-PI * 3, PI * 3), 0.6)
@@ -1101,7 +1102,7 @@ func _setup_background_sky(sky_color: Color = Color(0.1, 0.3, 0.6)) -> void:
 
 			# Left-lit face overlay (lighter left/top slope)
 			if ridge.size() >= 3:
-				var peak_v: Vector2 = ridge[int(ridge.size() / 2)]
+				var peak_v: Vector2 = ridge[int(ridge.size() / 2.0)]
 				var light_pts := PackedVector2Array([ridge[0], peak_v, Vector2(peak_v.x * 0.3, 0.0)])
 				var lit := Polygon2D.new()
 				lit.polygon = light_pts
@@ -1683,7 +1684,7 @@ func _create_ground_segment(x1: float, x2: float, y: float) -> void:
 
 	# ── 10. Moss patches on some rocks ───────────────────────────────────────
 	if n_pebbles > 2:
-		for mi2 in int(n_pebbles / 3):
+		for mi2 in int(n_pebbles / 3.0):
 			var moss := Polygon2D.new()
 			var mpx: float = -w / 2.0 + float(mi2) * 220.0 + rng_g.randf_range(0, 140)
 			var mr           := rng_g.randf_range(5.0, 9.0)
@@ -2851,52 +2852,35 @@ func _spawn_background_soldiers(count: int) -> void:
 			is_tun = false
 		_add_individual_background_soldier(x, y, is_tun)
 
+func _get_ally_sprite_frames() -> SpriteFrames:
+	if _ally_sprite_frames != null: return _ally_sprite_frames
+	var p = PLAYER_SCENE.instantiate()
+	var spr = p.get_node_or_null("AnimatedSprite2D")
+	if spr:
+		_ally_sprite_frames = spr.sprite_frames
+	p.queue_free()
+	return _ally_sprite_frames
+
 func _add_individual_background_soldier(x: float, y: float = 600, is_tun: bool = false) -> void:
 	# Check for overlaps (loosen even more to 60px for density)
 	for s in get_tree().get_nodes_in_group("ally_army"):
 		if abs(s.position.x - x) < 60: return 
 	var soldier = Node2D.new()
-	var body_node = Node2D.new(); soldier.add_child(body_node)
-	var head_node = Node2D.new(); body_node.add_child(head_node)
 	
-	# Leg visuals (Back & Front)
-	var leg_poly = PackedVector2Array([Vector2(-4, 0), Vector2(4, 0), Vector2(4.5, 16), Vector2(-4.5, 16)])
-	var l_l = Polygon2D.new(); l_l.polygon = leg_poly; l_l.color = Color(0.12, 0.28, 0.1); l_l.name = "LegL"; soldier.add_child(l_l); l_l.position = Vector2(-3, 0)
-	var l_r = Polygon2D.new(); l_r.polygon = leg_poly; l_r.color = Color(0.18, 0.4, 0.15); l_r.name = "LegR"; soldier.add_child(l_r); l_r.position = Vector2(3, 0)
-	
-	# --- Body (Olive Green Uniform with depth) ---
-	var soldier_color = Color(0.18, 0.38, 0.15)
-	var torso = Polygon2D.new()
-	torso.polygon = PackedVector2Array([Vector2(-9, -18), Vector2(9, -18), Vector2(10, 0), Vector2(-10, 0)])
-	torso.color = soldier_color
-	body_node.add_child(torso)
-	
-	# Shading
-	var t_shade = Polygon2D.new(); t_shade.polygon = PackedVector2Array([Vector2(4, -18), Vector2(9, -18), Vector2(10, 0), Vector2(5, 0)]); t_shade.color = soldier_color.darkened(0.15); body_node.add_child(t_shade)
-	
-	# Ba lô con cóc (Backpack)
-	var pack = Polygon2D.new(); pack.polygon = PackedVector2Array([Vector2(-14, -16), Vector2(-8, -16), Vector2(-8, -4), Vector2(-15, -6)]); pack.color = soldier_color.darkened(0.2); body_node.add_child(pack)
-
-	# --- Head & Realistic Mũ Cối ---
-	var face = ColorRect.new(); face.size = Vector2(10, 7); face.position = Vector2(-5, -23); face.color = Color(0.95, 0.8, 0.65); head_node.add_child(face)
-	
-	# Mũ Cối (High detail)
-	var hat_base = Polygon2D.new(); hat_base.polygon = [Vector2(-11, -24), Vector2(11, -24), Vector2(9, -20), Vector2(-9, -20)]; hat_base.color = Color(0.1, 0.32, 0.1); head_node.add_child(hat_base)
-	var hat_dome = Polygon2D.new(); hat_dome.polygon = [Vector2(-8, -24), Vector2(8, -24), Vector2(7, -33), Vector2(0, -35), Vector2(-7, -33)]; hat_dome.color = Color(0.15, 0.4, 0.15); head_node.add_child(hat_dome)
-	
-	# Star
-	var star = Polygon2D.new(); var pts = []
-	for j in 5:
-		var a = j*TAU/5-PI/2; pts.append(Vector2(cos(a)*1.5, sin(a)*1.5 - 28))
-	star.polygon = PackedVector2Array(pts); star.color = Color.YELLOW; head_node.add_child(star)
-	
-	# Rifle (Súng AK-47 visual)
-	var gun = ColorRect.new(); gun.size = Vector2(28, 4); gun.position = Vector2(2, -12); gun.color = Color(0.08, 0.08, 0.08); body_node.add_child(gun)
-	var stock = ColorRect.new(); stock.size = Vector2(6, 4); stock.position = Vector2(-4, -12); stock.color = Color(0.4, 0.15, 0.05); body_node.add_child(stock)
+	# --- Visuals (Using player animations now) ---
+	var anim = AnimatedSprite2D.new()
+	anim.name = "Anim"
+	anim.sprite_frames = _get_ally_sprite_frames()
+	anim.scale = Vector2(0.303, 0.289)
+	# Use player's sprite offset for consistency
+	anim.position = Vector2(2.2, -4.7) 
+	anim.play("run")
+	soldier.add_child(anim)
 	
 	soldier.z_index = -4
 	# Snap Y immediately so soldiers don't fall from sky
-	var snapped_y = 650.0 if is_tun else _get_ground_y(x)
+	var ground_y_spawn = 650.0 if is_tun else _get_ground_y(x)
+	var snapped_y = ground_y_spawn - 40.0
 	soldier.position = Vector2(x, snapped_y)
 	soldier.z_index = 4 # Explicitly in front of props
 	soldier.add_to_group("ally_army")
@@ -3017,7 +3001,7 @@ func _process_background_army(delta: float) -> void:
 			soldier.set_meta("kb_vel", vel)
 			var is_tunnel_soldier2: bool = bool(soldier.get_meta("on_tunnel", false))
 			var is_tank2: bool = soldier.has_meta("is_tank")
-			var leg_h2 := 0.0 if is_tank2 else 16.0
+			var leg_h2 := 0.0 if is_tank2 else 40.0
 			var ground_y2 := 650.0 if is_tunnel_soldier2 else _get_ground_y(soldier.position.x)
 			var target_y2 := ground_y2 - leg_h2
 			if soldier.position.y >= target_y2:
@@ -3071,7 +3055,7 @@ func _process_background_army(delta: float) -> void:
 					var dir_x: float = sign(best.global_position.x - soldier.global_position.x)
 					if is_zero_approx(dir_x):
 						dir_x = 1.0
-					b.global_position = soldier.global_position + Vector2(dir_x * 18.0, -14.0)
+					b.global_position = soldier.global_position + Vector2(dir_x * 70.0, -25.0)
 					if "direction" in b:
 						b.direction = (best.global_position - b.global_position).normalized()
 					b.is_enemy_bullet = false
@@ -3091,46 +3075,39 @@ func _process_background_army(delta: float) -> void:
 		# --- Procedural Animation ---
 		var is_tank = soldier.has_meta("is_tank")
 		if not is_tank:
-			var walk_time = (Time.get_ticks_msec() / 1000.0) * 12.0 + float(soldier.get_instance_id() % 100)
-			var step = sin(walk_time)
-			var s_body = soldier.get_child(0) if soldier.get_child_count() > 0 else null
-			if s_body:
-				s_body.position.y = abs(step) * -4.0
-				s_body.rotation = step * 0.04
-			
-			var s_leg_l = soldier.get_node_or_null("LegL"); var s_leg_r = soldier.get_node_or_null("LegR")
-			if s_leg_l and s_leg_r:
-				s_leg_l.position.x = -3 + step * 8.5
-				s_leg_r.position.x = 3 - step * 8.5
-				s_leg_l.rotation = step * 0.18
-				s_leg_r.rotation = -step * 0.18
+			var anim = soldier.get_node_or_null("Anim")
+			if anim:
+				var jump_t = soldier.get_meta("jump_time", 0.0)
+				if jump_t > 0:
+					if anim.animation != "jump": anim.play("jump")
+				else:
+					if anim.animation != "run": anim.play("run")
 		
 		# Ground snapping
 		var is_tunnel_soldier = soldier.has_meta("on_tunnel") and soldier.get_meta("on_tunnel")
-		if not is_tunnel_soldier:
-			var tx = soldier.position.x
-			var current_ground_y = _get_ground_y(tx)
-			leg_h = 0.0 if is_tank else 16.0
-			var target_y = current_ground_y - leg_h
+		var tx = soldier.position.x
+		var current_ground_y = 650.0 if is_tunnel_soldier else _get_ground_y(tx)
+		leg_h = 0.0 if is_tank else 40.0
+		var target_y = current_ground_y - leg_h
 			
-			var jump_time = soldier.get_meta("jump_time", 0.0)
-			var jump_offset = 0.0
-			if jump_time > 0:
-				jump_time -= delta * 3.0
-				jump_offset = sin((1.0 - jump_time) * PI) * 60.0
-				if jump_time <= 0: jump_time = 0
-			else:
-				# Check ahead for jumping up ledges
-				if _get_ground_y(tx + 80.0) < target_y - 25.0:
-					jump_time = 1.0
-			
-			soldier.set_meta("jump_time", jump_time)
-			var final_target = target_y - jump_offset
-			if soldier.position.y > target_y + 30:
-				soldier.position.y = target_y
-			else:
-				var follow_speed = 12.0 if soldier.position.y < target_y else 25.0
-				soldier.position.y = lerp(soldier.position.y, final_target, follow_speed * delta * 2.0)
+		var jump_time = soldier.get_meta("jump_time", 0.0)
+		var jump_offset = 0.0
+		if jump_time > 0:
+			jump_time -= delta * 3.0
+			jump_offset = sin((1.0 - jump_time) * PI) * 60.0
+			if jump_time <= 0: jump_time = 0
+		else:
+			# Check ahead for jumping up ledges
+			if _get_ground_y(tx + 80.0) < target_y - 25.0:
+				jump_time = 1.0
+		
+		soldier.set_meta("jump_time", jump_time)
+		var final_target = target_y - jump_offset
+		if soldier.position.y > target_y + 30:
+			soldier.position.y = target_y
+		else:
+			var follow_speed = 12.0 if soldier.position.y < target_y else 25.0
+			soldier.position.y = lerp(soldier.position.y, final_target, follow_speed * delta * 2.0)
 
 func _start_vn_death_anim(soldier: Node2D, ground_y: float) -> void:
 	if not is_instance_valid(soldier):
@@ -3150,6 +3127,9 @@ func _start_vn_death_anim(soldier: Node2D, ground_y: float) -> void:
 
 	# Snap to ground then animate into a prone pose ("nằm xuống").
 	soldier.position.y = ground_y
+	var anim = soldier.get_node_or_null("Anim")
+	if anim: anim.stop()
+	
 	var tw: Tween = soldier.create_tween()
 	tw.set_ease(Tween.EASE_OUT)
 	tw.set_trans(Tween.TRANS_QUAD)
