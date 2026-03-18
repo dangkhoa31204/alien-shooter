@@ -555,11 +555,9 @@ func _process(delta: float) -> void:
 		if player.get("rpg_cooldown") != null:
 			refresh_heavy_weapon(player.rpg_cooldown, player.rpg_max_cooldown)
 		
-		# Vertical Camera Follow (Follow player into tunnels)
-		var target_y = 360.0
-		if player.position.y > 650:
-			target_y = 550.0 # Shift down to see the tunnel path clearly
-		camera.position.y = lerp(camera.position.y, target_y, 4.0 * delta)
+		# Vertical Camera Follow — smoothly tracks player Y so they always appear centered
+		var target_y = clamp(player.position.y - 100.0, 280.0, 580.0)
+		camera.position.y = lerp(camera.position.y, target_y, 3.5 * delta)
 		
 		# Background is static in world space — no parallax movement applied
 		
@@ -3065,12 +3063,10 @@ func _process_background_army(delta: float) -> void:
 				cd = 5.0
 			soldier.set_meta("shoot_cd", cd)
 
-		# Skip animation/movement for distant units (performance)
-		if (idx_a + _perf_frame) % 2 != 0: continue
-		
+		# Process all soldiers every frame to avoid choppy movement
 		if not soldier.has_meta("walk_speed"): continue
 		var base_speed = soldier.get_meta("walk_speed")
-		soldier.position.x += base_speed * delta * 2.0
+		soldier.position.x += base_speed * delta
 		
 		# --- Procedural Animation ---
 		var is_tank = soldier.has_meta("is_tank")
@@ -3086,7 +3082,7 @@ func _process_background_army(delta: float) -> void:
 		# Ground snapping
 		var is_tunnel_soldier = soldier.has_meta("on_tunnel") and soldier.get_meta("on_tunnel")
 		var tx = soldier.position.x
-		var current_ground_y = 650.0 if is_tunnel_soldier else _get_ground_y(tx)
+		var current_ground_y = 640.0 if is_tunnel_soldier else _get_ground_y(tx)
 		leg_h = 0.0 if is_tank else 40.0
 		var target_y = current_ground_y - leg_h
 			
@@ -3096,8 +3092,8 @@ func _process_background_army(delta: float) -> void:
 			jump_time -= delta * 3.0
 			jump_offset = sin((1.0 - jump_time) * PI) * 60.0
 			if jump_time <= 0: jump_time = 0
-		else:
-			# Check ahead for jumping up ledges
+		elif not is_tunnel_soldier:
+			# Only check for ledges when NOT in tunnel (prevents constant jumping underground)
 			if _get_ground_y(tx + 80.0) < target_y - 25.0:
 				jump_time = 1.0
 		
@@ -3107,7 +3103,7 @@ func _process_background_army(delta: float) -> void:
 			soldier.position.y = target_y
 		else:
 			var follow_speed = 12.0 if soldier.position.y < target_y else 25.0
-			soldier.position.y = lerp(soldier.position.y, final_target, follow_speed * delta * 2.0)
+			soldier.position.y = lerp(soldier.position.y, final_target, follow_speed * delta)
 
 func _start_vn_death_anim(soldier: Node2D, ground_y: float) -> void:
 	if not is_instance_valid(soldier):

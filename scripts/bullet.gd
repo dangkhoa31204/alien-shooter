@@ -246,17 +246,25 @@ func _on_body_entered(body: Node) -> void:
 			_spawn_hit_effect(global_position)
 			queue_free()
 	else:
-		if body.is_in_group("enemy") or body is StaticBody2D:
+		if body.is_in_group("enemy"):
+			# Always damage enemies regardless of what's in between
 			if body not in _pierced:
 				if body.has_method("take_damage"):
 					body.take_damage(damage)
 				_apply_special(body)
 				_spawn_hit_effect(global_position)
 			if is_max_power and bullet_type == BulletType.NORMAL:
-				# Xuyên qua — không hủy, đánh dấu để không hit lại
 				if body not in _pierced: _pierced.append(body)
 			elif bullet_type != BulletType.RICOCHET:
 				queue_free()
+		elif body is StaticBody2D:
+			# Only stop on actual terrain (collision layer 1), not decorative props
+			# Decorative props typically have no collision_layer or are on layer > 1
+			var is_terrain = (body as StaticBody2D).collision_layer & 1 != 0
+			if is_terrain:
+				_spawn_hit_effect(global_position)
+				if bullet_type != BulletType.RICOCHET:
+					queue_free()
 
 func _spawn_hit_effect(pos: Vector2) -> void:
 	var etype: int = 0
