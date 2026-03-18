@@ -14,11 +14,34 @@ const ANIM_DOUBLE_JUMP  = &"double_jump"
 const ANIM_FALL         = &"fall"
 const ANIM_PUNCH        = &"punch"
 const ANIM_SHOOT        = &"shoot"
-const ANIM_SHOOT_UP     = &"shoot_45_up"
+const ANIM_SHOOT_UP     = &"run_shoot_45_up"
 const ANIM_SHOOT_DOWN   = &"shoot_45_down"
 const ANIM_RELOAD       = &"reload"
 const ANIM_B40          = &"b40"
+const ANIM_ANTI_AIR     = &"anti_air"
 const ROCKET_SCENE = preload("res://scripts/contra_rocket.gd") 
+
+# Optional: Custom scales for specific animations that have different source dimensions
+const ANIM_SCALES = {
+	ANIM_B40: Vector2(0.24, 0.24),        
+	ANIM_RUN_SHOOT: Vector2(0.38, 0.38),  
+	ANIM_SHOOT_UP: Vector2(0.38, 0.38),   
+	ANIM_SHOOT_DOWN: Vector2(0.28, 0.28), 
+	ANIM_ANTI_AIR: Vector2(0.28, 0.28),   
+}
+const DEFAULT_SCALE = Vector2(0.303, 0.289) # From .tscn
+
+# Alignment offsets for the gun muzzle per animation
+const ANIM_GUN_OFFSETS = {
+	ANIM_IDLE:          Vector2(55.0, -10.0),
+	ANIM_RUN:           Vector2(55.0, -10.0),
+	ANIM_RUN_SHOOT:     Vector2(55.0, -10.0),
+	ANIM_SHOOT:         Vector2(55.0, -10.0),
+	ANIM_SHOOT_UP:      Vector2(45.0, -45.0), # run_shoot_45_up
+	ANIM_SHOOT_DOWN:    Vector2(45.0, 34.0),  # shoot_45_down
+	ANIM_ANTI_AIR:      Vector2(10.0, -55.0), # Standing straight up muzzle
+	ANIM_B40:           Vector2(60.0, -15.0),
+}
 
 var SPEED: float = 240.0
 const JUMP_VELOCITY: float = -500.0
@@ -66,6 +89,8 @@ var _melee_anim_timer: float = 0.0
 const MELEE_ANIM_DUR: float = 0.4
 var _is_firing_rpg: bool = false
 var _rpg_timer: float = 0.0
+var _is_firing_aa: bool = false
+var _aa_anim_timer: float = 0.0
 
 # Animation timers
 var _walk_time: float = 0.0
@@ -146,6 +171,7 @@ func _setup_sprite_visuals() -> void:
 	animated_sprite.position = Vector2(0, 0)
 	animated_sprite.flip_h = false
 	animated_sprite.play(ANIM_IDLE)
+	_update_sprite_scale(ANIM_IDLE)
 
 	# Lightweight muzzle-flash overlay attached to AnimatedSprite2D
 	_muzzle_flash = ColorRect.new()
@@ -189,13 +215,26 @@ func _physics_process(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 		_rpg_timer -= delta
 		if _rpg_timer <= 0: _is_firing_rpg = false
+	elif _is_firing_aa:
+		# Don't move while firing anti-air
+		velocity.x = move_toward(velocity.x, 0, SPEED)
+		_aa_anim_timer -= delta
+		if _aa_anim_timer <= 0: _is_firing_aa = false
 	else:
 		var dir_x := Input.get_axis("ui_left", "ui_right")
-		if is_on_floor() and Input.is_action_pressed("ui_down"):
-			is_crouching = true
-			velocity.x = 0
-			if shift_just_pressed: # Shift for roll
-				is_rolling = true; _roll_timer = 0.4
+		var is_down := Input.is_action_pressed("ui_down")
+		
+		if is_on_floor() and is_down:
+			if dir_x == 0:
+				is_crouching = true
+				velocity.x = 0
+			else:
+				# Stationary diagonal aiming instead of running or crouching
+				is_crouching = false
+				velocity.x = 0
+				# Update facing even when not moving
+				_facing = sign(dir_x)
+				animated_sprite.flip_h = (_facing < 0)
 		else:
 			is_crouching = false
 			if dir_x != 0:
@@ -267,8 +306,8 @@ func _physics_process(delta: float) -> void:
 		var _surface := "road" if (_main and _main.current_stage in [4, 5]) else "grass"
 		Audio.play_footstep(_surface)
 
-	# Keep gun_point in front of the sprite at barrel height
-	gun_point.position = Vector2(_facing * 55.0, -10.0)
+	# Keep gun_point aligned with the specific animation frames
+	_update_gun_point(animated_sprite.animation)
 
 func _fire_rpg() -> void:
 	_is_firing_rpg = true
@@ -360,6 +399,8 @@ func _animate(_delta: float) -> void:
 		anim = ANIM_PUNCH
 	elif _is_firing_rpg:
 		anim = ANIM_B40
+	elif _is_firing_aa:
+		anim = ANIM_ANTI_AIR
 	elif is_reloading:
 		anim = ANIM_RELOAD
 	elif not is_on_floor():
@@ -373,8 +414,12 @@ func _animate(_delta: float) -> void:
 	elif abs(velocity.x) > 10:
 		# Running
 		var shooting := Input.is_key_pressed(KEY_S)
+		
 		if shooting:
-			anim = ANIM_RUN_SHOOT
+			if aim_direction.y < -0.1: # Precise check for upward aiming
+				anim = ANIM_SHOOT_UP
+			else:
+				anim = ANIM_RUN_SHOOT
 		else:
 			anim = ANIM_RUN
 		# footstep dust
@@ -386,22 +431,46 @@ func _animate(_delta: float) -> void:
 	else:
 		# Standing / crouching
 		var shooting := Input.is_key_pressed(KEY_S)
-		var dy := 0.0
-		if Input.is_action_pressed("ui_up"): dy = -1.0
-		if Input.is_action_pressed("ui_down"): dy = 1.0
-		if shooting:
-			if dy < 0:
+		
+		if is_crouching:
+			anim = ANIM_IDLE # Fallback since no specific crawl/crouch anim listed
+		elif shooting:
+			if aim_direction.y < -0.9: # Straigh UP
+				anim = ANIM_ANTI_AIR
+			elif aim_direction.y < -0.1: # Diagonal UP
 				anim = ANIM_SHOOT_UP
-			elif dy > 0 and not is_crouching:
+			elif aim_direction.y > 0.1: # Diagonal DOWN
 				anim = ANIM_SHOOT_DOWN
 			else:
 				anim = ANIM_SHOOT
 		else:
-			anim = ANIM_IDLE
+			# Non-shooting aiming
+			if aim_direction.y < -0.9:
+				anim = ANIM_ANTI_AIR
+			elif aim_direction.y < -0.1:
+				anim = ANIM_SHOOT_UP
+			elif aim_direction.y > 0.1:
+				anim = ANIM_SHOOT_DOWN
+			else:
+				anim = ANIM_IDLE
 
 	# Only call play() when animation actually changes (avoids restart)
 	if animated_sprite.animation != anim:
 		animated_sprite.play(anim)
+	
+	# Update scale EVERY frame during _animate to ensure manual play() calls 
+	# (like in _fire_rpg) don't bypass the scaling logic.
+	_update_sprite_scale(anim)
+
+func _update_gun_point(anim_name: StringName) -> void:
+	var offset = ANIM_GUN_OFFSETS.get(anim_name, Vector2(55.0, -10.0))
+	# Apply facing to X, keep Y as defined
+	gun_point.position = Vector2(_facing * offset.x, offset.y)
+
+func _update_sprite_scale(anim_name: StringName) -> void:
+	var target_scale = ANIM_SCALES.get(anim_name, DEFAULT_SCALE)
+	# Use target_scale directly; flip_h handles horizontal orientation
+	animated_sprite.scale = target_scale
 
 func _shoot() -> void:
 	if ammo <= 0 and not is_infinite_ammo:
@@ -497,6 +566,9 @@ func _fire_aa_missile() -> void:
 	aa_cooldown = aa_max_cooldown
 	_update_aa_hud()
 	Audio.play("aa_sound", 8.0)
+	
+	_is_firing_aa = true
+	_aa_anim_timer = 0.8 # Duration for the anti-air pose
 
 	var main := _get_main_scene()
 
