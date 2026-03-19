@@ -574,35 +574,36 @@ func _process(delta: float) -> void:
 		# Army spawn: soldiers enter from the LEFT edge, march right alongside player
 		_army_spawn_timer -= delta
 		if _army_spawn_timer <= 0:
-			var army_cap = 8 if current_stage == 5 else 6
+			var army_cap = 4 if current_stage == 5 else 3
 			var current_army_count = tree.get_nodes_in_group("ally_army").size()
 			if current_army_count < army_cap:
-				var spawn_count = 2
+				var spawn_count = 1
 				for _si in spawn_count:
 					# Spawn just past the left edge of screen so they walk in immediately
 					var sx = camera.position.x - 576 - randf_range(10, 80)
 					var use_tunnel = (current_stage == 2 and randf() < 0.35)
 					var sy = 650.0 if use_tunnel else _get_ground_y(sx)
 					_add_individual_background_soldier(sx, sy, use_tunnel)
+			_army_spawn_timer = 9.0 # General slow spawn
 		
 		# Map 5: Continuous tank column spawn from the LEFT edge
 		if current_stage == 5:
 			_allied_tank_timer -= delta
 			if _allied_tank_timer <= 0:
-				var tax = camera.position.x - 400 # Spawn gần hơn vào màn hình
-				_spawn_heavy_enemy(tax, 580, "tank", true, false)
-				_allied_tank_timer = randf_range(6.0, 10.0) # Tăng tần suất spawn xe tăng
-			# Always reset timer
-			_army_spawn_timer = 1.0 # Tăng tần suất spawn bộ đội
+				var tax = camera.position.x - 400
+				# allied tank in map 5 can now shoot and support
+				_spawn_heavy_enemy(tax, 580, "tank", true, true)
+				_allied_tank_timer = randf_range(18.0, 28.0) 
+			# Map 5 reset
+			_army_spawn_timer = 5.0
 		
 		# Dynamic Enemy Spawning (To keep the action going)
 		_enemy_spawn_timer -= delta
 		if _enemy_spawn_timer <= 0:
 			var enemies = tree.get_nodes_in_group("enemy").size()
-			var base_max = 6
-			if current_stage == 2: base_max = 10
-			elif current_stage == 3: base_max = 6 # Less crowded for Map 3
-			elif current_stage == 5: base_max = 3
+			var base_max = 3
+			if current_stage == 2: base_max = 5
+			elif current_stage == 5: base_max = 2
 			
 			if enemies < base_max:
 				var spawn_x = camera.position.x + 900 + randf_range(100, 400)
@@ -611,10 +612,10 @@ func _process(delta: float) -> void:
 					if current_stage == 2: ey = 550
 					_spawn_enemy(spawn_x, ey, randf() < 0.25)
 			
-			var st_timer = randf_range(1.5, 3.5) if current_stage == 3 else randf_range(2.0, 4.0)
-			if current_stage == 2: st_timer = randf_range(1.5, 3.0)
-			if current_stage == 3: st_timer = randf_range(5.0, 9.0) # Thưa ra hơn nữa
-			if current_stage == 5: st_timer = randf_range(4.5, 8.0) # Rất thưa
+			var st_timer = randf_range(6.0, 10.0)
+			if current_stage == 2: st_timer = randf_range(4.0, 7.0)
+			if current_stage == 3: st_timer = randf_range(10.0, 15.0) 
+			if current_stage == 5: st_timer = randf_range(8.0, 12.0)
 			_enemy_spawn_timer = st_timer
 
 		# Random Bomber Spawns (Scales with difficulty/stage)
@@ -2859,6 +2860,16 @@ func _get_ally_sprite_frames() -> SpriteFrames:
 	p.queue_free()
 	return _ally_sprite_frames
 
+func _update_ally_anim_scale(anim: AnimatedSprite2D, anim_name: String) -> void:
+	const DEFAULT_SC = Vector2(0.303, 0.289)
+	const SCALES = {
+		"run_and_shoot": Vector2(0.38, 0.38),
+		"sit":           Vector2(0.21, 0.21),
+		"jump":          DEFAULT_SC,
+		"run":           DEFAULT_SC
+	}
+	anim.scale = SCALES.get(anim_name, DEFAULT_SC)
+
 func _add_individual_background_soldier(x: float, y: float = 600, is_tun: bool = false) -> void:
 	# Check for overlaps (loosen even more to 60px for density)
 	for s in get_tree().get_nodes_in_group("ally_army"):
@@ -2877,7 +2888,7 @@ func _add_individual_background_soldier(x: float, y: float = 600, is_tun: bool =
 	
 	soldier.z_index = -4
 	# Snap Y immediately so soldiers don't fall from sky
-	var ground_y_spawn = 650.0 if is_tun else _get_ground_y(x)
+	var ground_y_spawn = 660.0 if is_tun else _get_ground_y(x)
 	var snapped_y = ground_y_spawn - 40.0
 	soldier.position = Vector2(x, snapped_y)
 	soldier.z_index = 4 # Explicitly in front of props
@@ -3037,7 +3048,7 @@ func _process_background_army(delta: float) -> void:
 					if rel_x * facing_dir <= 0.0:
 						continue
 					var d: float = soldier.global_position.distance_to(en.global_position)
-					if d < 650.0 and d < best_d:
+					if d < 850.0 and d < best_d:
 						best_d = d
 						best = en
 				if best != null:
@@ -3060,12 +3071,21 @@ func _process_background_army(delta: float) -> void:
 					if "damage" in b:
 						b.damage = support_dmg
 					b.add_to_group("player_bullet")
-				cd = 5.0
+					soldier.set_meta("shoot_anim_time", 0.6) # Play shooting anim for 0.6s
+				cd = 1.8 + randf() * 0.5 # Faster and randomized fire rate
 			soldier.set_meta("shoot_cd", cd)
 
 		# Process all soldiers every frame to avoid choppy movement
 		if not soldier.has_meta("walk_speed"): continue
 		var base_speed = soldier.get_meta("walk_speed")
+		# Smart Speed: Catch up if falling behind, or slow down if too far ahead of player
+		if is_instance_valid(player):
+			var dist_p = player.position.x - soldier.position.x
+			if dist_p > 220: # Falling behind
+				base_speed *= 1.4
+			elif dist_p < -300: # Too far ahead
+				base_speed *= 0.6
+		
 		soldier.position.x += base_speed * delta
 		
 		# --- Procedural Animation ---
@@ -3074,15 +3094,26 @@ func _process_background_army(delta: float) -> void:
 			var anim = soldier.get_node_or_null("Anim")
 			if anim:
 				var jump_t = soldier.get_meta("jump_time", 0.0)
-				if jump_t > 0:
-					if anim.animation != "jump": anim.play("jump")
+				var s_anim_t = soldier.get_meta("shoot_anim_time", 0.0)
+				var active_anim = "run"
+				if s_anim_t > 0:
+					s_anim_t -= delta
+					soldier.set_meta("shoot_anim_time", s_anim_t)
+					active_anim = "run_and_shoot"
+				elif jump_t > 0:
+					active_anim = "jump"
 				else:
-					if anim.animation != "run": anim.play("run")
+					active_anim = "run"
+				
+				if anim.animation != active_anim:
+					anim.play(active_anim)
+					# Apply correct scale for this animation
+					_update_ally_anim_scale(anim, active_anim)
 		
 		# Ground snapping
 		var is_tunnel_soldier = soldier.has_meta("on_tunnel") and soldier.get_meta("on_tunnel")
 		var tx = soldier.position.x
-		var current_ground_y = 640.0 if is_tunnel_soldier else _get_ground_y(tx)
+		var current_ground_y = 660.0 if is_tunnel_soldier else _get_ground_y(tx)
 		leg_h = 0.0 if is_tank else 40.0
 		var target_y = current_ground_y - leg_h
 			

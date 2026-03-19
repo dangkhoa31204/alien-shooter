@@ -235,7 +235,7 @@ func _fire_cannon() -> void:
 	b.scale = Vector2(2.5, 2.5)
 	if is_ally:
 		b.is_enemy_bullet = false
-		# Support fire: deal 1/10 of player's current damage (minimum 1).
+		# Support fire: deal 40% of player's current damage (increased for 'smarter/better' allies)
 		var player_dmg: int = 1
 		var main2 := _get_main_scene()
 		var player_node: Node = null
@@ -251,7 +251,7 @@ func _fire_cannon() -> void:
 			var dmg_val = player_node.get("current_damage")
 			if dmg_val != null:
 				player_dmg = maxi(1, int(dmg_val))
-		b.damage = maxi(1, int(round(float(player_dmg) / 10.0)))
+		b.damage = maxi(1, int(round(float(player_dmg) * 0.4)))
 		b.add_to_group("player_bullet")
 	else:
 		b.is_enemy_bullet = true
