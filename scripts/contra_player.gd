@@ -15,7 +15,10 @@ const ANIM_FALL         = &"fall"
 const ANIM_PUNCH        = &"punch"
 const ANIM_SHOOT        = &"shoot"
 const ANIM_SHOOT_UP     = &"run_shoot_45_up"
-const ANIM_SHOOT_DOWN   = &"shoot_45_down"
+const ANIM_SHOOT_DOWN   = &"sit"           # dùng animation sit cho ngồi bắn
+const ANIM_SIT          = &"sit"
+const ANIM_SIT_SHOOT_RUN= &"sit_shoot_run"
+const ANIM_SHOOT_UP_90  = &"shoot_up_90"
 const ANIM_RELOAD       = &"reload"
 const ANIM_RUN_RELOAD   = &"run_and_reload"
 const ANIM_B40          = &"b40"
@@ -24,11 +27,13 @@ const ROCKET_SCENE = preload("res://scripts/contra_rocket.gd")
 
 # Optional: Custom scales for specific animations that have different source dimensions
 const ANIM_SCALES = {
-	ANIM_B40: Vector2(0.24, 0.24),        
-	ANIM_RUN_SHOOT: Vector2(0.38, 0.38),  
-	ANIM_SHOOT_UP: Vector2(0.38, 0.38),   
-	ANIM_SHOOT_DOWN: Vector2(0.28, 0.28), 
-	ANIM_ANTI_AIR: Vector2(0.28, 0.28),   
+	ANIM_B40:           Vector2(0.24, 0.24),
+	ANIM_RUN_SHOOT:     Vector2(0.38, 0.38),
+	ANIM_SHOOT_UP:      Vector2(0.38, 0.38),
+	ANIM_SIT:           Vector2(0.21, 0.21), # sit (ngồi yên + ngồi bắn)
+	ANIM_SIT_SHOOT_RUN: Vector2(0.21, 0.21), # sit_shoot_run (bò lết)
+	ANIM_SHOOT_UP_90:   Vector2(0.26, 0.26), # shoot_up_90
+	ANIM_ANTI_AIR:      Vector2(0.28, 0.28),
 }
 const DEFAULT_SCALE = Vector2(0.303, 0.289) # From .tscn
 
@@ -39,7 +44,9 @@ const ANIM_GUN_OFFSETS = {
 	ANIM_RUN_SHOOT:     Vector2(55.0, -10.0),
 	ANIM_SHOOT:         Vector2(55.0, -10.0),
 	ANIM_SHOOT_UP:      Vector2(45.0, -45.0), # run_shoot_45_up
-	ANIM_SHOOT_DOWN:    Vector2(45.0, 34.0),  # shoot_45_down
+	ANIM_SIT:           Vector2(50.0, 5.0),   # sit (ngồi yên + ngồi bắn)
+	ANIM_SIT_SHOOT_RUN: Vector2(55.0, 5.0),   # sit_shoot_run
+	ANIM_SHOOT_UP_90:   Vector2(10.0, -55.0), # thẳng đứng 90 độ
 	ANIM_ANTI_AIR:      Vector2(10.0, -55.0), # Standing straight up muzzle
 	ANIM_B40:           Vector2(60.0, -15.0),
 	ANIM_RELOAD:        Vector2(55.0, -10.0),
@@ -192,7 +199,7 @@ func _physics_process(delta: float) -> void:
 	_space_was_pressed = space_pressed
 	
 	var shift_pressed = Input.is_key_pressed(KEY_SHIFT)
-	var shift_just_pressed = shift_pressed and not _shift_was_pressed
+	var _shift_just_pressed = shift_pressed and not _shift_was_pressed
 	_shift_was_pressed = shift_pressed
 
 	if not is_on_floor():
@@ -228,16 +235,15 @@ func _physics_process(delta: float) -> void:
 		var is_down := Input.is_action_pressed("ui_down")
 		
 		if is_on_floor() and is_down:
-			if dir_x == 0:
-				is_crouching = true
-				velocity.x = 0
-			else:
-				# Stationary diagonal aiming instead of running or crouching
-				is_crouching = false
-				velocity.x = 0
-				# Update facing even when not moving
+			is_crouching = true
+			if dir_x != 0:
+				# Xuống + Tới = bò lết: di chuyển bình thường nhưng ở tư thế ngồi
+				velocity.x = dir_x * SPEED * 0.7 # chạy chậm hơn khi ngồi
 				_facing = sign(dir_x)
 				animated_sprite.flip_h = (_facing < 0)
+			else:
+				# Chỉ xuống, không tới: đứng yên
+				velocity.x = 0
 		else:
 			is_crouching = false
 			if dir_x != 0:
@@ -380,12 +386,17 @@ func _update_aiming() -> void:
 	if Input.is_action_pressed("ui_up"): dy -= 1.0
 	if Input.is_action_pressed("ui_down"): dy += 1.0
 	
-	if dx == 0 and dy == 0: aim_direction = Vector2(_facing, 0)
-	elif dx != 0 and dy == 0: aim_direction = Vector2(dx, 0)
+	if dx == 0 and dy == 0: 
+		aim_direction = Vector2(_facing, 0)
+	elif dy > 0:
+		# Luôn bắn ngang khi nhấn xuống (dù có di chuyển hay không)
+		aim_direction = Vector2(_facing if dx == 0 else dx, 0).normalized()
+	elif dx != 0 and dy == 0: 
+		aim_direction = Vector2(dx, 0)
 	elif dx == 0 and dy != 0:
 		aim_direction = Vector2(0, dy)
-		if is_crouching and dy > 0: aim_direction = Vector2(_facing, 0)
-	else: aim_direction = Vector2(dx, dy).normalized()
+	else: 
+		aim_direction = Vector2(dx, dy).normalized()
 
 	# gun_point is updated in _physics_process after movement
 
@@ -426,9 +437,12 @@ func _animate(_delta: float) -> void:
 	elif abs(velocity.x) > 10:
 		# Running
 		var shooting := Input.is_key_pressed(KEY_S)
+		var down_held := Input.is_action_pressed("ui_down")
 		
-		if shooting:
-			if aim_direction.y < -0.1: # Precise check for upward aiming
+		if is_crouching or down_held:
+			anim = ANIM_SIT_SHOOT_RUN # Bò lết (xuống + tới)
+		elif shooting:
+			if aim_direction.y < -0.1:
 				anim = ANIM_SHOOT_UP
 			else:
 				anim = ANIM_RUN_SHOOT
@@ -443,22 +457,26 @@ func _animate(_delta: float) -> void:
 	else:
 		# Standing / crouching
 		var shooting := Input.is_key_pressed(KEY_S)
+		var down_held := Input.is_action_pressed("ui_down")
 		
-		if is_crouching:
-			anim = ANIM_IDLE # Fallback since no specific crawl/crouch anim listed
+		if is_crouching or down_held:
+			if shooting:
+				anim = ANIM_SHOOT_DOWN # sit_shoot_down
+			else:
+				anim = ANIM_SIT
 		elif shooting:
-			if aim_direction.y < -0.9: # Straigh UP
-				anim = ANIM_ANTI_AIR
-			elif aim_direction.y < -0.1: # Diagonal UP
+			if aim_direction.y < -0.9: # Thẳng đứng lên 90°
+				anim = ANIM_SHOOT_UP_90
+			elif aim_direction.y < -0.1: # Xiên lên 45°
 				anim = ANIM_SHOOT_UP
-			elif aim_direction.y > 0.1: # Diagonal DOWN
+			elif aim_direction.y > 0.1: # Xiên xuống (dùng sit_shoot_down)
 				anim = ANIM_SHOOT_DOWN
 			else:
 				anim = ANIM_SHOOT
 		else:
 			# Non-shooting aiming
 			if aim_direction.y < -0.9:
-				anim = ANIM_ANTI_AIR
+				anim = ANIM_SHOOT_UP_90
 			elif aim_direction.y < -0.1:
 				anim = ANIM_SHOOT_UP
 			elif aim_direction.y > 0.1:
@@ -481,8 +499,13 @@ func _update_gun_point(anim_name: StringName) -> void:
 
 func _update_sprite_scale(anim_name: StringName) -> void:
 	var target_scale = ANIM_SCALES.get(anim_name, DEFAULT_SCALE)
-	# Use target_scale directly; flip_h handles horizontal orientation
 	animated_sprite.scale = target_scale
+	# Dịch sprite xuống một chút khi ngồi để khớp với mặt đất
+	if anim_name == ANIM_SIT or anim_name == ANIM_SIT_SHOOT_RUN:
+		animated_sprite.position.y = 15.0
+	else:
+		animated_sprite.position.y = 0.0
+
 
 func _shoot() -> void:
 	if ammo <= 0 and not is_infinite_ammo:

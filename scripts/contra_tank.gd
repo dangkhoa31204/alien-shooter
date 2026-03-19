@@ -333,15 +333,15 @@ func _die() -> void:
 		)
 
 	# ── PHASE 5 (t=0): Continuous black smoke columns ───────────────────────
-	var smoke_count = 0
+	var smoke_state = {"count": 0}
 	var smoke_parent = get_parent() # Capture parent ref before queue_free
 	var smoke_timer_node = Timer.new()
 	smoke_timer_node.wait_time = 0.12
 	smoke_timer_node.autostart = true
 	smoke_parent.add_child(smoke_timer_node) # Add to parent, not self
 	smoke_timer_node.timeout.connect(func():
-		smoke_count += 1
-		if smoke_count > 14 or not is_instance_valid(smoke_parent):
+		smoke_state.count += 1
+		if smoke_state.count > 14 or not is_instance_valid(smoke_parent):
 			if is_instance_valid(smoke_timer_node): smoke_timer_node.queue_free()
 			return
 		var sc = Polygon2D.new()
