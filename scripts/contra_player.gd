@@ -17,6 +17,7 @@ const ANIM_SHOOT        = &"shoot"
 const ANIM_SHOOT_UP     = &"run_shoot_45_up"
 const ANIM_SHOOT_DOWN   = &"shoot_45_down"
 const ANIM_RELOAD       = &"reload"
+const ANIM_RUN_RELOAD   = &"run_and_reload"
 const ANIM_B40          = &"b40"
 const ANIM_ANTI_AIR     = &"anti_air"
 const ROCKET_SCENE = preload("res://scripts/contra_rocket.gd") 
@@ -41,6 +42,8 @@ const ANIM_GUN_OFFSETS = {
 	ANIM_SHOOT_DOWN:    Vector2(45.0, 34.0),  # shoot_45_down
 	ANIM_ANTI_AIR:      Vector2(10.0, -55.0), # Standing straight up muzzle
 	ANIM_B40:           Vector2(60.0, -15.0),
+	ANIM_RELOAD:        Vector2(55.0, -10.0),
+	ANIM_RUN_RELOAD:    Vector2(55.0, -10.0),
 }
 
 var SPEED: float = 240.0
@@ -402,7 +405,16 @@ func _animate(_delta: float) -> void:
 	elif _is_firing_aa:
 		anim = ANIM_ANTI_AIR
 	elif is_reloading:
-		anim = ANIM_RELOAD
+		if is_on_floor() and abs(velocity.x) > 10:
+			anim = ANIM_RUN_RELOAD
+			# footstep dust
+			_walk_time += _delta * 13.0
+			var prev_sign: float = signf(sin(_walk_time - _delta * 13.0))
+			var cur_sign: float  = signf(sin(_walk_time))
+			if prev_sign != cur_sign:
+				_spawn_footstep_dust()
+		else:
+			anim = ANIM_RELOAD
 	elif not is_on_floor():
 		# Airborne
 		if jump_count >= 2:
