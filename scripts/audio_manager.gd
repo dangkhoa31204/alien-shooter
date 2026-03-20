@@ -169,6 +169,10 @@ func play(sound_name: String, vol_db: float = 0.0) -> void:
 	(arr[0] as AudioStreamPlayer).volume_db = vol_db + sfx_db_fallback
 	(arr[0] as AudioStreamPlayer).play()
 
+## Convenience wrapper for gameplay code: alias to `play` for clarity
+func play_sfx(name: String, vol_db: float = 0.0) -> void:
+	play(name, vol_db)
+
 ## Play a random footstep SFX for a given surface (default: "grass").
 ## Chooses one of the configured footstep files, applies a small random pitch
 ## variation and plays it using the existing SFX pools. Respects PlayerData.sfx_enabled.

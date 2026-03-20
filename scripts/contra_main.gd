@@ -73,6 +73,12 @@ var _flash_rect: ColorRect = null # Persistent flash for explosions
 var _level_node: Node2D = null # Container for all stage-specific objects (for fast cleanup)
 var _history_panel: Control = null # Historical info panel
 var _showing_stage_history: bool = false # True when history popup shown at stage start
+@export var typing_delay: float = 0.03
+@export var auto_hide_delay: float = 4.0
+@export var auto_fade_time: float = 0.6
+var _bottom_message_panel: Control = null
+var _typing_in_progress: bool = false
+@export var typing_start_delay: float = 2.0
 var _damage_vignette: ColorRect = null # Red flash on damage
 var _alert_panel: Panel = null          # Animated alert panel
 var _defeat_overlay: Control = null     # Game over popup in contra mode
@@ -4092,7 +4098,11 @@ func _show_settings_from_pause() -> void:
 
 func _close_history() -> void:
 	_history_panel.visible = false
-	Audio.play("intro%d" % current_stage) # Phát sound intro tương ứng với màn khi đóng popup lịch sử
+	# Play intro SFX (non-blocking) and show bottom message for stage 1
+	if Audio.has_method("play_sfx"):
+		Audio.play_sfx("intro%d" % current_stage)
+	else:
+		Audio.play("intro%d" % current_stage)
 	# Always restore MainPanel visibility
 	var p_main = _pause_menu.get_node_or_null("MainPanel")
 	if p_main: p_main.visible = true
@@ -4100,6 +4110,112 @@ func _close_history() -> void:
 	if _showing_stage_history:
 		_showing_stage_history = false
 		get_tree().paused = false
+	# Show stage-specific intro message (similar to stage 1 for other stages)
+	# Only the quoted dialog should be shown in the bottom message panel.
+	var stage_intro_texts := {
+		1: "Đây là chỉ huy. Tổ trinh sát vừa phát hiện quân địch đang tiến vào khu rừng phía trước. Nhiệm vụ của cậu là giữ vững tuyến đường này. Đừng để chúng tiến sâu vào căn cứ.",
+		2: "Chú ý! Quân địch đang càn quét khu vực địa đạo Củ Chi. Lợi dụng hệ thống đường hầm để di chuyển và phản công. Giữ vững vị trí, không để chúng phát hiện lối vào.",
+		3: "Báo cáo khẩn! Tuyến vận tải Trường Sơn đang bị địch phục kích. Nhiệm vụ của cậu là bảo vệ đoàn tiếp tế và giữ cho con đường này luôn thông suốt.",
+		4: "Chú ý! Căn cứ địch đã nằm trong tầm tấn công. Toàn bộ đơn vị tiến lên! Phá vỡ phòng tuyến và đánh chiếm căn cứ.",
+		5: "Thời khắc đã đến! Toàn quân chuẩn bị tổng tiến công. Mục tiêu phía trước là cứ điểm cuối cùng của địch. Tiến lên và kết thúc trận chiến này!"
+	}
+	if current_stage in stage_intro_texts:
+		_show_bottom_message(stage_intro_texts[current_stage])
+
+func _create_bottom_message_panel() -> void:
+	if _bottom_message_panel != null: return
+	var ui = get_node_or_null("UI")
+	if not ui: return
+	var panel := Panel.new()
+	panel.name = "BottomMessagePanel"
+	panel.size = Vector2(1152, 90)
+	panel.visible = false
+	panel.position = Vector2(0, 648 - int(panel.size.y)) # anchored to bottom for 1152x648 layout
+	panel.z_index = 2600
+	panel.process_mode = PROCESS_MODE_ALWAYS
+	var sbox := StyleBoxFlat.new()
+	sbox.bg_color = Color(0.06, 0.08, 0.04, 0.9)
+	sbox.border_color = Color(0.82, 0.72, 0.2)
+	sbox.border_width_left = 2; sbox.border_width_right = 2
+	sbox.border_width_top = 1; sbox.border_width_bottom = 1
+	panel.add_theme_stylebox_override("panel", sbox)
+
+	var lbl := Label.new()
+	lbl.name = "MessageLabel"
+	lbl.position = Vector2(16, 10)
+	lbl.size = Vector2(1000, 64)
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.add_theme_color_override("font_color", Color(0.95, 0.92, 0.8))
+	panel.add_child(lbl)
+
+	var close_btn := Button.new()
+	close_btn.name = "CloseMessage"
+	close_btn.text = "ĐÓNG"
+	close_btn.custom_minimum_size = Vector2(100, 40)
+	close_btn.position = Vector2(1020, 22)
+	close_btn.pressed.connect(_on_close_bottom_message_pressed)
+	panel.add_child(close_btn)
+
+	ui.add_child(panel)
+	_bottom_message_panel = panel
+
+func _show_bottom_message(text: String) -> void:
+	if _bottom_message_panel == null:
+		_create_bottom_message_panel()
+	if _bottom_message_panel == null: return
+	# Prevent multiple instances
+	if _bottom_message_panel.visible:
+		return
+	var lbl: Label = _bottom_message_panel.get_node_or_null("MessageLabel")
+	if lbl:
+		lbl.text = ""
+	_bottom_message_panel.visible = true
+	# Ensure panel is on top of other UI siblings
+	var _bp_parent := _bottom_message_panel.get_parent()
+	if _bp_parent:
+		_bp_parent.move_child(_bottom_message_panel, _bp_parent.get_child_count() - 1)
+	_typing_in_progress = true
+	# Start typing in deferred context so we can await timers inside
+	call_deferred("_start_typing", text, lbl)
+
+func _start_typing(text: String, lbl: Label) -> void:
+	if lbl == null: return
+	# Wait before starting typing (configurable)
+	if typing_start_delay > 0.0:
+		await get_tree().create_timer(typing_start_delay).timeout
+		# If typing was cancelled while waiting, abort
+		if not _typing_in_progress:
+			return
+	# Iterate through characters and append
+	for i in range(text.length()):
+		if not _typing_in_progress:
+			return
+		lbl.text = text.substr(0, i + 1)
+		await get_tree().create_timer(typing_delay).timeout
+	# finished
+	_typing_in_progress = false
+	# Auto-fade the panel after a short delay if still visible
+	if auto_hide_delay > 0.0:
+		await get_tree().create_timer(auto_hide_delay).timeout
+		if _bottom_message_panel and _bottom_message_panel.visible:
+			# Tween alpha to 0 then hide and restore alpha
+			var tw: Tween = _bottom_message_panel.create_tween()
+			tw.tween_property(_bottom_message_panel, "modulate:a", 0.0, auto_fade_time)
+			tw.finished.connect(func():
+				if _bottom_message_panel:
+					_bottom_message_panel.visible = false
+					_bottom_message_panel.modulate.a = 1.0
+			)
+
+func _on_close_bottom_message_pressed() -> void:
+	# Stop typing early if necessary and hide
+	if _typing_in_progress:
+		_typing_in_progress = false
+	if _bottom_message_panel:
+		_bottom_message_panel.visible = false
+
 
 func _close_settings_popup() -> void:
 	Audio.play("button_click")
@@ -4256,6 +4372,34 @@ func _create_checkpoint(pos: Vector2) -> void:
 			flag.color = Color.YELLOW # Activated
 			ui_label.text = "ĐIỂM LƯU TẠM THỜI (CHECKPOINT)!"
 			Audio.play_checkpoint_audio(current_stage, my_idx)
+			# Per-stage checkpoint dialog (only the quoted dialog should be shown)
+			var checkpoint_texts := {
+				1: {
+					1: "Tốt lắm! Cậu đã tiến sâu vào khu rừng. Nhưng địch vẫn đang lục soát khu vực, hãy cẩn thận.",
+					2: "Chú ý! Địch đang tập trung lực lượng phía trước. Chuẩn bị chiến đấu!",
+					3: "Mục tiêu ở ngay phía trước. Giữ vững tuyến đường và đẩy lùi đợt tấn công cuối cùng!"
+				},
+				2: {
+					1: "Di chuyển cẩn thận, tận dụng đường hầm, đẩy lùi quân địch.",
+					2: "Địch đang tiến gần lối vào địa đạo. Không được để chúng phát hiện hệ thống hầm!",
+					3: "Đây là vị trí trọng yếu. Giữ vững địa đạo và đánh bật đợt tấn công cuối!"
+				},
+				3: {
+					1: "Đoàn tiếp tế đang ở phía trước. Hãy giữ an toàn cho tuyến vận tải.",
+					2: "Cẩn thận! Địch đang phục kích dọc tuyến đường. Chuẩn bị chiến đấu!",
+					3: "Sắp đến điểm tập kết. Bảo vệ đoàn tiếp tế cho đến khi họ rời khỏi khu vực!"
+				},
+				4: {
+					1: "Tốt! Cậu đã vượt qua tuyến phòng thủ đầu tiên của địch.",
+					2: "Địch đang tăng cường lực lượng để bảo vệ căn cứ. Chuẩn bị cho trận đánh lớn!",
+					3: "Căn cứ địch ở ngay phía trước. Toàn lực tấn công và chiếm lấy mục tiêu!"
+				},
+				5: {
+					1: "Đây là thời khắc quyết định. Phá vỡ phòng tuyến cuối cùng và giành chiến thắng!"
+				}
+			}
+			if current_stage in checkpoint_texts and my_idx in checkpoint_texts[current_stage]:
+				_show_bottom_message(checkpoint_texts[current_stage][my_idx])
 	)
 	_checkpoint_positions.append(pos.x)
 
