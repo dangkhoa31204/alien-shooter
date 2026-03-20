@@ -205,16 +205,44 @@ func _die() -> void:
 	if is_instance_valid(anim):
 		var prefix = "enemy_2_" if is_officer else "enemy_1_"
 		var target_anim = prefix + "die"
+		# Force no loop on death anim
+		if anim.sprite_frames and anim.sprite_frames.has_animation(target_anim):
+			anim.sprite_frames.set_animation_loop(target_anim, false)
 		anim.play(target_anim)
 		_update_sprite_scale()
+		# Connect signal to stop on last frame
+		if not anim.animation_finished.is_connected(_on_death_anim_finished):
+			anim.animation_finished.connect(_on_death_anim_finished)
+		# Hardcoded fallback timer in case signal doesn't fire
+		get_tree().create_timer(1.2).timeout.connect(func():
+			if is_instance_valid(self):
+				_start_fade_and_free()
+		)
+	else:
+		var main_node = get_tree().current_scene
+		if main_node and main_node.has_method("add_kill"):
+			main_node.add_kill(100, 6)
+		queue_free()
 
+func _on_death_anim_finished() -> void:
+	if not is_instance_valid(anim): return
+	if "die" not in anim.animation: return
+	anim.pause()
+	anim.frame = anim.sprite_frames.get_frame_count(anim.animation) - 1
+	_start_fade_and_free()
+
+func _start_fade_and_free() -> void:
+	# Guard against double-calling
+	if has_meta("_fading"): return
+	set_meta("_fading", true)
+	
 	var main_node = get_tree().current_scene
 	if main_node and main_node.has_method("add_kill"):
 		main_node.add_kill(100, 6)
-
+	
 	if is_instance_valid(anim):
 		var tw = create_tween()
-		tw.tween_property(anim, "modulate:a", 0.0, 1.0).set_delay(1.5)
+		tw.tween_property(anim, "modulate:a", 0.0, 0.5).set_delay(0.5)
 		tw.finished.connect(queue_free)
 	else:
 		queue_free()

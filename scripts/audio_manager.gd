@@ -165,8 +165,8 @@ func play(sound_name: String, vol_db: float = 0.0) -> void:
 			return
 	# Tất cả busy → dùng đầu tiên
 	(arr[0] as AudioStreamPlayer).stop()
-	var sfx_db := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
-	(arr[0] as AudioStreamPlayer).volume_db = vol_db + sfx_db
+	var sfx_db_fallback := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
+	(arr[0] as AudioStreamPlayer).volume_db = vol_db + sfx_db_fallback
 	(arr[0] as AudioStreamPlayer).play()
 
 ## Play a random footstep SFX for a given surface (default: "grass").
@@ -180,12 +180,12 @@ func play_footstep(surface: String = "grass", vol_db: float = 0.0) -> void:
 	}
 	var list: Array = variants.get(surface, variants["grass"])
 	if list.size() == 0: return
-	var name: String = list[randi() % list.size()]
+	var sound_name: String = list[randi() % list.size()]
 	# ensure MP3 SFX loaded
-	if not _mp3_sfx_loaded and name in MP3_SFX_DEFS:
+	if not _mp3_sfx_loaded and sound_name in MP3_SFX_DEFS:
 		_build_mp3_sfx_library()
 		_mp3_sfx_loaded = true
-	var arr: Array = _sfx.get(name, [])
+	var arr: Array = _sfx.get(sound_name, [])
 	if arr.is_empty(): return
 	var pitch := 0.95 + randf() * 0.1 # 0.95..1.05
 	for p in arr:
@@ -198,8 +198,8 @@ func play_footstep(surface: String = "grass", vol_db: float = 0.0) -> void:
 	# all busy -> reuse first
 	(arr[0] as AudioStreamPlayer).stop()
 	(arr[0] as AudioStreamPlayer).pitch_scale = pitch
-	var sfx_db2 := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
-	(arr[0] as AudioStreamPlayer).volume_db = vol_db + sfx_db2
+	var sfx_db2_fallback := linear_to_db(maxf(0.0001, PlayerData.sfx_volume))
+	(arr[0] as AudioStreamPlayer).volume_db = vol_db + sfx_db2_fallback
 	(arr[0] as AudioStreamPlayer).play()
 
 ## Play a level-specific checkpoint audio using dynamic loading.

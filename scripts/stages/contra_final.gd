@@ -1,6 +1,6 @@
 extends ContraStageBase
 
-var _history_shown: bool = false
+# # var _history_shown: bool = false
 
 func setup():
 	main.STAGE_LENGTH = 16000.0
@@ -229,13 +229,13 @@ func setup():
 			sp.global_position = smoke_emitter.global_position + Vector2(randf_range(-20.0, 20.0), 0.0)
 			sp.z_index = 4
 			main._add_to_level(sp)
-			var ptw2: Tween = sp.create_tween()
-			ptw2.tween_property(sp, "position:y", sp.position.y - randf_range(60.0, 110.0), 2.5)
-			ptw2.parallel().tween_property(sp, "scale", Vector2(2.5, 2.5), 2.5)
-			ptw2.parallel().tween_property(sp, "modulate:a", 0.0, 2.5)
-			ptw2.finished.connect(sp.queue_free)
+			var stw_p := sp.create_tween().set_parallel(true)
+			stw_p.tween_property(sp, "position:y", sp.position.y - randf_range(80.0, 150.0), 2.5)
+			stw_p.tween_property(sp, "modulate:a", 0.0, 2.5)
+			stw_p.tween_property(sp, "scale", Vector2(2.5, 2.5), 2.5)
+			stw_p.finished.connect(sp.queue_free)
 		)
-		stw3.tween_interval(randf_range(0.5, 1.2))
+		stw3.tween_interval(0.5)
 
 # --- PERFECT VISUAL HELPERS ---
 
@@ -1198,7 +1198,7 @@ func _create_independence_palace_building(x: float) -> void:
 
 	var palace_white = Color(0.92, 0.92, 0.95)
 	var shadow_grey = Color(0.75, 0.75, 0.8)
-	var glass_blue = Color(0.2, 0.25, 0.35)
+	var _glass_blue = Color(0.2, 0.25, 0.35)
 
 	# 1. CENTRAL GREEN LAWN (Perspective)
 	var lawn = Polygon2D.new()
@@ -1336,7 +1336,7 @@ func _create_independence_palace_main_building(x: float) -> void:
 	var LOUVER = Color(0.74, 0.69, 0.52)  # lam che nắng
 	var SHADOW = Color(0.06, 0.06, 0.08, 0.32)
 	var WIN    = Color(0.10, 0.13, 0.20, 0.92)
-	var TRIM   = Color(0.80, 0.74, 0.58)
+	var _TRIM   = Color(0.80, 0.74, 0.58)
 	var GRASS  = Color(0.18, 0.40, 0.14)
 	var FENCE  = Color(0.62, 0.60, 0.46)
 
@@ -1532,8 +1532,8 @@ func _create_rex_hotel_bg(x: float) -> void:
 	# Parapet nóc + bảng hiệu REX
 	var par = ColorRect.new(); par.size = Vector2(350, 18); par.position = Vector2(-175, -390)
 	par.color = TRIM; node.add_child(par)
-	var sign = ColorRect.new(); sign.size = Vector2(120, 24); sign.position = Vector2(-60, -408)
-	sign.color = Color(0.85, 0.10, 0.08); node.add_child(sign)
+	var sign_rect = ColorRect.new(); sign_rect.size = Vector2(120, 24); sign_rect.position = Vector2(-60, -408)
+	sign_rect.color = Color(0.85, 0.10, 0.08); node.add_child(sign_rect)
 	var sign_lbl = Label.new(); sign_lbl.text = "REX"
 	sign_lbl.position = Vector2(-50, -409)
 	sign_lbl.add_theme_font_size_override("font_size", 14)
@@ -1672,8 +1672,8 @@ func _create_saigon_tube_house_row(x: float) -> void:
 
 		# Bảng hiệu tầng trệt
 		if randf() < 0.6:
-			var sign = ColorRect.new(); sign.size = Vector2(sw * 0.8, 14); sign.position = Vector2(sx + sw * 0.1, -82)
-			sign.color = Color(randf_range(0.7,1.0), randf_range(0.1,0.3), randf_range(0.05,0.2)); node.add_child(sign)
+			var sign_rect = ColorRect.new(); sign_rect.size = Vector2(sw * 0.8, 14); sign_rect.position = Vector2(sx + sw * 0.1, -82)
+			sign_rect.color = Color(randf_range(0.7,1.0), randf_range(0.1,0.3), randf_range(0.05,0.2)); node.add_child(sign_rect)
 
 # ============================================================
 # === BIỆT THỰ PHÁP THUỘC (ELABORATE FRENCH COLONIAL VILLA) ==
