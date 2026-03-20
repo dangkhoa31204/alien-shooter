@@ -100,6 +100,13 @@ func _physics_process(delta: float) -> void:
 			# Bombs and Tank Shells are heavy, they pierce until ground impact handled by ContraMain
 			position += direction * speed * delta
 		else:
+			if not is_boss_bullet and _fx_timer > 0.7:
+				var hit_fx = HIT_EFFECT_SCENE.instantiate()
+				hit_fx.global_position = global_position
+				hit_fx.scale = Vector2(0.3, 0.3)
+				get_parent().add_child(hit_fx)
+				queue_free()
+				return
 			_enemy_move_and_collide(delta)
 			if is_queued_for_deletion():
 				return

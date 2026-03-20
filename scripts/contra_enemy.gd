@@ -58,27 +58,37 @@ func _physics_process(delta: float) -> void:
 	if player:
 		var dist_vec = player.global_position - global_position
 		var abs_dist_x = abs(dist_vec.x)
+		var distance = global_position.distance_to(player.global_position)
 		
-		if abs_dist_x > 500:
-			patrol_direction = sign(dist_vec.x)
-			if _has_ground_ahead():
-				_patrol(delta)
+		# Tầm nhìn tối đa: ngoài 400 thì không phản ứng
+		if distance > 400:
+			velocity.x = 0
+			if is_instance_valid(anim):
+				# Không có enemy_1_idle / enemy_2_idle, dùng gun cho trạng thái đứng im
+				var anim_name = "enemy_2_run_and_gun" if is_officer else "enemy_1_gun"
+				if anim.animation != anim_name:
+					anim.play(anim_name)
+		else:
+			if abs_dist_x > 250:
+				patrol_direction = sign(dist_vec.x)
+				if _has_ground_ahead():
+					_patrol(delta)
+				else:
+					velocity.x = 0
+					_aim_and_fire(player, delta)
+					
+			elif abs_dist_x < 150:
+				patrol_direction = -sign(dist_vec.x)
+				if _has_ground_ahead():
+					_patrol(delta, 0.6)
+				else:
+					velocity.x = 0
+				_aim_and_fire(player, delta)
+				
 			else:
 				velocity.x = 0
 				_aim_and_fire(player, delta)
-				
-		elif abs_dist_x < 200:
-			patrol_direction = -sign(dist_vec.x)
-			if _has_ground_ahead():
-				_patrol(delta, 0.6)
-			else:
-				velocity.x = 0
-			_aim_and_fire(player, delta)
-			
-		else:
-			velocity.x = 0
-			_aim_and_fire(player, delta)
-			
+
 	else:
 		if not _has_ground_ahead() or is_on_wall():
 			patrol_direction *= -1
@@ -140,7 +150,7 @@ func _update_sprite_scale() -> void:
 
 func _on_shoot_timer_timeout() -> void:
 	var p = _find_player()
-	if p and global_position.distance_to(p.global_position) < 420:
+	if p and global_position.distance_to(p.global_position) < 400:
 		_shoot(p)
 
 func _shoot(player: Node2D) -> void:
